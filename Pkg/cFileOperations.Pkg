@@ -1,0 +1,111 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Udo Haemel
+// All rights reserved.
+// If you want to use this source in your applications conatct: <Udo.Haemel@gmx.de>
+// $FileName    : cFileOperations.pkg
+// $ProjectName : The Hammer
+// $Author      : Udo Haemel
+// $Created     : 26.06.2001  20:05
+//
+// Contents:
+//  Basic Class for any Operations on DF-Tables
+//  Global Definition of constants for DF-Tables
+//  Global access on DF-Tables by Tablename
+//*****************************************************************************************
+//TH-RevisionStart
+// 26.06.2001 20:30  Trap wrong Filenumbers in pOpen       Uh
+//                   in class "cFileOperations".
+// 26.06.2001 20:30  Added symbols for min/max File/Index  Uh
+//                   ___ANY BETTER SUGGESTIONS?___
+//TH-RevisionEnd
+
+// For use in old DF 3.x
+#IFDEF Self
+#ELSE
+    #Replace Self CURRENT_OBJECT
+#ENDIF
+
+#IF (!@>69)
+    #Replace __DF_FIRST_FILE__      |CI1
+    #Replace __DF_LAST_FILE__       |CI4095
+    #Replace __DF_FIRST_INDEX__     |CI1
+    #Replace __DF_LAST_INDEX__      |CI16
+#ELSE
+    #Replace __DF_FIRST_FILE__      |CI1
+    #Replace __DF_LAST_FILE__       |CI255
+    #Replace __DF_FIRST_INDEX__     |CI1
+    #Replace __DF_LAST_INDEX__      |CI16
+#ENDIF
+
+    // Delivers the filenumber of the given filename in the current filelist.
+Function IdentifyFile GLOBAL String hFileName Returns Integer
+    Integer iFile
+    String sRootname
+    Move (Uppercase(Trim(hFileName))) to hFileName
+    Moveint 0 to iFile
+    Repeat
+        Get_Attribute Df_File_Next_Used Of iFile To iFile
+        If iFile Gt 0 Begin
+            Get_Attribute Df_File_Logical_Name     Of iFile To sRootname
+            If (hFileName=(Uppercase(Trim(sRootname)))) Function_Return iFile
+        End
+    Until iFile Eq 0
+    Function_Return -1
+End_Function
+
+Class cFileOperations Is An ARRAY
+
+    Procedure Construct_Object
+
+        Forward Send Construct_Object
+
+    End_Procedure   //  Construct_Object
+
+
+    // Try to open the given file.  If
+    // it fails it returns 0.  If file
+    // was open, it returns 1 otherwise 2
+    //
+    Function pOpen      Integer iFile ;
+                        Returns Integer
+
+        Integer bOpen
+
+        If (iFile >= __DF_FIRST_FILE__ And iFile <= __DF_LAST_FILE__) Begin
+            Get_Attribute DF_FILE_OPENED Of iFile To bOpen
+
+            // if not already opend, try to open file
+            // ignore-trap-trick from Wil van Antwerpen
+            //
+            If (Not(bOpen)) Begin
+
+                // changed the ignore_error ## to ignore_all, since it could happen, that you
+                // get other error messages (i.e. pervasive). after that, you fly out (quite nice
+                // if you don't save your code every 5 minutes... -(
+                // 17.10.01 Bernhard
+
+                Send Ignore_all To Error_Info_Object
+                Open iFile
+                If (found) Begin
+                    Move 2 To bOpen
+                End
+                Send Trap_All To Error_Info_Object
+            End
+        End
+
+        Function_Return bOpen
+
+    End_Function
+
+
+    Procedure pClose    Integer iFile ;
+                        Integer iState
+
+        If (iState = 2) Begin
+            Close iFile
+        End
+
+    End_Procedure
+
+End_Class   //  cFileOperations

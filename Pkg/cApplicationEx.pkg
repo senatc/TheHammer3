@@ -1,0 +1,116 @@
+//*****************************************************************************************
+// Copyright (c)  2003 Wil van Antwerpen
+// All rights reserved.
+//
+// $FileName    : D:\Entwicklung\SharedClasses\cApplicationEx.pkg
+// $ProjectName :
+// $Author      : WvA / Mk
+// $Created     : 10.03.2003  19:25
+//
+// Contents:
+//      Is a cWorkSpaceEx class which has some additional features such as:
+//
+//          -Dynamic WorkSpaceName
+//           if in the StartUpDirectory a file named "WorkSpace.Inf" exists the 1st line
+//           is read and the WorkSpace name is set to this value.
+//
+//          -CmdLine Support. (if piCmdLineSupport=true)
+//            Function CmdLine_Count returns integer            // Number of CmdLine Parameters
+//            Function CmdLine_Value integer iNr returns string // Value of the CmdLineParameter
+//
+//            Extended CommandLine abilities: (Register commandline commands)
+//              send RegisterCommand "NAME1" Msg_XX1 iDestObject1 sDescription1
+//              send RegisterCommand "NAME2" Msg_XX2 iDestObject2 sDescription2
+//                         ...
+//              send RegisterCommand "NAMEX" Msg_XXX iDestObjectX sDescriptionX
+//
+//              -? is also supported.
+//
+//
+// $Rev History
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+
+Use cApplication.Pkg    // The Std DF cApplication Class.
+Use cCmdLine_Mixin.Pkg  // Some additional abilities with uding CommandLine parameters.
+Use mPointer.Pkg        // For an easier Buffer Handling.
+
+// Gets the startuppath from the VDF program.
+Function VDFStartUpPath Global Returns String
+    Handle hModule
+    Integer iRet
+    String sFile sDir sTmp
+    Pointer pFile
+    Move (Repeat(Character(0),255))  To sFile
+    Move (addressOf(sFile))          To pFile
+    Move (GetModuleHandle(0))                   To hModule
+    Move (GetModuleFileName(hModule,pFile,255)) To iRet
+    Move (CString(sFile))                       To sFile
+    Move (Lowercase(sFile))                     to sFile
+    // By SVN on 28/04/2017
+    // This does not work for any file except HAMMER.EXE
+    //Move (Left(sFile,Length(sFile)-10))         To sFile
+    While (sFile contains "\")
+        Move (Left(sFile, Pos("\", sFile))) to sTmp
+        Move (Replace(sTmp, sFile, "")) to sFile
+        Move (sDir+sTmp) to sDir
+    Loop
+    Function_Return sDir //sFile
+End_Function
+
+Class cApplicationEx Is a cApplication
+    Import_Class_Protocol cCmdLine_Mixin
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        String sPath
+
+            // Controls if the CmdLine should be checked.
+        Property Integer piCmdLineSupport    Public False
+            // The Path where the DFRUN is located.
+        Move    (VDFStartUpPath()) To sPath
+        Property String  psVDFStartUpPath    Public (VDFStartUpPath())
+
+            // The Bitmap- and Programpath of TH itself
+            // needed for Registering the File-Types with Windows Explorer
+            // 2.1.2004 BP
+        Property String  psStartupProgramPath PUBLIC ""
+        Property String  psStartupBitmapPath PUBLIC ""
+
+            // Create the cCmdLine_mixin memebers.
+
+        Send Define_cCmdLine_Mixin
+#IF (FMAC_VERSION > 17)
+        // This is default so it _is_ set, but make it clear we are using it.
+        Set pbUseWindowsFont To True
+#ENDIF
+    End_Procedure
+
+        // Looks in the current directory if a file "WorkSpace.Inf" exists and if so
+        // reads the WorkSpaceName out of it.
+    Procedure TryRenameWorkSpace
+        String sWrkSpc
+        Direct_Input (psVDFStartUpPath(Self)+"\Workspace.Inf")
+        [seqeof] Direct_Input ".\Workspace.Inf"
+        Readln sWrkSpc
+        [Not seqeof] Begin
+            Set psWorkSpaceName Of (phoWorkspace(Self)) To sWrkSpc
+        End
+        Close_Input
+    End_Procedure
+
+        // -Declares the standard commandline commands
+        // -Runs the whole commandline
+    Procedure End_Construct_Object
+        Send TryRenameWorkSpace
+        If (piCmdLineSupport(Self)) Begin
+            Send RegisterStandardCommands
+            Send RunCmdLine
+        End
+        Forward Send End_Construct_Object
+        Set psStartupProgramPath to (psProgramPath(phoWorkspace(self)))
+        Set psStartupBitmapPath to (psBitmapPath(phoWorkspace(self)))
+    End_Procedure
+End_Class

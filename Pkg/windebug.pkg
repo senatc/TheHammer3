@@ -1,0 +1,28 @@
+External_Function OutputDebugStringEf "OutputDebugStringA" Kernel32.dll Pointer pDebug Returns Integer
+
+Procedure DebugMessage GLOBAL
+    Integer iCou iRet
+    String sMessage sPart
+    Pointer pMessage
+    FOR iCou From 1 to NUM_ARGUMENTS
+        Move iCou& to sPart
+        Move (sMessage + sPart) to sMessage
+    Loop
+    #IFDEF PK
+        Move (PK + " " + sMessage) to sMessage
+    #ELSE
+    #ENDIF
+    Move ("VDF " + sMessage) to sMessage
+    Move (Replaces(Character(13),sMessage,"\x13")) to sMessage
+    Move (Replaces(Character(10),sMessage,"\x10")) to sMessage
+    Move (Replaces(Character(9),sMessage,"\x9")) to sMessage
+    Move (sMessage + (Character(0))) to sMessage
+
+    getaddress Of sMessage to pMessage
+    Move (OemToAnsi(pMessage,pMessage)) to iRet
+    Move (OutputDebugStringEf(pMessage)) to iRet
+End_Procedure
+
+#COMMAND ShowDebug
+    call DebugMessage !1 !2 !3 !4 !5 !6 !7 !8 !9
+#ENDCOMMAND

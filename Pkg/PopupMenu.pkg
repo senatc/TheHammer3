@@ -1,0 +1,730 @@
+//TH-Header
+//***************************************************************************************
+//* PopupMenu.Pkg
+//*
+//*
+//* Creates a PopupMenu based on the WIndows API becouse the DF PopupMenus
+//* don't work right!
+//*
+//*
+//*
+//*
+//*
+//* Michael Kurz 05.10.2000 mkurz@sbox.tu-graz.ac.at
+//***************************************************************************************
+//* Usage.: (Cascading is possible now!)
+//*
+//*
+//* Object oPopupMenu is a cPopupMenu
+//*     send Add_Item msg_XXXX sItemtxt [iAux_Value]        // Adds a Item to the Popup Menu
+//*     Object oSubPopupMenu is a cPopupMenu
+//*         set psLabel to "SubMenuLabel"                   // Label of the SubMenu Entry!
+//*         send Add_Item msg_XXXX sItemtxt [iAux_Value]    // Adds a Item to the SubPopup Menu
+//*         ...
+//*     End_Object
+//*     send Add_Item msg_XXXX sItemtxt [iAux_Value]        // Adds a Item to the Popup Menu
+//*     ...
+//*
+//*     set  Aux_Value item iX  to Object_ID            // Sets the aux_value
+//*     set Bitmap     item iX  to "XXXXX.BMP"          // Sets a Bitmap for a Menu Item.
+//*
+//*     set BitmapSelected   item iX to "XXX.BMP"       // Set Bitmaps for Select_State true
+//*     Set BitmapUnselected item iX to "XXX.BMP"       // and false, set Bitmap sets both for the same bitmap!
+//*
+//*     Set Select_State item iItem to    True/False      // Sets the selection bitmap on or off
+//*     Set Shadow_State item iItem to    True/False      // Shadow_State is supported!
+//*
+//* End_Object
+//*
+//*
+//* send Popup  to (oPopupMenu(Self))
+//*
+//*
+//***************************************************************************************
+//* MK 06.10.2000 Track Popupmenu also with the right mouse_button
+//* MK 06.10.2000 OemToAnsi conversion added
+//* MK 06.10.2000 added a Item_Count to menu
+//* MK 07.10.2000 set Popup_State to True to prevent object from getting the focus
+//* MK 09.10.2000 MIIM_Bitmap, MIIM_String, MIIM_FTYPE Win 98, Win2000 -> old MIIM_TYPE
+//* MK 09.10.2000 Cascading ability added: Problem
+//*                    ID of the Menu Item! ObjectID + ItemNr
+//*                    max. Items limited
+//*                    16 Bit available-> max Items 32, max.ObjectID 2047!!!
+//*                    If this doesn't work please tell!
+//* MK 25.10.2000 Shadowing for items, which point to a submenu added!
+//* MK 27.10.2000 onInitMenu added
+//*				  every Menu (submenu) get a onInitMenu call before creation, so that
+//*				  you can add e.g. dynamic shadowing.
+//* MK 15.11.2000 Transparentmode added to a suggest from Wil van Antwerpen
+//* MK 15.11.2000 Third way of retrieving a Window_Handle added ( The Popupmenu always needs one!)
+//* MK 15.11.2000 Bitmaps for SubMenu Entries supported!
+//TH-RevisionStart
+// 17.05.2001 22:00  Added Set / Get Value directly in     Mk     SERVER
+//                   the cPopupMenu class to make it more
+//                   DF like.
+// 17.05.2001 22:55  Support for "\a" added (by replacing  Mk     SERVER
+//                   this token with CH9)
+//TH-RevisionEnd
+
+
+    // This limits the Menu to a max. number of items of 31
+    // and a max. Object ID of 2048
+
+// **WvA
+// These functions need to be defined in the case no workspace is used
+#IF (FMAC_VERSION < 8)
+Register_Function CurrentProgramPath Returns String
+Register_Function CurrentBitmapPath  Returns String
+#ELSE
+Register_Function psProgramPath Returns String
+Register_Function psBitmapPath  Returns String
+#ENDIF
+
+
+Define IMAGE_BITMAP        For 0
+Define LR_DEFAULTCOLOR	   For |CI$0000
+Define LR_COLOR     	   For |CI$0002
+Define LR_LOADFROMFILE     For |CI$0010
+Define LR_CREATEDIBSECTION For |CI$2000
+Define LR_LOADTRANSPARANT  For |CI$0020
+
+
+// Menu Item Info...
+Define MIIM_STATE       For |CI$00000001
+Define MIIM_ID          For |CI$00000002
+Define MIIM_SUBMENU     For |CI$00000004
+Define MIIM_CHECKMARKS  For |CI$00000008
+Define MIIM_TYPE        For |CI$00000010
+Define MIIM_DATA        For |CI$00000020
+//define MIIM_STRING      for |CI$00000040
+//define MIIM_BITMAP      for |CI$00000080
+//define MIIM_FTYPE       for |CI$00000100
+
+
+
+External_function SetMenuItemBitmaps "SetMenuItemBitmaps" USER32.DLL Handle hMenu Integer iPos Integer iFlag Handle hBmpChecked  Handle hUnChecked Returns Integer
+External_function LoadImageE "LoadImageA" user32.dll Handle hInst Pointer pPic Integer iTyp Integer iX Integer iY Integer iFlag Returns Integer
+External_function DestroyMenu "DestroyMenu" user32.dll Handle hMenu Returns Integer
+External_function InsertMenuItem "InsertMenuItemA" user32.dll Handle hMenu Integer iItem Integer iFlag Pointer pStr Returns Integer
+External_function EndMenu "EndMenu" user32.dll Returns Integer
+External_function SetMenuItemInfo "SetMenuItemInfoA" user32.dll Handle hMenu Integer iItem Integer iFlag Pointer pStr Returns Integer
+
+// LoadBitmap
+//
+Function LoadBitmap Global String sBMPe Integer iX Integer iY Boolean bTransparent Returns Handle
+    String  sBMP
+    Pointer pBMP
+    Handle  hBMP
+
+    Move sBMPe To sBMP
+    GetAddress Of sBMP To pBMP
+    If (bTransparent) Begin
+        Move (LoadImageE(0, pBMP, IMAGE_BITMAP, iX, iY, (LR_LOADFROMFILE + LR_CREATEDIBSECTION + LR_LOADTRANSPARANT))) To hBMP
+    End
+    Else Begin
+        Move (LoadImageE(0, pBMP, IMAGE_BITMAP, iX, iY, (LR_LOADFROMFILE + LR_CREATEDIBSECTION))) To hBMP
+    End
+    Function_Return hBMP
+End_Function // LoadBitmap
+
+//
+// tagMENUITEMINFO
+//
+Type tagMENUITEMINFO
+    Field tagMENUITEMINFO.cbSize        As Integer
+    Field tagMENUITEMINFO.fMask         As Integer
+    Field tagMENUITEMINFO.fType         As Integer
+    Field tagMENUITEMINFO.fState        As Integer
+    Field tagMENUITEMINFO.wID           As Integer
+    Field tagMENUITEMINFO.hSubMenu      As Handle
+    Field tagMENUITEMINFO.hbmpChecked   As Handle
+    Field tagMENUITEMINFO.hbmpUnchecked As Handle
+    Field tagMENUITEMINFO.dwItemData    As Dword
+    Field tagMENUITEMINFO.dwTypeData    As Pointer
+    Field tagMENUITEMINFO.cch           As Integer
+End_Type // tagMENUITEMINFO
+
+//
+// cBasePopupMenu
+//
+Class cBasePopupMenu Is A DFControl
+
+    //
+    // OnCommand
+    //
+    Procedure OnCommand Integer lP Integer wP
+    End_Procedure // OnCommand
+
+    //
+    // Construct_Object
+    //
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set External_Class_Name "cBasePopupMenu" To "static"
+        Set External_Message WM_COMMAND          To msg_OnCommand
+        Set Focus_Mode                           To Nonfocusable
+
+        Property Handle  phMenuHandle        Public 0
+        Property String  psLabel             Public ""
+        Property Boolean pbSendToFocusState  Public True
+        Property Integer piAlign             Public TPM_LeftAlign
+        Property Integer piDefaultItem       Public -1
+        Property Integer piRadioSelectMode   Public False
+        Property Integer piTransparant_State Public True  // **WvA
+        Property Boolean Active_State        Public False
+
+        Property Handle  phoOIDs  Public 0
+        Property Handle  phoItems Public 0
+        Property Boolean pbMain   Public False
+        Property Integer piNoDestroyState    Public False
+
+        Property Integer piBmpSizeY         Public (GetSystemMetrics(SM_CYMENUCHECK))
+        Property Integer piBmpSizeX         Public (GetSystemMetrics(SM_CXMENUCHECK))
+
+        Property Integer phoServedObject    Public 0
+
+        Object oValues          Is An Array
+        End_Object
+        Object oMessages        Is An Array
+        End_Object
+        Object oAuxValues       Is An Array
+        End_Object
+        Object oSubMenuIDs      Is An Array
+        End_Object
+
+        Object oSelectStates    Is An Array
+        End_Object
+        Object oShadowStates    Is An Array
+        End_Object
+
+        Object oBitmapsSelected Is An Array
+        End_Object
+        Object oBitmapsUnSelected Is An Array
+        End_Object
+        Object oBitmapHandles   Is A  Set
+        End_Object
+    End_Procedure // Construct_Object
+
+    //
+    // Item_Count
+    //
+    Function Item_Count Returns Integer
+        Function_Return (Item_Count(oValues(Self)))
+    End_Function // Item_Count
+
+    //
+    // IsAPopupMenu
+    //
+    Function IsAPopupMenu Returns Boolean
+        Function_Return True
+    End_Function // IsAPopupMenu
+
+    //
+    // IsObjAPopupMenu, Checks if an Obj is from the same kind!
+    //
+    // **WvA: 21-03-2004 Check if the ID passed is bigger as the desktop as otherwise
+    // an error is declared no matter what the del mode is set to.
+    Function IsObjAPopupMenu Integer iID Returns Boolean
+        Integer iDelOld
+        Boolean bRet
+        Move (False) To bRet
+        If (iID > Desktop) Begin
+          Get Delegation_Mode     Of iID  To iDelOld
+          Set Delegation_Mode     Of iID  To No_Delegate_Or_Error
+          Get IsAPopupMenu        Of iID  To bRet
+          Set Delegation_Mode     Of iID  To iDelOld
+        End
+        Function_Return bRet
+    End_Function // IsObjAPopupMenu
+
+    //
+    // IsParentAPopupMenu, Checks if parent is from the same kind!
+    //
+    Function IsParentAPopupMenu Returns Boolean
+        Integer hoSelf
+        Move Self To hoSelf
+        Function_Return (IsObjAPopupMenu(hoSelf, Parent(hoSelf)))
+    End_Function // IsParentAPopupMenu
+
+    // A function to retrieve the full pathname of the icon.
+    // If a workspace is defined it will first look in the programpath and
+    // if the icon is not present it will look into the bitmappath after that.
+    // When no workspacename is defined the normal iconname is returned and
+    // the program assumes that the icon resides in the same folder as the program.
+
+    //
+    // BitMapFullPathName
+    //
+    Function BitMapFullPathName String sIcon Returns String
+        String sIconFullPathName
+        Boolean bFile_Exists
+        String sDirSeperator // this is "\" for windows, or "/" for unix
+        String sBitmapPath
+
+#IF (FMAC_VERSION < 8)
+      If ghoWorkSpace Begin
+        Move (sysconf(SYSCONF_DIR_SEPARATOR)) To sDirSeperator
+        Get CurrentProgramPath Of ghoWorkSpace To sBitmapPath
+        Move (sBitmapPath+sDirSeperator+sIcon) To sIconFullPathName
+        File_Exist sIconFullPathName bFile_Exists
+        If bFile_Exists Function_Return sIconFullPathName
+        Else Begin
+          Get CurrentBitmapPath Of ghoWorkSpace To sBitmapPath
+          Move (sBitmapPath+sDirSeperator+sIcon) To sIconFullPathName
+          File_Exist sIconFullPathName bFile_Exists
+          If bFile_Exists Function_Return sIconFullPathName
+        End
+      End
+      Else Function_Return sIcon
+#ELSE
+        If (phoWorkspace(ghoApplication) <> 0) Begin
+            Move (SysConf(SYSCONF_DIR_SEPARATOR)) To sDirSeperator
+            Get psProgramPath Of (phoWorkspace(ghoApplication)) To sBitmapPath
+            Move (sBitmapPath + sDirSeperator + sIcon) To sIconFullPathName
+            File_Exist sIconFullPathName bFile_Exists
+            If (bFile_Exists) Begin
+                Function_Return sIconFullPathName
+            End
+            Else Begin
+                Get psBitmapPath Of (phoWorkspace(ghoApplication)) To sBitmapPath
+                Move (sBitmapPath + sDirSeperator + sIcon) To sIconFullPathName
+                File_Exist sIconFullPathName bFile_Exists
+                If (bFile_Exists) Begin
+                    Function_Return sIconFullPathName
+                End
+            End
+        End
+        Else Begin
+            Function_Return sIcon
+        End
+#ENDIF
+        Function_Return ""
+    End_Function // BitMapFullPathName
+
+    //
+    // Add_Item, Adds an item to the popup_menu...
+    //
+    Procedure Add_Item Integer iMsg String sItem Integer iAux
+        Set Value Of (oValues(Self))     Item (Item_Count(oValues(Self)))         To sItem
+        Set Value Of (oMessages(Self))   Item (Item_Count(oMessages(Self)))       To iMsg
+        Set Value Of (oSubMenuIDs(Self)) Item (Item_Count(oSubMenuIDs(Self)))     To 0
+        If (NUM_Arguments >= 3) Begin
+             Set Value Of (oAuxValues(Self)) Item (Item_Count(oAuxValues(Self))) To iAux
+        End
+        Else Begin
+            Set Value Of (oAuxValues(Self)) Item (Item_Count(oAuxValues(Self))) To 0
+        End
+    End_Procedure
+
+    //
+    // Add_SubMenu, Adds a Submenu to the Object. For internal use only!
+    //
+    Procedure Add_SubMenu String sItem Integer iID
+        Set Value Of (oValues(Self))        Item (Item_Count(oValues(Self)))     To sItem
+        Set Value Of (oMessages(Self))      Item (Item_Count(oMessages(Self)))   To 0
+        Set Value Of (oSubMenuIDs(Self))    Item (Item_Count(oSubMenuIDs(Self))) To iID
+        Set Value Of (oAuxValues(Self))     Item (Item_Count(oAuxValues(Self)))  To 0
+    End_Procedure // Add_SubMenu
+
+    //
+    // Set Bitmap
+    //
+    Procedure Set Bitmap String iItem String sBMPE
+        String  sBmp
+        If (Num_Arguments = 1) Begin
+            Move iItem To sBmp
+            Move (Item_Count(oValues(Self)) - 1) To iItem
+        End
+        Else Begin
+            Move sBmpE To sBmp
+        End
+        If (iItem < 0) Begin
+            Move (Item_Count(oValues(Self)) - 1) To iItem
+        End
+        Set Value Of (oBitmapsSelected(Self))   Item iItem To (BitMapFullPathName(Self, sBMP))
+        Set Value Of (oBitmapsUnSelected(Self)) Item iItem To (BitMapFullPathName(Self, sBMP))
+    End_Procedure // Set Bitmap
+
+    //
+    // Set BitmapSelected
+    //
+    Procedure Set BitmapSelected Integer iItem String sBMP
+        Set Value Of (oBitmapsSelected(Self)) Item iItem To (BitMapFullPathName(Self, sBMP))
+    End_Procedure // Set BitmapSelected
+
+    //
+    // Set BitmapUnSelected
+    //
+    Procedure Set BitmapUnSelected Integer iItem String sBMP
+        Set Value Of (oBitmapsUnSelected(Self)) Item iItem To (BitMapFullPathName(Self, sBMP))
+    End_Procedure // Set BitmapUnSelected
+
+    //
+    // Set Aux_Value
+    //
+    Procedure Set Aux_Value Integer iItem Integer iID
+        Set Value Of (oAuxValues(Self)) Item iItem To iID
+    End_Procedure // Set Aux_Value
+
+    //
+    // Set Select_State
+    //
+    Procedure Set Select_State Integer iItem Integer iFlag
+        Set Value Of (oSelectStates(Self)) Item iItem To iFlag
+    End_Procedure
+
+    //
+    // Set Shadow_State
+    //
+    Procedure Set Shadow_State Integer iItem Integer iFlag
+        Set Value Of (oShadowStates(Self)) Item iItem To iFlag
+    End_Procedure // Set Shadow_State
+
+    //
+    // Delete_Item
+    //
+    Procedure Delete_Item Integer iItem
+        Send Delete_Item To (oValues(Self))            iItem
+        Send Delete_Item To (oMessages(Self))          iItem
+        Send Delete_Item To (oAuxValues(Self))         iItem
+        Send Delete_Item To (oBitmapsSelected(Self))   iItem
+        Send Delete_Item To (oBitmapsUnSelected(Self)) iItem
+        Send Delete_Item To (oShadowStates(Self))      iItem
+        Send Delete_Item To (oSelectStates(Self))      iItem
+        Send Delete_Item To (oSubMenuIDs(Self))        iItem
+    End_Procedure // Delete_Item
+
+    //
+    // Delete_Data, deleted all items
+    //
+    Procedure Delete_Data
+        Send Delete_Data To (oValues(Self))
+        Send Delete_Data To (oMessages(Self))
+        Send Delete_Data To (oAuxValues(Self))
+        Send Delete_Data To (oBitmapsSelected(Self))
+        Send Delete_Data To (oBitmapsUnSelected(Self))
+        Send Delete_Data To (oShadowStates(Self))
+        Send Delete_Data To (oSelectStates(Self))
+        Send Delete_Data To (oSubMenuIDs(Self))
+        If (pbMain(Self)) Begin
+            Send Delete_Data To (phoOIDs(Self))
+            Send Delete_Data To (phoItems(Self))
+        End
+    End_Procedure // Delete_Data
+
+    //
+    // DoAction
+    //
+    Procedure DoAction Integer iItem
+        Integer iMsg iAux
+        Get Value Of (oMessages(Self))  Item iItem To iMsg
+        Get Value Of (oAuxValues(Self)) Item iItem To iAux
+        If iAux Eq 0 Begin
+            If (IsParentaPopupMenu(Self)) Move (phoServedObject(parent(Self)))  To iAux
+            Else Move (phoServedObject(Self))                                   To iAux
+        End
+        If iAux Eq 0 If (pbSendToFocusState(Self)) Move (Focus(Desktop))    To iAux
+
+        If iAux Send iMsg                                                   To iAux
+        Else    Send iMsg
+    End_Procedure // DoAction
+
+    Procedure ApplyChangesToMenu
+        Handle hMenu
+        Integer iC iState iRet iSubMenuID iType
+        String sInfo sItem
+        Pointer pInfo pItem
+
+        Move (phMenuHandle(Self)) To hMenu
+        If hMenu Eq 0 Procedure_Return
+        For iC From 0 To (item_count(oValues(Self))-1)
+
+            Get value Of (oSubMenuIDs(Self)) Item iC    To iSubMenuID
+            If iSubMenuID Send ApplyChangesToMenu To iSubMenuID
+
+            ZeroType tagMENUITEMINFO                        To sInfo
+            GetAddress Of sInfo                             To pInfo
+            Put tagMENUITEMINFO_SIZE                        To sInfo At tagMENUITEMINFO.cbSize
+            Put (MIIM_STATE Ior MIIM_TYPE)                  To sInfo At tagMENUITEMINFO.fMask
+
+            Move 0                                                                  To iType
+            If (piRadioSelectMode(Self))    Move (iType+MFT_RADIOCHECK)             To iType
+            Put iType                                       To sInfo At tagMENUITEMINFO.fType
+            Get value Of (oValues(Self)) Item iC        To sItem
+            Move (Replace("\a",sItem,Character(9)))     To sItem
+            GetAddress Of sItem                         To pItem
+            Move (OemToAnsi(pItem,pItem))               To iRet
+            Put pItem                                       To sInfo At tagMENUITEMINFO.dwTypeData
+            Put (Length(sItem))                             To sInfo At tagMENUITEMINFO.cch
+
+            Move 0 To iState
+            If iC Eq (piDefaultItem(Self)) Move (iState+MFS_Default)                To iState
+            If (Integer_Value(oSelectStates(Self),iC))  Move (iState+MFS_Checked)   To iState
+            If (Integer_Value(oShadowStates(Self),iC))  Move (iState+MFS_Grayed)    To iState
+            Put iState                                      To sInfo At tagMENUITEMINFO.fState
+
+            Move (SetMenuItemInfo(hMenu,iC,True,pInfo)) To iRet
+        Loop
+    End_Procedure
+
+
+    //
+    // CreateNewId
+    //
+    Function CreateNewId Integer iOID Integer iItem Returns Integer
+        Integer iId
+
+        Get Item_Count  Of (phoOIDs(Self))           To iId
+        Set Array_Value Of (phoOIDs(Self))  Item iId To iOID
+        Set Array_Value Of (phoItems(Self)) Item iId To iItem
+        Function_Return (iId + 1)
+    End_Function // CreateNewId
+
+    //
+    // OIDFromId
+    //
+    Function OIDFromId Integer iId Returns Integer
+        Integer iOID
+
+        Get Integer_Value Of (phoOIDs(Self)) Item (iId - 1) To iOID
+        Function_Return iOID
+    End_Function // OIDFromId
+
+    //
+    // ItemFromId
+    //
+    Function ItemFromId Integer iId Returns Integer
+        Integer iItem
+
+        Get Integer_Value Of (phoItems(Self)) Item (iId - 1) To iItem
+        Function_Return iItem
+    End_Function // ItemFromId
+
+    //
+    // CreateMenu, Creates a Menu with the items and returns a handle...
+    //
+    Function CreateMenu Handle hoOIDs Handle hoItems Returns Handle
+        Integer iItem iRet iSubMenuID iState iType iIdentity
+        Handle hBmpSel hBmpUnSel hMenu hSubMenu
+        String sInfo sItem sBmpSel sBmpUnsel
+        Pointer pInfo pItem
+
+        If (hoOIDs = 0 And hoItems = 0) Begin
+            Set pbMain To True
+            Object oOIDs Is An Array
+                Move Self To hoOIDs
+            End_Object
+            Object oItems Is An Array
+                Move Self To hoItems
+            End_Object
+        End
+
+        Set phoOIDs  To hoOIDs
+        Set phoItems To hoItems
+
+        Send OnInitMenu
+        Move (CreatePopupMenu()) To hMenu    // Creates a Menu...
+        If (hMenu <> 0) Begin
+            Set phMenuHandle To hMenu    // Save the Handle!
+
+            // Adds all Items...
+            Send Delete_Data To (oBitmapHandles(Self))
+            For iItem From 0 To (Item_Count(oValues(Self)) - 1)
+                Move 0 To hSubMenu
+                Get CreateNewId Self iItem To iIdentity
+
+                Get Value Of (oValues(Self)) Item iItem To sItem
+                Move (Replace("\a", sItem, Character(9))) To sItem
+                Get Value Of (oSubMenuIDs(Self)) Item iItem To iSubMenuID
+                If (iSubMenuID <> 0) Begin
+                    Move (CreateMenu(iSubMenuID, hoOIDs, hoItems)) To hSubMenu
+                End
+                GetAddress Of sItem To pItem
+                Move (OemToAnsi(pItem, pItem)) To iRet
+
+                Move 0 To iState
+                If (iItem = piDefaultItem(Self)) Begin
+                    Move (iState + MFS_Default) To iState
+                End
+                If (Integer_Value(oSelectStates(Self), iItem) <> 0) Begin
+                    Move (iState + MFS_Checked) To iState
+                End
+                If (Integer_Value(oShadowStates(Self), iItem) <> 0) Begin
+                    Move (iState + MFS_Grayed) To iState
+                End
+                Move 0 To iType
+                If (piRadioSelectMode(Self)) Begin
+                    Move (iType + MFT_RADIOCHECK) To iType
+                End
+
+                Get Value Of (oBitmapsSelected(Self))   Item iItem To sBmpSel
+                Get Value Of (oBitmapsUnSelected(Self)) Item iItem To sBmpUnSel
+                Move 0 To hBMPSel
+                Move 0 To hBmpUnSel
+                If (Trim(sBmpSel) <> "") Begin
+                    Move (LoadBitmap(sBMPSel, piBmpSizeX(Self), piBmpSizeY(Self), piTransparant_State(Self))) To hBMPSel
+                    If (hBMPSel > 0) Begin
+                        Send Add_Element To (oBitmapHandles(Self)) hBMPSel
+                    End
+                End
+                If (sBmpSel = sBmpUnsel) Begin
+                    Move hBmpSel To hBmpUnSel
+                End
+                Else If (Trim(sBmpUnSel) <> "") Begin
+                    Move (LoadBitmap(sBMPUnSel, piBmpSizeX(Self), piBmpSizeY(Self), piTransparant_State(Self))) To hBMPUnSel
+                    If (hBMPUnSel > 0) Begin
+                        Send Add_Element To (oBitmapHandles(Self)) hBMPUnSel
+                    End
+                End
+
+                ZeroType tagMENUITEMINFO To sInfo
+                Put tagMENUITEMINFO_SIZE To sInfo At tagMENUITEMINFO.cbSize
+                If (hSubMenu <> 0 And (Not(Integer_Value(oShadowStates(Self), iItem) <> 0))) Begin
+                    Put (MIIM_SUBMENU + MIIM_TYPE + MIIM_CHECKMARKS) To sInfo At tagMENUITEMINFO.fMask
+                    Put hSubMenu To sInfo At tagMENUITEMINFO.hSubMenu
+                End
+                Else Begin
+                    Put (MIIM_STATE + MIIM_ID + MIIM_CHECKMARKS + MIIM_TYPE + MIIM_DATA) To sInfo At tagMENUITEMINFO.fMask
+                    Put pItem To sInfo At tagMENUITEMINFO.dwTypeData
+                    Put (Length(sItem)) To sInfo At tagMENUITEMINFO.cch
+                End
+                Put hBMPSel         To sInfo At tagMENUITEMINFO.hbmpChecked
+                Put hBMPUnSel       To sInfo At tagMENUITEMINFO.hbmpUnChecked
+                Put pItem           To sInfo At tagMENUITEMINFO.dwTypeData
+                Put (Length(sItem)) To sInfo At tagMENUITEMINFO.cch
+                Put iType           To sInfo At tagMENUITEMINFO.fType
+                Put iState          To sInfo At tagMENUITEMINFO.fState
+                Put (iIdentity)     To sInfo At tagMENUITEMINFO.wID
+                Put (iIdentity)     To sInfo At tagMENUITEMINFO.dwItemData
+                GetAddress Of sInfo To pInfo
+                Move (InsertMenuItem(hMenu, iItem, True, pInfo)) To iRet
+            End
+        End
+        Function_Return hMenu
+    End_Function // CreateMenu
+
+    //
+    // DestroyResources, Destroys the Menu and the Image Resources...
+    //
+    Procedure DestroyResources
+        Integer iRet iItem iID
+        Handle  hBMP
+
+            // Destroy the Menu...
+        If (phMenuHandle(Self) <> 0) Begin
+            Move (DestroyMenu(phMenuHandle(Self))) To iRet
+            Set phMenuHandle To 0
+        End
+
+            // Destroy Image Resources...
+        For iItem From 0 To (Item_Count(oBitmapHandles(Self)) - 1)
+            Get Value Of (oBitmapHandles(Self)) Item iItem To hBMP
+            If (hBMP > 0) Begin
+                Move (DeleteObject(hBMP)) To iRet
+            End
+        End
+        Send Delete_Data To (oBitmapHandles(Self))
+        If (pbMain(Self)) Begin
+            Send Delete_Data To (phoOIDs(Self))
+            Send Delete_Data To (phoItems(Self))
+        End
+
+            // Destroys the resources of the submenus...
+        For iItem From 0 To (Item_Count(oSubMenuIDs(Self)) - 1)
+            Get Value Of (oSubMenuIDs(Self)) Item iItem To iID
+            If (iID > 0) Begin
+                Send DestroyResources        To iID
+            End
+        End
+    End_Procedure // DestroyResources
+
+    //
+    // Popup, Displays the PopupMenu
+    //
+    Procedure Popup
+        Integer iId iOID iItem iDestroy
+        Handle  hMenu hwnd
+
+        If (Active_State(Self)) Procedure_Return // The menu should only be tracked once!
+        Move (Not(piNoDestroyState(Self))) To iDestroy
+            // Looks for a Window_Handle...
+        Move (Window_Handle(Self))                                                  To hwnd     // First try own window_handle
+        If (hWnd = 0) Begin
+            If (Focus(Desktop)) Gt 0 Move (Window_Handle(Focus(Desktop)))  To hwnd     // If not try the one of the current focus!
+        End
+        If (hWnd = 0) Begin
+            Send Info_Box "MKPopupMenu: Couldn't find a window_handle!" "Warning"
+            Procedure_Return
+        End
+
+        Move (CreateMenu(Self, 0, 0)) To hMenu
+        If (hMenu <> 0) Begin // TPM_RETURNCMD+
+            Set Active_State To True
+            Move (TrackPopupMenu(hMenu, piAlign(Self) + TPM_RETURNCMD + TPM_LEFTBUTTON + TPM_RIGHTBUTTON, Low(GuiLocation(Self)), Hi(GuiLocation(Self)), 0, hwnd, 0)) To iId
+            Set Active_State To False
+            Get OIDFromId  iId To iOID
+            Get ItemFromId iId To iItem
+            If (iOID > 0) Begin
+                Send DoAction To iOID iItem
+            End
+        End
+        If (iDestroy) Send DestroyResources
+    End_Procedure // Popup
+
+    //
+    // End_Construct_Object
+    //
+    Procedure End_Construct_Object
+        If (IsParentAPopupMenu(Self)) Begin
+            Send Add_SubMenu To (Parent(Self)) (psLabel(Self)) Self
+        End
+        Forward Send End_Construct_Object
+    End_Procedure // End_Construct_Object
+
+    //
+    // Value, For an DF PopupMenu like access.
+    //
+    Function Value Integer iItem Returns String
+        Function_Return (Value(oValues(Self), iItem))
+    End_Function // Value
+
+    //
+    // Set Value
+    //
+    Procedure Set Value Integer iItem String sValue
+        Set Value Of (oValues(Self)) Item iItem To sValue
+    End_Procedure // Set Value
+
+    //
+    // OnInitMenu
+    //
+    Procedure OnInitMenu
+    End_Procedure // OnInitMenu
+
+    Procedure destroy_object
+        Integer iRet
+        If (phMenuHandle(Self)) Begin
+            Move (DestroyMenu(phMenuHandle(Self)))      To iRet
+            Set  phMenuHandle                           To 0
+        End
+        Forward Send destroy_object
+    End_Procedure
+
+End_Class // cBasePopupMenu
+
+//
+// cPopupMenu, Positioning to the MouseCursor...
+//
+Class cPopupMenu Is A cBasePopupMenu
+
+    //
+    // Popup
+    //
+    Procedure Popup
+        Integer iLocation
+        Get Absolute_Mouse_Location Of Desktop To iLocation
+        Set GuiLocation To (Hi(iLocation)) (Low(iLocation))
+        Forward Send Popup
+    End_Procedure // Popup
+
+End_Class // cPopupMenu

@@ -1,0 +1,67 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : mWinAPIErrorText.pkg
+// $ProjectName : Shared Methods
+// $Author      : Michael Kurz
+// $Created     : 01.05.2001  19:59
+//
+// Contents:
+//  -WinAPIErrorText integer iApiErrCode    // Delivered by GetLastError()
+//  Gets a hopefully meaninful text to a WinAPI error got with GetLastError()
+//
+//      // Command to create WinAPI Errors in a DF like way:
+//  Command: WinAPIError iErrCode sNameOfTheApiFunction
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+    // Use this Error to post windows API Errors.
+Define DFWindowsErrorCode For |CI200
+
+Use mPointer.Pkg
+
+    // dwFlags for FormatMessage.
+Define FORMAT_MESSAGE_ALLOCATE_BUFFER For |CI$00000100
+Define FORMAT_MESSAGE_IGNORE_INSERTS  For |CI$00000200
+Define FORMAT_MESSAGE_FROM_STRING     For |CI$00000400
+Define FORMAT_MESSAGE_FROM_HMODULE    For |CI$00000800
+Define FORMAT_MESSAGE_FROM_SYSTEM     For |CI$00001000
+Define FORMAT_MESSAGE_ARGUMENT_ARRAY  For |CI$00002000
+Define FORMAT_MESSAGE_MAX_WIDTH_MASK  For |CI$000000FF
+
+
+external_function FormatMessageInt "FormatMessageA" KERNEL32.DLL dword dwFlags Pointer lpSrc dword dwMsgID dword dwLanguageID Pointer pBuff dword nSize Pointer pArgs Returns Integer
+
+    // Delivers the Text to an ErrorCode got with GetLastError().
+Function WinAPIErrorText Global Integer iErr Returns String
+    Integer iRet
+    Local_Buffer  sBuff pBuff 1024
+    Move (FormatMessageInt(FORMAT_MESSAGE_FROM_SYSTEM,0,iErr,0,pBuff,1024,0))   To iRet
+    Move (AnsiToOem(pBuff,pBuff))                                               To iRet
+    Move (Replaces(Character(10),sBuff,""))                                     To sBuff
+    Move (Replaces(Character(13),sBuff,""))                                     To sBuff
+    Function_Return (CString(sBuff))
+End_Function
+
+    // Creates a Windows API Error for the given error code.
+Procedure CreateWinAPIError Integer iErr String sApiCallName String sTextExt
+    String sErrTxt
+    Append sErrTxt "Windows API Call: " sApiCallName "\n\n"
+    Append sErrTxt "Errorcode: " iErr "\n"
+    Append sErrTxt (WinAPIErrorText(iErr))
+    If Num_Arguments Gt 2 Append sErrTxt "\n\n" sTextExt
+    Error DFWindowsErrorCode sErrTxt
+End_Procedure
+
+    // A DF looklike command to create such a WinAPI error.
+#COMMAND WinAPIError R R
+    Send CreateWinAPIError !1 !2 !3
+#ENDCOMMAND
+
+
+

@@ -1,0 +1,106 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2014  KURANT Project
+// All rights reserved.
+//
+// $FileName    : cOpenedFiles.pkg
+// $ProjectName : The Hammer 2.0
+// $Authors     : Wil van Antwerpen, Michael Kurz, Sergey V. Natarov, Bernhard Ponemayr
+// $Created     : 01.25.2014  01:08
+// $Type        : LGPL
+//
+// Contents: 
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+// cOpenedFiles.pkg
+//
+
+
+Class cOpenedFileLabel Is a Textbox
+    //Insert your Properties here.
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set auto_size_state  To FALSE
+        Set Location To 0  0
+        Set Size     To 10 80
+        Set Border_Style To Border_Normal
+        Set Label To ""
+    End_Procedure
+    //
+End_Class
+
+Class cOpenedFiles Is a Container3D
+        //Insert your Properties here.
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Location To 26 2
+        Property Integer piFiles  Public 0
+        Property Integer piMdiOri Public 0
+        Set Border_Style To Border_None
+        Object oFiles Is an Array
+        End_Object
+    End_Procedure
+
+    Procedure Register_File String sFile
+        Integer iObj
+        Object oLabel Is a cOpenedFileLabel
+            Set Label To sFile
+            Move Self To iObj
+        End_Object
+        Set Value Of (oFiles(Self)) Item (Item_Count(oFiles(Self))) To iObj
+        Set piFiles To (piFiles(Self)+1)
+        Send OnResize
+    End_Procedure
+
+    Procedure activate Returns Integer
+    End_Procedure
+
+    Procedure OnResize
+        Integer iMdi iFiles iFile iObj iSz iCont iTop
+        Delegate Get GuiSize To iMdi
+        Delegate Get MDI_TOP_MARGIN To iTop
+        If ((piMdiOri(Self)=0)and(Active_State(oToolBar(Self)))) Set piMDiOri To 37 // Toolbar
+        Move (low(iMdi)) To iMdi // only width required...
+        Get piFiles To iFiles
+        If (iFiles) Begin
+            For iFile From 0 To (Item_Count(oFiles(Self))-1)
+                Get Value Of (oFiles(Self)) Item iFile To iObj
+                If (iObj) Begin
+                    Move (Low(GUISize(iObj))) To iSz
+                    Move (iCont+iSz+2) To iCont
+                    If (iCont>iMdi) Begin
+                        Move (iCont-iSz-2) To iCont
+                        Break
+                    End
+                    Set GUILocation Of iObj To 0 (Low(iSz)*iFile)
+                End
+            Loop
+            Set GUISize To 30 iMdi
+            Delegate Set MDI_TOP_MARGIN To (piMdiOri(Self)+22)
+            Send Page_Files
+        End
+        Else Begin
+            Delegate Set MDI_TOP_MARGIN To (piMdiOri(Self))
+            Set GUISize To 0 0
+        End
+    End_Procedure
+
+    Procedure Page_Files
+        Integer iItm iCnt iObj
+        Get Item_Count Of oFiles To iCnt
+        If (icnt) Begin
+            For iItm From 0 To (iCnt-1)
+                Get Value Of oFiles Item iItm To iObj
+                If (Active_State(Self)) Send Page To iObj True
+            Loop
+        End
+    End_Procedure
+
+        //Finish object construction
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+    End_Procedure
+End_Class

@@ -1,0 +1,184 @@
+
+Class cFileOpenPopupMenu is a DFBaseEditPullDown
+    
+    Procedure Construct_Object 
+      Property Handle phoToolbar    Public 0
+      
+      Forward Send Construct_Object
+    End_Procedure // Construct_Object 
+    
+    //
+    // By default an item doesn't allow setting parameters, so we just 
+    // created enough procedures as if we have a parameter iType
+    // with a range in 1 to 15
+    //
+    Procedure OnDefaultOpen1 //Integer iType
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 1          
+    End_procedure 
+    
+    Procedure OnDefaultOpen2
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 2          
+    End_procedure 
+    
+    Procedure OnDefaultOpen3 
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 3          
+    End_procedure 
+    
+    Procedure OnDefaultOpen4 
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 4          
+    End_procedure 
+    
+    Procedure OnDefaultOpen5 
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 5          
+    End_procedure 
+    
+    Procedure OnDefaultOpen6
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 6
+    End_procedure 
+    
+    Procedure OnDefaultOpen7
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 7          
+    End_procedure 
+    
+    Procedure OnDefaultOpen8
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 8          
+    End_procedure 
+    
+    Procedure OnDefaultOpen9
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 9
+    End_procedure 
+    
+    Procedure OnDefaultOpen10
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 10
+    End_procedure 
+    
+    Procedure OnDefaultOpen11
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 11
+    End_procedure        
+    
+    Procedure OnDefaultOpen12
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 12
+    End_procedure        
+    
+    Procedure OnDefaultOpen13
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 13
+    End_procedure        
+    
+    Procedure OnDefaultOpen14
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 14
+    End_procedure        
+    
+    Procedure OnDefaultOpen15
+      Send CAOpenMultipleFilesByType To (oClientArea(Self)) 15
+    End_procedure        
+           
+    Procedure OnCreate       
+      Integer iItem
+      Integer iMaxItems
+      String  sType
+      String  sDescription
+      String  sTypes                                          
+    
+      Move 0  To iItem
+      Move 15 To iMaxItems
+      Get psFileTypes Of ghoEditorProperties To sTypes
+   
+      Send Delete_Data
+      
+      While (pos("|",sTypes)<>0 and iItem<iMaxItems)                   
+        Move (Left(sTypes,pos("|",sTypes)-1)) To sDescription
+        Move (Replace(sDescription+"|",sTypes,"")) To sTypes
+        Move (Left(sTypes,pos("|",sTypes)-1)) To sType                   
+        Move (Replace(sType+"|",sTypes,"")) To sTypes   
+        
+        Case Begin
+          Case (iItem=0)
+            Send Add_Item msg_OnDefaultOpen1 sDescription
+            Case Break
+          Case (iItem=1)
+            Send Add_Item msg_OnDefaultOpen2 sDescription
+            Case Break
+          Case (iItem=2)
+            Send Add_Item msg_OnDefaultOpen3 sDescription
+            Case Break
+          Case (iItem=3)
+            Send Add_Item msg_OnDefaultOpen4 sDescription
+            Case Break
+          Case (iItem=4)
+            Send Add_Item msg_OnDefaultOpen5 sDescription
+            Case Break
+          Case (iItem=5)
+            Send Add_Item msg_OnDefaultOpen6 sDescription
+            Case Break
+          Case (iItem=6)
+            Send Add_Item msg_OnDefaultOpen7 sDescription
+            Case Break
+          Case (iItem=7)
+            Send Add_Item msg_OnDefaultOpen8 sDescription
+            Case Break
+          Case (iItem=8)
+            Send Add_Item msg_OnDefaultOpen9 sDescription
+            Case Break
+          Case (iItem=9)
+            Send Add_Item msg_OnDefaultOpen10 sDescription
+            Case Break
+          Case (iItem=10)
+            Send Add_Item msg_OnDefaultOpen11 sDescription
+            Case Break
+          Case (iItem=11)
+            Send Add_Item msg_OnDefaultOpen12 sDescription
+            Case Break
+          Case (iItem=12)
+            Send Add_Item msg_OnDefaultOpen13 sDescription
+            Case Break
+          Case (iItem=13)
+            Send Add_Item msg_OnDefaultOpen14 sDescription
+            Case Break
+          Case (iItem=14)
+            Send Add_Item msg_OnDefaultOpen15 sDescription
+            Case Break
+        Case End
+        If (iItem<iMaxItems) Begin
+          Set Aux_Value iItem To self      
+        End  
+        Increment iItem
+      Loop
+    End_Procedure // OnCreate
+    
+        // Problem: need to display the menu underneath the button                       
+    Procedure DoPopup 
+      Integer iVoid 
+      Integer iLeft 
+      Integer iTop 
+      Integer iBottom
+      Handle  hoToolBar
+      String  sRect
+      Pointer lpsRect
+      
+      Get phoToolBar to hoToolBar
+      If (hoToolBar<>0) Begin
+        ZeroType tRect to sRect
+        GetAddress of sRect to lpsRect              
+                      
+        Send Windows_Message of hoToolbar TB_GETITEMRECT 0 lpsRect // get bounding rectangle of the button
+        
+        GetBuff from sRect at tRect.Bottom to iBottom
+        Put iBottom to sRect at tRect.Top
+        
+        Move (ClientToScreen(window_handle(hoToolbar), lpsRect)) to iVoid // convert Client to Screen coordinates
+        
+        GetBuff from sRect at tRect.left to iLeft
+        GetBuff from sRect at tRect.top to iTop  
+        
+        Set GuiLocation to iTop iLeft
+      End
+      Send Popup
+    End_Procedure  // DoPopup    
+    
+    Procedure End_Construct_Object
+      
+      Send OnCreate
+      Forward Send End_Construct_Object
+    End_Procedure // End_Construct_Object  
+      
+End_Class   // cFileOpenPopupMenu

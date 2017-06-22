@@ -1,0 +1,143 @@
+//*****************************************************************************************
+//* cExtMenu.Pkg
+//*
+//* Contents:
+//*     Class cExtPopupMenu, extends PopupMenu class with set Bitmap item iNr to "..*.BMP"
+//*
+//*
+//* Michael Kurz MichaelKurz@gmx.at 26.11.2000
+//*****************************************************************************************
+
+// These functions need to be defined in the case no workspace is used
+#IF (FMAC_VERSION < 8)
+Register_Function CurrentProgramPath Returns String
+Register_Function CurrentBitmapPath  Returns String
+#ELSE
+Register_Function psProgramPath Returns String
+Register_Function psBitmapPath  Returns String
+#ENDIF
+
+
+#IFDEF get_SetMenuItemBitmaps
+#ELSE
+External_function SetMenuItemBitmaps "SetMenuItemBitmaps" user32.dll Handle hwnd Integer iItem Integer iFlag Handle hBmpUnChecked Handle hBmpChecked Returns Integer
+#ENDIF
+#IFDEF get_LoadImageE
+#ELSE
+External_function LoadImageE "LoadImageA" user32.dll Handle hInst Pointer pPic Integer iTyp Integer iX Integer iY Integer iFlag Returns Integer
+#ENDIF
+
+Define IMAGE_BITMAP        For 0
+Define LR_DEFAULTCOLOR	   For |CI$0000
+Define LR_COLOR     	   For |CI$0002
+Define LR_LOADFROMFILE     For |CI$0010
+Define LR_CREATEDIBSECTION For |CI$2000
+Define LR_LOADTRANSPARANT  For |CI$0020
+
+
+// Menu Item Info...
+Define MIIM_STATE       For |CI$00000001
+Define MIIM_ID          For |CI$00000002
+Define MIIM_SUBMENU     For |CI$00000004
+Define MIIM_CHECKMARKS  For |CI$00000008
+Define MIIM_TYPE        For |CI$00000010
+Define MIIM_DATA        For |CI$00000020
+
+#IFDEF GET_LoadBitmap
+#ELSE
+Function LoadBitmap Global String sBMPe Integer iX Integer iY Integer iTransparent Returns Handle
+    String  sBMP
+    Pointer pBMP
+    Handle  hBMP
+    Move sBMPe              To sBMP
+    GetAddress Of sBMP      To pBMP
+    If iTransparent Move (LoadImageE(0,pBMP,IMAGE_BITMAP,iX,iY,(LR_LOADFROMFILE+LR_CREATEDIBSECTION+LR_LOADTRANSPARANT)))  To hBMP
+    Else            Move (LoadImageE(0,pBMP,IMAGE_BITMAP,iX,iY,(LR_LOADFROMFILE+LR_CREATEDIBSECTION)))                     To hBMP
+    Function_Return hBMP
+End_Function
+#ENDIF
+
+
+Class cBitmapHandles Is an Array
+    Procedure FreeResources
+        Integer iC iRet
+        Handle  hBMP
+        For iC From 0 To (Item_Count(Self)-1)
+            Get value Item iC                       To hBMP
+            If hBMP Gt 0  Move (DeleteObject(hBMP)) To iRet
+        End
+        Send Delete_Data
+    End_Procedure
+    Procedure Destroy_Object Integer iP
+        Send FreeResources
+        Forward Send Destroy_Object iP
+    End_Procedure
+End_Class
+
+Class cBitmapPopupMenu Is a PopupMenu
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Object oBitmaps Is a Set
+        End_Object
+        Object oBitmapHandles Is a cBitmapHandles
+        End_Object
+    End_Procedure
+
+        // Retrieve the full pathname of a file...
+    Function BitMapFullPathName String sFile Returns String
+      String  sFullPathName
+      Get_File_Path sFile           To sFullPathName
+      Function_Return sFullPathName
+    End_Function // IconFullPathName
+
+
+        // Creates a handle of a Bitmap and stores it in an Object
+        // to destroy it later...
+    Function CreateHandle Integer iC Returns Handle
+        String sBMP
+        Handle hBMP
+        Get  value Of (oBitmapHandles(Self)) Item iC        To hBMP
+        If hBMP Gt 0 Function_Return hBMP
+        Get  value Of (oBitmaps(Self)) Item iC              To sBMP
+        If sBMP Eq "" Function_Return 0
+        Move (LoadBitmap(sBMP,13,13,1))                     To hBMP
+        Set  value Of (oBitmapHandles(Self)) Item iC        To hBMP
+        Function_Return hBMP
+    End_Function
+
+        // Sets a Bitmap of a Menu...
+    Procedure Set Bitmap String iItemE String sBmpE
+        Integer iItem
+        String  sBmp
+        If NUM_Arguments Eq 1 Begin
+            Move (Item_Count(Self)-1)   To iItem
+            Move iItemE                 To sBmp
+        End
+        Else Begin
+            Move iItemE                 To iItem
+            Move sBmpE                  To sBmp
+        End
+        Set value Of (oBitmaps(Self)) Item iItem    To (BitMapFullPathName(Self,sBMP))
+    End_Procedure
+
+        // Sets a Bitmap of the Menu...
+    Procedure InitBitmaps
+        Handle hwnd hBMP
+        Integer iRet iItem
+        Get Window_Handle   To hwnd
+        If hwnd Eq 0 Begin
+            Send Info_Box "Menu handle is zero!"
+            Procedure_Return
+        End
+        For iItem From 0 To (Item_Count(oBitmaps(Self))-1)
+            Move (CreateHandle(Self,iItem))                                 To hBMP
+            Move (SetMenuItemBitmaps(hwnd,iItem,MF_BYPOSITION,hBMP,hBMP))   To iRet
+        End
+    End_Procedure
+
+    Procedure Initialize_Menu
+        Forward Send Initialize_Menu
+        Send OnInitMenu
+        Send InitBitmaps
+    End_Procedure
+End_Class

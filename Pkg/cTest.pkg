@@ -1,0 +1,16 @@
+Class cMyClass2  Is a AppDialog
+
+        //Insert your Properties here.
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        
+        Property Integer piMyProperty1      Public 0
+        Property Integer pbMyProperty2      Public false 
+        
+        Set piThisProperty To sString
+    End_Procedure
+        //Finish object construction
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+    End_Procedure
+End_Class 

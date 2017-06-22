@@ -1,0 +1,92 @@
+// TH3EditToolBar.pkg (File Toolbar Pane)
+// Created by Sergey V Natarov (senatc@postman.ru) on 09/03/2017 @ 11:40
+// 
+
+Object oEditToolBar is a cCJToolbar
+    Set psTitle to "Edit"
+
+    Object oCutItem is a cCJCutMenuItem
+        Set psImage to "THCut32.ico"
+        Function CreateComControl Handle hoControls Returns Variant
+            Variant vControl
+            Forward Get CreateComControl hoControls to vControl
+            Send ComSetIconSize 32 32
+            Function_Return vControl
+        End_Function
+    End_Object
+
+    Object oCopyItem is a cCJCopyMenuItem
+        Set psImage to "THCopy32.ico"
+    End_Object
+
+    Object oPasteItem is a cCJPasteMenuItem
+        Set psImage to "THPaste32.ico"
+    End_Object
+
+    Object oUndoItem is a cCJUndoMenuItem
+        Set pbControlBeginGroup to True
+        Set psImage to "THUndo32.ico"
+    End_Object
+
+    Object oRedoItem is a cCJMenuItem
+        Set psCaption   to "Redo"
+        Set psToolTip to "Redo"
+        Set psDescription to "Redo last action"
+        Set psImage to "THRedo32.ico"
+        Set pbActiveUpdate to True
+        Set psCategory to C_$CategoryEdit
+        Set psShortcut to "Ctrl+Y"
+    
+        Procedure OnExecute Variant vCommandBarControl
+            Send Redo of (focus(Self))
+        End_Procedure
+        
+        Function IsEnabled Returns Boolean
+            Boolean bEnabled
+            Get CanRedo of (Focus(Self)) to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oFindItem is a cCJMenuItem
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Find..."
+        Set psToolTip to "Find"
+        Set psDescription to "Find Text in an Editor Window"
+        Set psImage to "THFind32.ico"
+        Set pbActiveUpdate to True
+        Set psCategory to C_$CategoryEdit
+        Set psShortcut to "Ctrl+F"
+    
+        Procedure OnExecute Variant vCommandBarControl
+            //Send Redo of (focus(Self))
+        End_Procedure
+        
+//        Function IsEnabled Returns Boolean
+//            Boolean bEnabled
+//            Get CanCopy of (Focus(Self)) to bEnabled
+//            Function_Return bEnabled
+//        End_Function
+    End_Object
+
+    Object oReplaceItem is a cCJMenuItem
+        Set psCaption   to "Replace..."
+        Set psToolTip to "Replace"
+        Set psDescription to "Replace Text in an Editor Window"
+        Set psImage to "THReplace32.ico"
+        Set pbActiveUpdate to True
+        Set psCategory to C_$CategoryEdit
+        Set psShortcut to "Ctrl+R"
+    
+        Procedure OnExecute Variant vCommandBarControl
+            //Send Redo of (focus(Self))
+        End_Procedure
+        
+//        Function IsEnabled Returns Boolean
+//            Boolean bEnabled
+//            Get CanCopy of (Focus(Self)) to bEnabled
+//            Function_Return bEnabled
+//        End_Function
+    End_Object
+
+End_Object

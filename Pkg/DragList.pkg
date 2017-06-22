@@ -1,0 +1,32 @@
+// DragList.pkg
+//
+// Author: Stuart W. Booth
+//
+// a List-derived class that supports 
+
+Use DrgNDrop.pkg 
+
+Class cDragList is a List
+
+    IMPORT_CLASS_PROTOCOL cDragAndDrop_mx
+
+    Procedure OnDragStart Integer iWin // all instances share this handler
+        If ( (iWin -1) > Current_Item(Current_Object) ) Procedure_Return 0
+        If ( Item_Count(Current_Object) =0)             Procedure_Return 0
+
+        Procedure_Return 1
+    End_Procedure
+
+    Procedure DoDragDrop Integer hoDest // all instances move items in the same way.
+        Local Integer iItem
+        Local String sValue
+        If hoDest ne 0 Begin
+            Get Current_Item To iItem
+            Get Value item iItem To sValue
+            Send Delete_Item iItem
+            Send Add_Item To hoDest msg_None sValue
+        End
+    End_Procedure
+
+End_Class
+

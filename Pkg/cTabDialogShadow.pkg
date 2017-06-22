@@ -1,0 +1,278 @@
+//*****************************************************************************************
+// 2000 Michael Kurz
+//
+// $FileName    : cTabDialogShadow.Pkg
+// $ProjectName : Shared Classes
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 03-29-2001 @ 11:00
+//
+// Contents:
+//      Extends the TabControl which is used in TabDialog, to allow painting TabPages
+//      shadowed when their Button_Shadow_State is set to true.
+//
+//
+// Remarks:
+//      -This Class dosnt support Bitmaps up to now.
+//
+//      -Highlighting when the mouse is over a TabLabel is also not supported.
+//       (I think I wont do that becouse personally I think this is a silly feature <g>)
+//
+//      -The color properties are only used if piSimpleShadowState is true, which isnt default.
+//
+//      Classes:
+//          -cTabDialogShadow       // instead of TabDialog
+//          -cTabPageShadow         // instead of TabPage
+//
+//          -cdbTabDialogShadow     // instead of dbTabDialog
+//          -cdbTabPageShadow       // instead of dbTabPage
+//
+//
+// $Rev History
+//      MK 29.03.2001 17:11 -Added feature that shadowed text is drawn like in a shadowed textbox
+//                           no only grey.
+//      MK 29.03.2001 17:30 -Improved Text positioning
+//      MK 29.03.2001 20:00 -Added Bitmaps support (also shadowed)
+//      MK 29.03.2001 21:00 -Better positioning, when TabFolders on Bottom
+//                          -Force repaint when the ShadowState is changed.
+//      MK 31.03.2001 01:00 -Added also SubClasses for dbTabPage dbTabDialog
+//      MK 01.04.2001 10:00 -Added setting the Image of a TabPage also if none is added (-1)
+//                           becouse in VDF7 if an ImageList is added the StandardValue is 0 and not -1
+//
+//*****************************************************************************************
+// Usage:
+//
+// You can use everything like in a Standard (db)TabDialog, (db)TabPage
+// with the addtional feature to add a Bitmap to a TabPage with the
+// the know set Bitamp to ...
+//
+// Object oTabDialog is a cTabDialogShadow
+//      Object oTabPag is a cTabPageShadow
+//          set Bitmap to "BitmapName.Bmp" [iTransparentColor]
+//      End_Object
+// End_Object
+
+Use cImageListEx.Pkg    // An ImageList which allows to add Bitmaps after creation.
+
+    // Check if the function is already defined to prevent compiler errors.
+#IFDEF GET_ImageList_LoadImage
+#ELSE
+External_function ImageList_LoadImage "ImageList_LoadImage" comctl32.dll Handle Hi String lpbmp ;
+                      Integer cx Integer cGrow Integer crMask Integer uType Integer uFlags Returns Integer
+#ENDIF
+
+    // Structure for Win Tab Control Item.
+TYPE tagTCITEM
+    FIELD tagTCITEM.mask                 as Integer   //TYPE: UINT
+    FIELD tagTCITEM.dwState              as Dword     //TYPE: Dword
+    FIELD tagTCITEM.dwStateMask          as Dword     //TYPE: Dword
+    FIELD tagTCITEM.pszText              as Pointer   //TYPE: LPTSTR
+    FIELD tagTCITEM.cchTextMax           as Integer   //TYPE: int
+    FIELD tagTCITEM.iImage               as Integer   //TYPE: int
+    FIELD tagTCITEM.lParam               as Pointer   //TYPE: LPARAM
+END_TYPE
+
+    // Constants for MKTabControl_GetIntegerPara and MKTabControl_SetIntegerPara
+Define MKTC_SHADOWCOLOR	                For 1
+Define MKTC_NORMALCOLOR	                For 2
+Define MKTC_OFFSET_X		            For 3
+Define MKTC_OFFSET_Y		            For 4
+Define MKTC_SIMPLESHADOWSTATE	        For 5
+
+   // Functions which are used to insert e new WindProc into the window.
+external_function MKTabControl_ShadowInit       "MKTabControl_ShadowInit"       TABCONTROLSHADOW.DLL Handle hwnd returns Integer
+external_function MKTabControl_ShadowButton     "MKTabControl_ShadowButton"     TABCONTROLSHADOW.DLL Handle hwnd Integer iItemNr Integer iFlag returns Integer
+external_function MKTabControl_GetIntegerPara   "MKTabControl_GetIntegerPara"   TABCONTROLSHADOW.DLL Handle hwnd Integer iType   returns Integer
+external_function MKTabControl_SetIntegerPara   "MKTabControl_SetIntegerPara"   TABCONTROLSHADOW.DLL Handle hwnd Integer iType   Integer iValue returns Integer
+
+    // I use a command to duplicate code writing, becouse with IMPORT_CLASS_PROTOCOL
+    // it is only possible to import Methods which dont need to be forwarded.
+#COMMAND DEFINE_MKTabDialogAddons
+    register_procedure onDrawItem
+    Procedure Construct_Object
+        Property Integer Private.piShadowColor          Public (Rgb(128,128,128))
+        Property Integer Private.piNormalColor          Public clBtnFace
+        Property Integer Private.piOffsetX              Public 3
+        Property Integer Private.piOffsetY              Public 3
+        Property Integer Private.piSimpleShadowState    Public false
+
+        Property Integer phoImageList                   Public 0
+        Forward send Construct_Object
+    End_Procedure
+
+        // Creates the ImageList.
+    Procedure CreateImageList
+        Integer hoID
+        if (phoImageList(Self)) eq 0 Begin
+            Object oImageListEx is a cImageListEx
+                move Self           to hoID
+                set ImageList_Size  to 10 1
+                set piBackColor     to (Private.piNormalColor(Parent(Self)))
+            End_Object
+            set phoImageList        to hoID
+        End
+    End_Procedure
+
+        // Gets the Index of a Bitmap, if already in the list if not
+        // it is added to the imagelist and the new index is returned.
+    Function GetBitmapIndex String sBmp Integer iTransParentColor returns Integer
+        Integer hoID iRet
+        send CreateImageList
+        get phoImageList            to hoID
+        get Msg_ImageListEx_Add     of hoID sBmp iTransParentColor to iRet
+        Function_Return iRet
+    End_Function
+
+
+        // Sets an Integer Parameter.
+    Procedure set IntegerPara Integer iType Integer iValue
+        Integer iRet
+        if (Window_Handle(Self)) ;
+            move (MKTabControl_SetIntegerPara(Window_Handle(Self),iType,iValue))    to iRet
+    End_Procedure
+        // Geta an Integer Parameter.
+    Function IntegerPara Integer iType returns Integer
+        if (Window_Handle(Self)) ;
+            Function_Return (MKTabControl_GetIntegerPara(Window_Handle(Self),iType))
+    End_Procedure
+
+
+        // Sets the ShadowColor.
+    Procedure set piShadowColor Integer iColor
+        set Private.piShadowColor           to iColor
+        set IntegerPara MKTC_SHADOWCOLOR    to iColor
+    End_Procedure
+        // Sets the NormalColor.
+    Procedure set piNormalColor Integer iColor
+        set Private.piNormalColor           to iColor
+        set IntegerPara MKTC_NormalColor    to iColor
+    End_Procedure
+        // Sets the OffSetX.
+    Procedure set piOffSetX Integer iColor
+        set Private.piOffSetX               to iColor
+        set IntegerPara MKTC_OffSet_X       to iColor
+    End_Procedure
+        // Sets the OffSetY.
+    Procedure set piOffSetX Integer iColor
+        set Private.piOffSetY               to iColor
+        set IntegerPara MKTC_OffSet_Y       to iColor
+    End_Procedure
+        // Sets the Simple ShadowState
+    Procedure set piSimpleShadowState Integer iFlag
+        set Private.piSimpleShadowState             to iFlag
+        set IntegerPara MKTC_SIMPLESHADOWSTATE      to iFlag
+    End_Procedure
+        // To allow setting these value before the window is created.
+    Procedure DoSetAllIntegerParas
+        Integer iTmp
+        set IntegerPara MKTC_SHADOWCOLOR        to (Private.piShadowColor(Self))
+        set IntegerPara MKTC_NormalColor        to (Private.piNormalColor(Self))
+        set IntegerPara MKTC_OffSet_X           to (Private.piOffsetX(Self))
+        set IntegerPara MKTC_OffSet_Y           to (Private.piOffsetY(Self))
+        set IntegerPara MKTC_SIMPLESHADOWSTATE  to (Private.piSimpleShadowState(Self))
+    End_Procedure
+
+        // Overwritten to paint the Tabs shadowed.
+        // This procedure is sent by delegation when an Button_Shadow_State is
+        // sent.
+    Procedure set Item_Shadow_State Integer iItemNr Integer iState
+        Handle  hwnd
+        Integer iRet
+        get Window_Handle                                           to hwnd
+        if hwnd Begin
+            move (MKTabControl_ShadowButton(hwnd,iItemNr,iState))   to iRet
+        End
+        Forward set Item_Shadow_State item iItemNr                  to iState
+    End_Procedure
+
+        // This need to be done becouse Button_Shadow_State can be set before the
+        // Object is page, so there is now Window_Handle to process this direct.
+        // Just get and set. (When the window_handle !=0) after Forward Page
+    Procedure DoSetAllShadowStates
+        Integer iC iLimit iState
+        get Button_Count        to iLimit
+        For iC from 0 to (iLimit-1)
+            get Item_Shadow_State item iC   to iState
+            set Item_Shadow_State item iC   to iState
+        End
+    End_Procedure
+
+
+    Procedure DoSetAllItemImages
+        Broadcast send DoSetImage
+    End_Procedure
+
+        // Has to change the Style to ownerdraw, and call DoSetAllShadowStates
+        // And MKTabControl_ShadowInit, insert a new WindowProc for the window.
+        // and Processes this new winproc processes the WM_DrawItem message
+        // to draw the items Shadowed or not.
+    Procedure Page Integer iFlag
+        Handle hwnd
+        Integer iRet
+        set Window_Style to TCS_OWNERDRAWFIXED  True
+        Forward send Page iFlag
+        if iFlag move (MKTabControl_ShadowInit(Window_Handle(Self))) to iRet
+        if iFlag Begin
+            send DoSetAllShadowStates
+            send DoSetAllIntegerParas
+            send DoSetAllItemImages
+        End
+#IFNDEF TH_SCINTILLA
+        if (phoImageList(Self)) ;
+            move (SendMessage(Window_Handle(Self),TCM_SETIMAGELIST,0,Window_Handle(phoImageList(Self))))    to iRet
+#ENDIF
+   End_Procedure
+
+#ENDCOMMAND
+
+
+
+#COMMAND DEFINE_MKTabPageAddons
+    Procedure Construct_Object
+        Forward send Construct_Object
+
+        Property String piImageIndex       Public -1
+    End_Procedure
+
+    Procedure DoSetImage
+        String  sTCITEM
+        Pointer pTCITEM
+        Integer iPage iImage iRet
+        Handle  hwnd
+
+        get Window_Handle of (Parent(Self))     to hwnd
+        get piImageIndex                    to iImage
+        get Tab_Button_Item                 to iPage
+
+        ZeroType tagTCITEM                  to sTCITEM
+        Put TCIF_IMAGE                      to sTCITEM at tagTCITEM.Mask
+        Put iImage                          to sTCITEM at tagTCITEM.iImage
+        GetAddress of sTCITEM               to pTCITEM
+        if hwnd ;
+        move (SendMessage(hwnd,TCM_SETITEM,iPage,pTCITEM))  to iRet
+    End_Procedure
+
+    Procedure set Bitmap String sBmp Integer iTransParentColorE
+        Integer iBmp iTransParentColor
+        if NUM_Arguments gt 1 move iTransParentColorE       to iTransParentColor
+        Else                  move -1                       to iTransParentColor
+        Delegate get GetBitmapIndex sBmp iTransParentColor  to iBmp
+        set piImageIndex                                    to iBmp
+    End_Procedure
+
+#ENDCOMMAND
+
+    // non db Classes.
+Class cTabDialogShadow is a TabDialog
+    DEFINE_MKTabDialogAddons
+End_Class
+Class cTabPageShadow is a TabPage
+    DEFINE_MKTabPageAddons
+End_Class
+
+    // db Classes.
+Class cdbTabDialogShadow is a dbTabDialog
+    DEFINE_MKTabDialogAddons
+End_Class
+Class cdbTabPageShadow is a dbTabPage
+    DEFINE_MKTabPageAddons
+End_Class

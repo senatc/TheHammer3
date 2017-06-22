@@ -1,0 +1,1188 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2003 Bernhard Ponemayr
+// All rights reserved.
+//
+// $FileName    : C:\VDF7\Projects\hammer\Pkg\cFolderTabs.pkg
+// $ProjectName : The Hammer Entwicklung
+// $Author      : Bernhard Ponemayr
+// $Created     : 08.03.2003  01:27
+//
+// Contents: Contains a class for Folder Tabs just like the
+//           Worksheet selector in M$ Excel
+//
+//*****************************************************************************************
+//TH-RevisionStart
+// 08.03.2003 01:28  Inital Revision                       BP     APBP
+//TH-RevisionEnd
+
+
+Use cFolderTabs.h
+
+// A helper Class needed to create the scroll-buttons on left/right side of the
+// control. It is a standard DF-Button with a real and working focus_mode pointer_only
+// Additionally this class can use standard (OEM) bitmaps that are delivered from windows
+Class cTabScrollButton Is a Button
+    Procedure Construct_Object
+        Property Integer piBitmapHandle Public 0
+        Property Integer piOemBitmap Public 0
+        Property Integer piCaptureHwnd Public 0
+        Property Integer piMessage Public 0
+        Forward Send Construct_Object
+        Set focus_mode To nonfocusable
+    End_Procedure
+    Procedure OnClick
+        Integer iMsg
+        Get piMessage To iMsg
+        Send iMsg
+    End_Procedure
+    Procedure mouse_down Integer iPara0 Integer iPara1
+        Integer iRet iMsg iObj
+        Set piCaptureHwnd To (GetCaptureEf())
+        Move (SetCapture(window_handle(Self))) To iRet
+        Set select_state To True
+        Send OnClick
+    End_Procedure
+    Procedure mouse_up Integer iPara0 Integer iPara1
+        Integer iRet
+        Move (SetCapture(piCaptureHwnd(Self))) To iRet
+        Set piCaptureHwnd To 0
+        Set select_state To False
+    End_Procedure
+    Procedure mouse_click Integer iPara0 Integer iPara1
+    End_Procedure
+    Procedure page Integer iState
+        Integer iRet
+        Handle hBitmap hWnd
+        Forward Send page iState
+        If ( (iState) And (Not(BuildingObjectID)) And ( (piBitmapHandle(Self)) Eq 0) ) Begin
+            Move (FindWindowExEf(window_handle(Self),0,0,0)) To hWnd
+            Move (GetWindowLong(hWnd,(GWL_STYLE))) To iRet
+            Move (SetWindowLong(hWnd,GWL_STYLE,(iRet Ior $80))) To iRet
+            Move (LoadImageEf(0,(piOemBitmap(Self)),IMAGE_BITMAP,0,0,64)) To hBitmap
+            Set piBitmapHandle To hBitmap
+            Move (SendMessage(hWnd,244,1342177408,True)) To iRet  // = $50000080
+            Move (SendMessage(hWnd,247,IMAGE_BITMAP,hBitmap)) To iRet
+        End
+    End_Procedure
+
+    Procedure destroy_object
+        Integer hBitmap
+        Move (piBitmapHandle(Self)) To hBitmap
+        Forward Send destroy_object
+        Move (DeleteObject(hBitmap)) To hBitmap
+    End_Procedure
+End_Class
+
+// A extended Array class that can store binary data correctly
+// VDF can handle real binary data's (containing many character(0) ) in
+// local strings. this array can store and retrieve such values correctly
+Class cBinaryDataStore Is a Array
+    Procedure Set binary_value Integer iItem String sVal
+        String sValSet
+        Integer iCou
+        For iCou From 1 To (length(sVal))
+            Move (sValSet + (pad(Ascii(Mid(sVal,1,iCou)),3))) To sValSet
+        Loop
+        Set value Item iItem To sValSet
+    End_Procedure
+    Function binary_value Integer iItem Returns String
+        Integer iPos
+        String sVal sValRet
+        Get value Item iItem To sVal
+        Move 1 To iPos
+        While (iPos Lt (length(sVal)) )
+            Move (sValRet + (Character(Mid(sVal,3,iPos)))) To sValRet
+            Calc (iPos + 3) To iPos
+        End
+        Function_Return sValRet
+    End_Function
+End_Class
+
+// The cFolderTabs control itself
+Class cFolderTabs Is a DFControl
+    Register_Procedure WMMSG_Paint Integer wParam Integer lParam
+    Register_Procedure WMMSG_Erasebkgnd Integer wParam Integer lParam
+    Register_Procedure WMMSG_LButtonDown Integer wParam Integer lParam
+    Register_Procedure WMMSG_RButtonDown Integer wParam Integer lParam
+    Register_Procedure WMMSG_MouseMove Integer wParam Integer lParam
+    Register_Procedure WMMSG_MouseLeave Integer wParam Integer lParam
+    Register_Procedure WMMSG_MouseHover Integer wParam Integer lParam
+    Register_Procedure WMMSG_MouseWheel Integer wParam Integer lParam
+    Register_Procedure WMMSG_Notify Integer wParam Integer lParam
+
+
+    // Notifications that can be used.
+    Procedure OnPaint
+    End_Procedure
+    Procedure OnMouseMove Integer iKeys Integer iXPos Integer iYPos
+    End_Procedure
+    Procedure OnMouseLeave
+    End_Procedure
+    Procedure OnItemChanging Integer iNewItem Integer iOldItem
+    End_Procedure
+    Procedure OnItemChanged Integer iNewItem Integer iOldItem
+    End_Procedure
+
+    Procedure Construct_Object
+        Set external_class_name "cFolderTabs"   To "#32768"
+        Forward Send Construct_Object
+
+        Set external_message WM_PAINT           To WMMSG_Paint
+        Set External_Message WM_ERASEBKGND      To WMMSG_Erasebkgnd
+        Set external_message WM_LBUTTONDOWN     To WMMSG_LButtonDown
+        Set external_message WM_RBUTTONDOWN     To WMMSG_RButtonDown
+        Set External_Message WM_MOUSEMOVE       To WMMSG_MouseMove
+        Set External_Message WM_MOUSELEAVE      To WMMSG_MouseLeave
+        Set External_Message WM_MOUSEHOVER      To WMMSG_Mousehover
+        Set External_Message WM_MOUSEWHEEL      To WMMSG_MouseWheel
+        Set external_message WM_NOTIFY          To WMMSG_Notify
+
+        Property Integer piTopState             Public False
+        Property Integer piSelHeightInc         Public 0
+        Property Integer piFirstVisibleItem     Public 0
+        Property Integer piCurrentItem          Public 0
+        Property Integer piSelectedItem         Public 0
+        Property Integer piMouseTracking        Public False
+        Property Integer poButtonLeft           Public 0
+        Property Integer poButtonRight          Public 0
+        Property Integer phToolTip              Public 0
+        Property Integer piIsToolTipVisible     Public False
+        Property Integer piCurrentHotItem       Public -1
+        Property Integer piTabsColor            Public clWhite
+        Property Integer piSelectedItemColor    Public 0
+        Property Integer piHotItemTextColor     Public (GetSysColor(COLOR_HOTLIGHT))
+        Property Integer piItemTextColor        Public (GetSysColor(COLOR_WINDOWTEXT))
+        Property Integer piBackgroundColor      Public 0
+        Property Integer autosize_height_state  Public False
+        Property Integer piShowNumbersForFirst  Public False
+
+        Object oTrapezoids Is an cBinaryDataStore
+        End_Object
+        Object oRegions  Is a Array
+        End_Object
+        Object oItems    Is an Array
+        End_Object
+        Object oRects Is an cBinaryDataStore
+        End_Object
+        Object oMessages Is an Array
+        End_Object
+        Object oColors   Is an Array
+        End_Object
+        Object oTextColors Is an Array
+        End_Object
+        Object oToolTips Is an Array
+        End_Object
+        Object oItemShadowed Is an Array
+        End_Object
+        Object oAuxValues Is an Array
+        End_Object
+        Set focus_mode   To nonfocusable
+    End_Procedure
+
+    // Size the height of the control to the selected settings and system fonts
+    Procedure AutoSizeHeight
+        Handle hDc hFont hOldFont
+        String sPoint sHeightText
+        Pointer pPoint pHeightText
+        Integer iRet iX iY  
+        
+        Move (GetDC(0)) To hDc
+        Move (GetStockObject(DEFAULT_GUI_FONT)) To hFont
+        Move (SelectObject(hDc,hFont)) To hOldFont
+        ZeroType tPoint To sPoint
+        GetAddress Of sPoint To pPoint
+        Move ("TextWgyf" + Character(0)) To sHeightText
+        GetAddress Of sHeightText To pHeightText
+        Move (GetTextExtentPoint32Ef(hDc,pHeightText,(length(sHeightText)),pPoint)) To iRet
+        GetBuff From sPoint At tPoint.y To iY
+        Move (iY +5 + (piSelHeightInc(Self)) ) To iY
+
+        Set GuiSize To iY (low(guisize(Self)))
+        Move (SelectObject(hDc,hOldFont)) To iRet
+        Move (ReleaseDc(0,hDc)) To iRet
+        Send adjust_logicals
+    End_Procedure
+
+    // Autosize the height if wanted
+    Procedure End_Construct_Object
+        If (Autosize_height_state(Self)) Send AutoSizeHeight
+        Forward Send End_Construct_Object
+    End_Procedure
+
+    // Delivers the GuiSize of a specified Button
+    Function ButtonGuiSize Integer iItem Returns Integer
+        Integer hRegion
+        String sRect
+        Pointer pRect
+        Integer iRet iTop iLeft iBottom iRight iHeight iWidth
+        
+        Get value Of oRegions Item iItem To hRegion
+        ZeroType tRect To sRect
+        GetAddress Of sRect To pRect
+        Move (GetRgnBoxEf(hRegion,pRect)) To iRet
+        GetBuff From sRect At tRect.Top    To iTop
+        GetBuff From sRect At tRect.Left   To iLeft
+        GetBuff From sRect At tRect.Bottom To iBottom
+        GetBuff From sRect At tRect.Right  To iRight
+        Move (iBottom - iTop) To iHeight
+        Move (iRight - iLeft) To iWidth
+        Function_Return (iWidth + (iHeight * 65536))
+    End_Function
+
+    // Delivers the GuiLocation of a specified Button
+    Function ButtonGuiLocation Integer iItem Returns Integer
+        Integer hRegion
+        String sRect
+        Pointer pRect
+        Integer iRet iTop iLeft iBottom iRight
+        
+        Get value Of oRegions Item iItem To hRegion
+        ZeroType tRect To sRect
+        GetAddress Of sRect To pRect
+        Move (GetRgnBoxEf(hRegion,pRect)) To iRet
+        GetBuff From sRect At tRect.Top    To iTop
+        GetBuff From sRect At tRect.Left   To iLeft
+        GetBuff From sRect At tRect.Bottom To iBottom
+        GetBuff From sRect At tRect.Right  To iRight
+        Function_Return (iLeft + (iTop * 65536))
+    End_Function
+
+    // Delivers the Item-Number if there is a Item under pos iX/iY else -1
+    Function ItemAtPos Integer iX Integer iY Returns Integer
+        Integer iItem
+        Integer iCount
+        Handle hRegion
+        
+        Get Item_Count of oRegions To iCount
+        For iItem From 0 To (iCount-1)
+            Get value Of oRegions Item iItem To hRegion
+            If hRegion Begin
+                If (PtInRegionEf(hRegion,iX,iY)) Function_Return iItem
+            End
+        Loop
+        Function_Return -1
+    End_Function
+
+    Procedure WMMSG_MouseWheel Integer wParam Integer lParam
+    End_Procedure
+    Procedure WMMSG_MouseHover Integer wParam Integer lParam
+    End_Procedure
+    Procedure WMMSG_MouseLeave Integer wParam Integer lParam
+        Set piMouseTracking To False
+        Set HotItem To -1
+        Send OnMouseLeave
+    End_Procedure
+    Procedure WMMSG_MouseMove Integer wParam Integer lParam
+        Integer iRet iColor iItem
+        String sMouse
+        Pointer pMouse
+        // Bug fix. From time to time cursor remains as per Horizontal Splitter view.
+        Move (SetCursor(LoadCursor(0,IDC_ARROW))) To iRet
+        If (Not(piMouseTracking(Self))) Begin
+            ZeroType cfTRACKMOUSEEVENT        To sMouse
+            Put cfTRACKMOUSEEVENT_SIZE        To sMouse At cfTRACKMOUSEEVENT.cbSize
+            Put (TME_HOVER Ior TME_LEAVE)     To sMouse At cfTRACKMOUSEEVENT.dwFlags
+            Put (Window_Handle(Self))         To sMouse At cfTRACKMOUSEEVENT.hwndTrack
+            Put 500                           To sMouse At cfTRACKMOUSEEVENT.dwHoverTime
+            GetAddress Of sMouse To pMouse
+            Move (TrackMouseEventEf(pMouse)) To iRet
+            Set piMouseTracking To True
+        End
+        Get ItemAtPos (low(lParam)) (hi(lParam)) To iItem
+        Set HotItem To iItem
+        // Here <TOOLTIP>
+//        Send RefreshToolTip
+        Send OnMouseMove wParam (low(lParam)) (hi(lParam))
+    End_Procedure
+
+    //
+    // Get the Text of oItem iItem in an ansi cstring
+    //
+    Function ButtonItemText Integer iItem Returns String
+      String sItemText
+
+      Get value Of oItems Item iItem To sItemText
+      If ( (piShowNumbersForFirst(Self)) And (iItem<10) ) Begin
+          If iItem Eq 9 Move ("1&0 " + sItemText) To sItemText
+          Else Move ( "&" + (String(iItem+1)) + " " + sItemText) To sItemText
+      End
+      Move (sItemText + Character(0) ) To sItemText
+      Function_Return sItemText
+    End_Function // ButtonItemText
+
+
+    // Set's the HotState of a specified item to true/false
+    Procedure SetHotState Integer iItem Integer iState
+        String sRect sItemText
+        Pointer pRect pItemText
+        Integer iRet iColor
+        Handle hDC hFont hOldFont hWnd
+
+        If ( (item_shadow_state(Self,iItem)) Or (object_shadow_state(Self)) ) Procedure_Return
+        
+        Get Window_Handle To hWnd
+        Get binary_value Of (oRects(Self)) iItem To sRect
+        GetAddress Of sRect To pRect
+        Move (InflateRectEf(pRect,((8+2)*-1),0)) To iRet
+
+        Get ButtonItemText iItem to sItemText
+        GetAddress Of sItemText To pItemText
+        Move (OemToAnsi(pItemText,pItemText)) To iRet
+        Move (GetDC(hWnd)) To hDC
+        Move (GetStockObject(DEFAULT_GUI_FONT)) To hFont
+        Move (SelectObject(hDC,hFont)) To hOldFont
+        If (iState) Move (SetTextColor(hDC,(piHotItemTextColor(Self)))) To iRet
+        Else Begin
+            Get ItemTextColor Item iItem To iColor
+            If (Not(iColor)) Move (piItemTextColor(Self)) To iColor
+            Move (SetTextColor(hDc,iColor)) To iRet
+        End
+        If iItem Ne (piSelectedItem(Self)) Begin
+            Get ItemColor Item iItem To iColor
+            If (Not(iColor)) Get piTabsColor To iColor
+            If (iColor<0) Move (GetSysColor(iColor Iand $000000FF)) To iColor
+            Move (SetBkColorEf(hDc,iColor)) To iRet
+        End
+        Else Begin
+            Get piSelectedItemColor  To iColor
+            If iColor Eq 0 Begin
+                Get Color Of (Parent(Self)) To iColor
+                If (iColor<0) Move (GetSysColor(iColor Iand $000000FF)) To iColor
+            End
+            Move (SetBkColorEf(hDC,iColor)) To iRet
+        End
+        Move (DrawText(hDC,pItemText,((length(sItemText))-1),pRect,(DT_CENTER Ior DT_VCENTER Ior DT_SINGLELINE))) To iRet
+        Move (SelectObject(hDC,hOldFont)) To iRet
+        Move (ReleaseDc(hWnd,hDC)) To iRet
+    End_Procedure
+
+    // Sets the current HotItem (deselects current hot-item if necessary)
+    Procedure Set HotItem Integer iItem
+        If (piCurrentHotItem(Self)) Eq iItem Procedure_Return
+        If (piCurrentHotItem(Self)) Ne -1 Send SetHotState (piCurrentHotItem(Self)) False
+        Set piCurrentHotItem To iItem
+        If iItem Eq -1 Begin
+            Send HideToolTip
+            Procedure_Return
+        End
+        Send SetHotState iItem True
+        Send RefreshToolTip
+    End_Procedure
+
+    // Create a point array (string of points added together :-)
+    // that defines the trapezoid used FOR painting
+    Function GetTrapezoid String sRect Returns String
+        String sRet sPoint
+        Integer iTop iLeft iBottom iRight
+        
+        GetBuff From sRect At tRect.top    To iTop
+        GetBuff From sRect At tRect.Left   To iLeft
+        GetBuff From sRect At tRect.Bottom To iBottom
+        GetBuff From sRect At tRect.Right  To iRight
+        ZeroString 32 To sRet
+        If (piTopState(Self)) Begin
+            ZeroType tPoint To sPoint
+            Put iLeft   To sPoint At tPoint.x
+            Put iBottom To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,1)) To sRet
+            ZeroType tPoint To sPoint
+            Put (iLeft + 7) To sPoint At tPoint.x
+            Put iTop To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,((tPoint_Size * 1)+1))) To sRet
+            ZeroType tPoint To sPoint
+            Put (iRight - 7 -1) To sPoint At tPoint.x
+            Put iTop To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,((tPoint_Size * 2)+1))) To sRet
+            ZeroType tPoint To sPoint
+            Put (iRight-1) To sPoint At tPoint.x
+            Put iBottom To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,((tPoint_Size * 3)+1))) To sRet
+        End
+        Else Begin
+            ZeroType tPoint To sPoint
+            Put iLeft To sPoint At tPoint.x
+            Put iTop  To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,1)) To sRet
+            ZeroType tPoint To sPoint
+            Put (iLeft + 7) To sPoint At tPoint.x
+            Put iBottom To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,((tPoint_Size * 1)+1))) To sRet
+            ZeroType tPoint To sPoint
+            Put (iRight - 7 -1) To sPoint At tPoint.x
+            Put iBottom To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,((tPoint_Size * 2)+1))) To sRet
+            ZeroType tPoint To sPoint
+            Put (iRight-1) To sPoint At tPoint.x
+            Put iTop To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sRet,((tPoint_Size * 3)+1))) To sRet
+        End
+        Function_Return sRet
+    End_Function
+
+    // Moves a Trapezoid location specified by iRight iDown.
+    Procedure OffsetTrapezoid Integer iItem Integer iRight Integer iDown
+        String sTrap sPoint
+        Integer iIndex iX iY
+        
+        Get binary_value Of (oTrapezoids(Self)) iItem To sTrap
+        For iIndex From 0 To 3
+            Move (Mid(sTrap,tPoint_size,((iIndex*tPoint_size)+1))) To sPoint
+            GetBuff From sPoint At tPoint.x To iX
+            GetBuff From sPoint At tPoint.y To iY
+            Calc (iX + iRight) To iX
+            Calc (iY + iDown) To iY
+            Put iX To sPoint At tPoint.x
+            Put iY To sPoint At tPoint.y
+            Move (Overstrike(sPoint,sTrap,((tPoint_Size * iIndex)+1))) To sTrap
+        Loop
+        Set binary_value Of (oTrapezoids(Self)) iItem To sTrap
+    End_Procedure
+
+    // Delivers the x-Position of a point in my Point-Array
+    Function XFromPointArray String sArray Integer iIndex Returns String
+        Integer iRet
+        
+        Move (Mid(sArray,tPoint_size,((iIndex*tPoint_size)+1))) To sArray
+        GetBuff From sArray At tPoint.x To iRet
+        Function_Return iRet
+    End_Function
+    // Delivers the y-Position of a point in my Point-Array
+    Function YFromPointArray String sArray Integer iIndex Returns String
+        Integer iRet
+        
+        Move (Mid(sArray,tPoint_size,((iIndex*tPoint_size)+1))) To sArray
+        GetBuff From sArray At tPoint.y To iRet
+        Function_Return iRet
+    End_Function
+
+    // Shift the position of all rects, regions and trapezoids by the
+    // specified values.
+    Procedure ScrollDatas Integer iRight Integer iDown
+        Integer iItem iRet
+        Integer iCount
+        Handle hRgn
+        String sRect
+        Pointer pRect   
+        
+        Get Item_Count of oItems To iCount
+        For iItem From 0 To ( iCount -1)
+            Get value Of (oRegions(Self)) Item iItem To hRgn
+            If (hRgn) Move (OffsetRgnEf(hRgn,iRight,0)) To iRet
+            Get binary_value Of (oRects(Self)) iItem To sRect
+            If (Trim(sRect)) Ne "" Begin
+                GetAddress Of sRect To pRect
+                Move (OffsetRectEf(pRect,iRight,0)) To iRet
+                Set binary_value Of (oRects(Self)) iItem To sRect
+            End
+            Send OffsetTrapezoid iItem iRight 0
+        Loop
+    End_Procedure
+
+    // Creates all Regions needed to paint the visible Buttons
+    Function CreateRegions Handle hDC Integer iStartOffset Returns Integer
+        Integer iItem iRet iX iY iCurPos iHeight
+        Integer iLength iFirstVisible iCount
+        Handle hFont hOldFont hRgn
+        String sText sPoint sRect sTrap
+        Pointer pText pPoint pRect pTrap
+
+        Get Item_Count of oRegions To iCount
+        For iItem From 0 To ( iCount -1)
+            Get value Of oRegions Item iItem To hRgn
+            If hRgn Move (DeleteObject(hRgn)) To iRet
+        Loop
+
+        Send Delete_Data To oRegions
+        Move (hi(GuiSize(Self))) To iHeight
+
+        Move iStartOffset To iCurPos
+
+        Move (GetStockObject(DEFAULT_GUI_FONT)) To hFont
+        Move (SelectObject(hDC,hFont)) To hOldFont
+
+        Get piFirstVisibleItem To iFirstVisible
+        Get Item_Count of oItems To iCount
+
+        // Reset running rounding numbers to prevent the regions from jumping around
+        // Make sure the text_extent always returns the same numbers
+        Move (SetTextJustificationEf(hDC,0,0)) To iRet 
+        Move (SetTextCharacterExtraEf(hDC,0))  To iRet
+
+        For iItem From iFirstVisible To ( iCount -1)
+            
+            Get ButtonItemText iItem To sText
+            GetAddress Of sText To pText
+            Move (OemToAnsi(pText,pText)) To iRet
+
+            Move (length(sText)) To iLength
+            
+            ZeroType tPoint To sPoint
+            GetAddress Of sPoint To pPoint
+            Move (GetTextExtentPoint32Ef(hDC,pText,iLength,pPoint)) To iRet
+            GetBuff From sPoint At tPoint.x To iX
+            GetBuff From sPoint At tPoint.y To iY
+            If (piTopState(Self)) Begin
+                ZeroType tRect To sRect
+                GetAddress Of sRect To pRect
+                If iItem Eq (piSelectedItem(Self)) Put (iHeight - iY-4 - (piSelHeightInc(Self)) ) To sRect At tRect.Top
+                Else Put (iHeight - iY-4) To sRect At tRect.Top
+                Put iCurPos To sRect At tRect.Left
+                Put iHeight To sRect At tRect.Bottom
+                Put (iCurPos + iX + 20) To sRect At tRect.Right
+                Move (iCurPos+iX+20-8) To iCurPos
+            End
+            Else Begin
+                ZeroType tRect To sRect
+                GetAddress Of sRect To pRect
+                Put 0 To sRect At tRect.Top
+                Put iCurPos To sRect At tRect.Left
+                If iItem Eq (piSelectedItem(Self)) Put (iY +4 + (piSelHeightInc(Self)) ) To sRect At tRect.Bottom
+                Else Put (iY +4) To sRect At tRect.Bottom
+                Put (iCurPos + iX + 20) To sRect At tRect.Right
+                Move (iCurPos+iX+20-8) To iCurPos
+            End
+            
+            Get GetTrapezoid sRect To sTrap
+            Set binary_value Of (oTrapezoids(Self)) iItem To sTrap
+            Set binary_value Of (oRects(Self))      iItem To sRect
+            GetAddress Of sTrap To pTrap
+            Move (CreatePolygonRgnEf(pTrap,4,1)) To hRgn
+            Set value Of oRegions Item iItem To hRgn
+        Loop
+
+        Move (SelectObject(hDC,hOldFont)) To hOldFont
+        Function_Return iCurPos
+    End_Function
+
+    Procedure DrawTopLine Handle hDC
+        Integer iRet
+        Handle hOldPen hPen
+        
+        Move (movetoexef(hDC,0,0,0)) To iRet
+        Move (GetStockObject(BLACK_PEN)) To hPen
+        Move (SelectObject(hDC,hPen)) To hOldPen
+        Move (LineTo(hDc,(low(GuiSize(Self))),0)) To iRet
+        Move (SelectObject(hDC,hOldPen)) To iRet
+    End_Procedure
+
+    // Draws a single Button
+    Function DrawButton Handle hDC Integer iItem Returns Integer
+        Handle hPen hBrush hRgn hShadowPen hColor hOldPen hFont hOldFont hOldBrush
+        String sPaintStruct sTrap sPoint sRect sItemText
+        Pointer pPaintStruct pTrap pPoint pRect pItemText
+        Integer iRet iX iY iReturnVal iSize iColor iSelected
+
+        If iItem Eq (piSelectedItem(Self)) Move 1 To iSelected
+        If (Not(iSelected)) Begin
+            Get ItemColor Item iItem To iColor
+            If (Not(iColor)) Get piTabsColor To iColor
+            If (iColor<0) Move (GetSysColor(iColor Iand $000000FF)) To iColor
+            Move (CreateSolidBrush(iColor)) To hBrush
+            Move (SetBkColorEf(hDC,iColor)) To iRet
+        End
+        Else Begin
+            Get piSelectedItemColor         To iColor
+            If iColor Eq 0 Begin
+                Get Color Of (Parent(Self)) To iColor
+                If (iColor<0) Move (GetSysColor(iColor Iand $000000FF)) To iColor
+            End
+            Move (CreateSolidBrush(iColor)) To hBrush
+            Move (SetBkColorEf(hDC,iColor)) To iRet
+        End
+
+        Move (SelectObject(hDC,hBrush)) To hOldBrush
+
+        Get value Of (oRegions(Self)) Item iItem To hRgn
+        Move (FillRgnEf(hDC,hRgn,hBrush)) To iRet
+
+        Get binary_value Of (oTrapezoids(Self)) iItem To sTrap
+        GetAddress Of sTrap To pTrap
+
+        Move (GetStockObject(BLACK_PEN)) To hPen
+        Move (GetSysColor(COLOR_BTNSHADOW)) To hColor
+        Move (SelectObject(hDc,hPen)) To hOldPen
+
+        Move (XFromPointArray(Self,sTrap,3)) To iReturnVal
+
+        If (Not(iSelected)) Begin
+            If (piTopState(Self)) Begin
+                Move (XFromPointArray(Self,sTrap,3)) To iX
+                Move (YFromPointArray(Self,sTrap,3)) To iY
+                Move (movetoexef(hDC,iX,(iY-1),0)) To iRet
+
+                Move (XFromPointArray(Self,sTrap,0)) To iX
+                Move (YFromPointArray(Self,sTrap,0)) To iY
+                Move (LineTo(hDC,iX,(iY-1))) To iRet
+            End
+            Else Begin
+                Move (XFromPointArray(Self,sTrap,3)) To iX
+                Move (YFromPointArray(Self,sTrap,3)) To iY
+                Move (MoveToExEf(hDC,iX,iY,0)) To iRet
+
+                Move (XFromPointArray(Self,sTrap,0)) To iX
+                Move (YFromPointArray(Self,sTrap,0)) To iY
+                Move (LineTo(hDC,iX,iY)) To iRet
+            End
+        End
+        Else Begin
+            Move (GetSysColor(COLOR_3DHILIGHT)) To hColor
+            Move (CreatePen(PS_SOLID,1,hColor)) To hShadowPen
+            Move (XFromPointArray(Self,sTrap,0)) To iX
+            Move (YFromPointArray(Self,sTrap,0)) To iY
+            If (piTopState(Self)) Move (MoveToExEf(hDC,(iX+1),iY,0)) To iRet
+            Else Move (MoveToExEf(hDC,(iX+1),iY,0)) To iRet
+            Move (XFromPointArray(Self,sTrap,1)) To iX
+            Move (YFromPointArray(Self,sTrap,1)) To iY
+            Move (SelectObject(hDC,hShadowPen)) To iRet
+            If (piTopState(Self)) Begin
+                Move (LineTo(hDC,(iX+1),iY)) To iRet
+                Move (MoveToExEf(hDC,(iX+1),(iY+1),0)) To iRet
+            End
+            Else Begin
+                Move (LineTo(hDC,(iX+1),iY)) To iRet
+                Move (MoveToExEf(hDC,(iX+1),(iY-1),0)) To iRet
+            End
+            Move (SelectObject(hDC,hPen)) To iRet
+            Move (DeleteObject(hShadowPen)) To iRet
+
+            Move (GetSysColor(COLOR_3DSHADOW)) To hColor
+            Move (CreatePen(PS_SOLID,1,hColor)) To hShadowPen
+            Move (SelectObject(hDC,hShadowPen)) To iRet
+            Move (XFromPointArray(Self,sTrap,2)) To iX
+            Move (YFromPointArray(Self,sTrap,2)) To iY
+            Move (SelectObject(hDC,hShadowPen)) To iRet
+            If (piTopState(Self)) Begin
+                Move (LineTo(hDC,iX,(iY+1))) To iRet
+                Move (MoveToExEf(hDC,(iX-1),iY,0)) To iRet
+            End
+            Else Begin
+                Move (LineTo(hDC,iX,(iY-1))) To iRet
+                Move (MoveToExEf(hDC,(iX-1),iY,0)) To iRet
+            End
+            Move (XFromPointArray(Self,sTrap,3)) To iX
+            Move (YFromPointArray(Self,sTrap,3)) To iY
+            If (piTopState(Self)) Move (LineTo(hDC,(iX-1),iY)) To iRet
+            Else Move (LineTo(hDC,(iX-1),iY)) To iRet
+
+            Move (SelectObject(hDC,hPen)) To iRet
+            Move (DeleteObject(hShadowPen)) To iRet
+        End
+        Move (SelectObject(hDC,hPen)) To iRet
+        Move (XFromPointArray(Self,sTrap,0)) To iX
+        Move (YFromPointArray(Self,sTrap,0)) To iY
+        Move (MoveToExEf(hDC,iX,iY,0)) To iRet
+
+        Move (PolylineToEf(hDC,pTrap,4)) To iRet
+
+        Move (GetStockObject(DEFAULT_GUI_FONT)) To hFont
+        Move (SelectObject(hDC,hFont  )) To hOldFont
+        Move (SelectObject(hDC,hOldPen)) To iRet
+        Get binary_value Of (oRects(Self)) iItem To sRect
+        GetAddress Of sRect To pRect
+        Move (InflateRectEf(pRect,((8+2)*-1),0)) To iRet
+
+        Get ButtonItemText iItem To sItemText
+        GetAddress Of sItemText To pItemText
+        Move (OemToAnsi(pItemText,pItemText)) To iRet
+        If ( (object_shadow_state(Self)) Or (item_shadow_state(Self,iItem)) ) Move (SetTextColor(hDc,(GetSysColor(COLOR_GRAYTEXT)))) To iRet
+        Else Begin
+            If iItem Eq (piCurrentHotItem(Self)) Move (SetTextColor(hDC,(piHotItemTextColor(Self)))) To iRet
+            Else Begin
+                Get ItemTextColor Item iItem To iColor
+                If (Not(iColor)) Move (piItemTextColor(Self)) To iColor
+                Move (SetTextColor(hDC,iColor)) To iRet
+            End
+        End
+        Move (DrawText(hDC,pItemText,((length(sItemText))-1),pRect,(DT_CENTER Ior DT_VCENTER Ior DT_SINGLELINE))) To iRet
+        Move (SelectObject(hDC,hOldFont )) To iRet
+        Move (SelectObject(hDC,hOldBrush)) To iRet
+        Move (DeleteObject(hBrush)) To iRet
+        If (iReturnVal Gt (low(GuiSize(Self))) ) Function_Return False
+        Else Function_Return True
+    End_Function // DrawButton
+
+    // Paint a background
+    Procedure PaintBackground Handle hDc
+        Handle hBrush hPen
+        Integer iVoid iSize iColor iTop
+        Get piTopState          To iTop
+        Get guiSize             To iSize
+        Get piBackgroundColor   To iColor
+        If iColor Eq 0 Get color Of (parent(Self)) To iColor
+        If (iColor<0) Move (GetSysColor(iColor Iand $000000FF)) To iColor
+        Move (GetStockObject(BLACK_PEN)) To hPen
+//        Get CreateDottedBrush iColor To hBrush
+        If (Not(hBrush)) Move (CreateSolidBrush(iColor)) To hBrush
+        Move (SelectObject(hDC, hPen))   To iVoid
+        Move (SelectObject(hDC, hBrush)) To iVoid
+        If (iTop)   Move (Rectangle(hDC, -2, -1, Low(iSize)+4, Hi(iSize)   )) To iVoid
+        Else        Move (Rectangle(hDC, -2,  0, Low(iSize)+3, Hi(iSize)+2 )) To iVoid
+        Move (DeleteObject(hBrush)) To iVoid
+    End_Procedure
+    Procedure WMMSG_Erasebkgnd Integer wParam Integer lParam
+        Procedure_Return 1
+    End_Procedure
+
+    Procedure WMMSG_Paint Integer wParam Integer lParam
+        String sPaintStruct sText sClientRect
+        Pointer pPaintStruct pClientRect
+        Handle hDC hRegion hMemDC hMemBitmap hBitmapOld hWindowDC hWnd
+        Integer iRet iSelectedPos iItem iPos iSelectedVisible iWidth iStartOffset iX iY iTop iLeft iBottom iRight
+        Integer iFirstVisible iCount
+
+        Get Window_Handle To hWnd
+        ZeroType tPAINTSTRUCT To sPaintStruct
+        GetAddress Of sPaintStruct To pPaintStruct
+        Move (BeginPaint(hWnd, pPaintStruct)) To hDC
+
+
+        ZeroType tRect To sClientRect
+        GetAddress Of sClientRect To pClientRect
+        Move (GetClientRect(hWnd,pClientRect)) To iRet
+        GetBuff From sClientRect At tRect.Top    To iTop
+        GetBuff From sClientRect At tRect.Left   To iLeft
+        GetBuff From sClientRect At tRect.Bottom To iBottom
+        GetBuff From sClientRect At tRect.Right  To iRight
+        Move (CreateCompatibleDCEf(hDC)) To hMemDC
+        Move (CreateCompatibleBitmapEf(hDC,(iRight-iLeft),(iBottom-iTop))) To hMemBitmap
+        Move (SelectObject(hMemDC,hMemBitmap)) To hBitmapOld
+
+        Move hDC To hWindowDC
+        Move hMemDC To hDC
+        
+        Get piFirstVisibleItem To iFirstVisible
+        If (iFirstVisible<>0) Move 12 To iStartOffset
+        Else Move 0 To iStartOffset
+         
+        Get CreateRegions hDC iStartOffset To iWidth
+
+        If (iFirstVisible<>0) Begin
+            Set GuiSize Of (poButtonLeft(Self)) To 12 12
+            Move (hi(ButtonGuiSize(Self,iFirstVisible))) To iY
+            Calc ((iY -10) /2) To iY
+            Calc (iY + (hi(GuiLocation(Self)))) To iY
+            Set GuiLocation Of (poButtonLeft(Self)) To iY (low(GuiLocation(Self)))
+            Set visible_state Of (poButtonLeft(Self)) To True
+        End
+        Else Set visible_state Of (poButtonLeft(Self)) To False
+
+        If iWidth Gt (low(GuiSize(Self))) Begin
+            Set GuiSize Of (poButtonRight(Self)) To 12 12
+            Move (hi(ButtonGuiSize(Self,iFirstVisible))) To iY
+            Calc ((iY -10) /2) To iY
+            Calc (iY + (hi(GuiLocation(Self)))) To iY
+            Set GuiLocation Of (poButtonRight(Self)) To iY ( (low(GuiLocation(Self))) + (low(GuiSize(Self))) - (low(GuiSize(poButtonRight(Self)))) )
+            Set visible_state Of (poButtonRight(Self)) To True
+        End
+        Else Set visible_state Of (poButtonRight(Self)) To False
+        Send PaintBackground hDc
+        Move 0 To iPos
+        Get Item_Count of oItems To iCount
+        For iItem From iFirstVisible To (iCount -1)
+            If iItem Ne (piSelectedItem(Self)) Begin
+                Get DrawButton hDC iItem To iRet
+                If (Not(iRet)) Move (iCount -1) To iItem // stop loop
+            End
+            Else Move 1 To iSelectedVisible
+        Loop
+        If iSelectedVisible Get DrawButton hDC (piSelectedItem(Self)) To iRet
+
+        Move (BitBltEf(hWindowDC,iLeft,iTop,(iRight-iLeft),(iBottom-iTop),hMemDC,0,0,SRCCOPY)) To iRet
+
+        Move (SelectObject(hMemDC,hBitmapOld)) To iRet
+        Move (DeleteObject(hMemBitmap)) To iRet
+        Move (DeleteDCEf(hMemDc)) To iRet
+
+        Move (EndPaint(hWnd, pPaintStruct)) To iRet
+        If (visible_state(poButtonLeft(Self))) Send rotate_up To (poButtonLeft(Self))
+        If (visible_state(poButtonRight(Self))) Send rotate_up To (poButtonRight(Self))
+        Send OnPaint
+    End_Procedure
+
+    // The following are needed for ToolTips
+    Procedure CreateToolTipWindow
+        Handle hWnd
+        String sClass
+        Pointer pClass
+        
+        Move ("tooltips_class32" + (Character(0))) To sClass
+        GetAddress Of sClass To pClass
+        Move (CreateWindowExEf(0,pClass,0,TTS_ALWAYSTIP,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,0,0,(window_handle(desktop)),0)) To hWnd
+        Set phToolTip To hWnd
+    End_Procedure
+
+    Procedure Set ToolTipActive Integer iState
+        Integer iRet
+        
+        Move (SendMessage(phToolTip(Self),TTM_ACTIVATE,iState,0)) To iRet
+    End_Procedure
+
+    Procedure AddWindowToToolTip
+        Integer iRet
+        String sToolInfo
+        Pointer pToolInfo
+        Handle hWnd
+        
+        Get window_handle To hWnd
+        ZeroType tTOOLINFO To sToolInfo
+        GetAddress Of sToolInfo To pToolInfo
+        Put tTOOLINFO_SIZE To sToolInfo At tTOOLINFO.cbSize
+        Put (TTF_SUBCLASS Ior TTF_IDISHWND) To sToolInfo At tTOOLINFO.uFlags
+        Put hWnd To sToolInfo At tTOOLINFO.hwnd
+        Put hWnd To sToolInfo At tTOOLINFO.uID
+        Put -1 To sToolInfo At tTOOLINFO.lpszText
+        Move (SendMessage(phToolTip(Self),TTM_ADDTOOL,0,pToolInfo)) To iRet
+    End_Procedure
+
+    Procedure HideToolTip
+        Integer iRet
+        
+        If (Not(piIsToolTipVisible(Self))) Procedure_Return
+        Move (SendMessage(phToolTip(Self),TTM_POP,0,0)) To iRet
+    End_Procedure
+
+    Procedure RefreshToolTip
+        Integer iRet iRemoveTip
+        String sTipText
+        
+        If (Not(piIsToolTipVisible(Self))) Procedure_Return
+        If (piCurrentHotItem(Self)) Eq -1 Move 1 To iRemoveTip
+        Get value Of (oToolTips(Self)) Item (piCurrentHotItem(Self)) To sTipText
+        If (Trim(sTipText)) Eq "" Move 1 To iRemoveTip
+        If iRemoveTip Begin
+            Send HideToolTip
+            Procedure_Return
+        End
+        Move (sendmessage(phToolTip(Self),TTM_UPDATE,0,0)) To iRet
+    End_Procedure
+
+    Procedure WMMSG_Notify Integer wParam Integer lParam
+        String sNmHdr sNmTTDispInfo sTipText
+        Pointer pNmHdr pNmTTDispInfo pTipText
+        Integer iRet iCode
+
+        ZeroType tNmHdr To sNmHdr
+        GetAddress Of sNmHdr To pNmHdr
+        Move (CopyMemory(pNmHdr, lParam, tNmHdr_size)) To iRet
+        GetBuff From sNmHdr At tNmHdr.code   To iCode
+        If iCode Eq TTN_GETDISPINFO Begin
+            If (piCurrentHotItem(Self)) Eq -1 Procedure_Return 0
+            Get value Of (oToolTips(Self)) Item (piCurrentHotItem(Self)) To sTipText
+            If (Trim(sTipText)) Eq "" Procedure_Return 0
+            ZeroType tNmTTDispInfo To sNmTTDispInfo
+            GetAddress Of sNmTTDispInfo To pNmTTDispInfo
+            Move (CopyMemory(pNmTTDispInfo, lParam, tNmTTDispInfo_size)) To iRet
+
+            Move (sTipText + (Character(0))) To sTipText
+            GetAddress Of sTipText To pTipText
+            Move (OemToAnsi(pTipText,pTipText)) To iRet
+
+            If (length(sTipText)) Gt 80 Put pTipText to sNmTTDispInfo At tNmTTDispInfo.lpszText
+            Else                        put_string sTipText to sNmTTDispInfo at tNmTTDispInfo.szText
+
+            Put (window_handle(Self)) To sNmTTDispInfo At tNmTTDispInfo.hdr.hwndFrom
+            Put (window_handle(Self)) To sNmTTDispInfo At tNmTTDispInfo.hdr.idFrom
+            Put TTF_IDISHWND To sNmTTDispInfo At tNmTTDispInfo.uFlags
+            Move (CopyMemory(lParam,pNmTTDispInfo, tNmTTDispInfo_size)) To iRet
+            Procedure_Return 1
+        End
+        If iCode Eq TTN_SHOW Begin
+            Set piIsToolTipVisible To True
+            Procedure_Return 1
+        End
+        If iCode Eq TTN_POP Begin
+            Set piIsToolTipVisible To False
+            Procedure_Return 1
+        End
+    End_Procedure
+
+    // Create left/right button and tooltip if needed
+    Procedure page Integer iState
+        Integer iRet
+        
+        Forward Send page iState
+        If iState Begin
+            If (Not(poButtonLeft(Self))) Begin
+                Object oButtonLeft Is a cTabScrollButton
+                    Set Guisize To 12 12
+                    Set piOemBitmap To 32750
+                    Set piMessage To ScrollLeft
+                    Set poButtonLeft To (Self)
+                End_Object
+                Send page_object To (poButtonLeft(Self)) True
+            End
+            If (Not(poButtonRight(Self))) Begin
+                Object oButtonRight Is a cTabScrollButton
+                    Set Guisize To 12 12
+                    Set piOemBitmap To 32751
+                    Set piMessage To ScrollRight
+                    Set poButtonRight To (Self)
+                End_Object
+                Send page_object To (poButtonRight(Self)) True
+            End
+            If (Not(phToolTip(Self))) Begin
+                Send CreateToolTipWindow
+                Set ToolTipActive To True
+                Send AddWindowToToolTip
+            End
+        End
+    End_Procedure
+
+    Procedure destroy_object
+        Integer iRet
+        
+        If (phToolTip(Self)) Begin
+            Move (DestroyWindowEf(phToolTip(Self))) To iRet
+            Set phToolTip To 0
+        End
+        Forward Send destroy_object
+    End_Procedure
+
+    Procedure RedrawMySelf
+        Integer iRet
+        
+        Send HideToolTip
+        Move (RedrawWindowEf(Window_Handle(Self),0,0,(RDW_INVALIDATE Ior RDW_NOERASE)))    To iRet
+    End_Procedure
+
+
+    Procedure WMMSG_ButtonDown Integer wParam Integer lParam Boolean bLeftButton
+        Integer iItem iCount
+        Integer iPrevious iRet iLoc iSize
+        Handle  hRegion
+        String  sRect
+        Pointer pRect
+
+        Get piSelectedItem To iPrevious
+        Set piCurrentItem  To iPrevious
+        Get Item_Count of oRegions To iCount
+        For iItem From 0 To ( iCount-1)
+            Get value Of oRegions Item iItem To hRegion
+            If hRegion Begin
+                If (PtInRegionEf(hRegion,low(lParam),hi(lParam) )) Begin
+                    If (item_shadow_state(Self,iItem)) Procedure_Return
+                    Send OnItemChanging iItem iPrevious
+                    If (bLeftButton) Begin
+                      If iItem Eq (piFirstVisibleItem(Self)) Begin
+                          If (piFirstVisibleItem(Self)) Ge 1 Set piFirstVisibleItem To ( (piFirstVisibleItem(Self)) - 1)
+                      End
+                      Else Begin
+                          Get ButtonGuiLocation iItem To iLoc
+                          Get ButtonGuiSize     iItem To iSize
+                          If ( low(iSize) + low(iLoc) ) Gt (low(GuiSize(Self))) Begin
+                              Set piFirstVisibleItem To ( (piFirstVisibleItem(Self)) + 1)
+                          End
+                      End
+                    End
+
+                    Set piCurrentItem To iItem
+                    Move iCount To iItem // stop loop
+                End
+            End
+        Loop
+    End_Procedure // WMMSG_ButtonDown
+
+
+    Procedure WMMSG_LButtonDown Integer wParam Integer lParam
+        Integer iPrevious
+        Integer iCurrent
+        Integer iRet
+
+        Get piSelectedItem To iPrevious
+
+        Send WMMSG_ButtonDown wParam lParam True
+
+        Get piCurrentItem To iCurrent
+        If (iCurrent<>iPrevious) Begin
+            Set piSelectedItem To iCurrent
+
+            Send redrawmyself
+            Send OnItemChanged (piSelectedItem(Self)) iPrevious
+            Send OnClick (piSelectedItem(Self))
+        End
+        Move (sendmessage(phToolTip(Self),TTM_UPDATE,0,0)) To iRet
+    End_Procedure // WMMSG_LButtonDown
+
+    Procedure WMMSG_RButtonDown Integer wParam Integer lParam
+        Integer iPrevious
+        Integer iCurrent
+        Integer iRet
+
+        Get piSelectedItem To iPrevious
+
+        Send WMMSG_ButtonDown wParam lParam False
+
+        // item should not change on right click, but piCurrentItem points to what is under the cursor
+        Get piCurrentItem To iCurrent
+        If (iCurrent<>iPrevious) Begin
+          Send redrawmyself
+        End
+        Send OnRightClick iCurrent
+
+        Move (sendmessage(phToolTip(Self),TTM_UPDATE,0,0)) To iRet
+        Set Windows_Override_State To True // don't pass the message to Windows.
+    End_Procedure // WMMSG_RButtonDown
+
+    Procedure OnClick Integer iItem
+        Integer iMsg iObj
+        
+        Get Value Of (oMessages(Self)) Item iItem To iMsg
+        Get value Of (oAuxValues(Self)) Item iItem To iObj
+        If (iMsg) Begin
+            If iObj Send iMsg To iObj iItem
+            Else Send iMsg iItem
+        End
+    End_Procedure // OnClick
+
+    Procedure OnRightClick Integer iItem
+        Integer iMsg iObj
+        
+        Get Value Of (oMessages(Self)) Item iItem To iMsg
+        Get value Of (oAuxValues(Self)) Item iItem To iObj
+        If (iMsg) Begin
+            If iObj Send iMsg To iObj iItem
+            Else Send iMsg iItem
+        End
+    End_Procedure // OnRightClick
+
+    Procedure Set Border_Style Integer iStyle
+      Forward Set Border_Style To Border_None
+    End_Procedure
+
+    Function Item_Count Returns Integer
+        Function_Return (Item_Count(oItems(Self)))
+    End_Function
+
+    Procedure Set Current_Item Integer iItem
+        If ((iItem>=0)And(iItem<Item_Count(Self))) Begin
+            Set piSelectedItem To iItem
+            Send Refresh
+        End
+    End_Procedure
+    Function Current_Item Returns Integer
+        Function_Return (piSelectedItem(Self))
+    End_Function
+
+    Procedure ScrollLeft
+        If (piFirstVisibleItem(Self)) Eq 0 Procedure_Return
+        Set piFirstVisibleItem To ((piFirstVisibleItem(Self))-1)
+        Send RedrawMySelf
+    End_Procedure
+
+    Procedure ScrollRight
+        If (piFirstVisibleItem(Self)) Ge ( (item_count(oItems(Self)))-1) Procedure_Return
+        Set piFirstVisibleItem To ((piFirstVisibleItem(Self))+1)
+        Send RedrawMySelf
+    End_Procedure
+
+    Procedure Refresh
+        Send RedrawMySelf
+    End_Procedure
+
+    Procedure Set Value Integer iItem String sText
+        Set value Of (oItems(Self)) Item iItem To sText
+        Send Refresh
+    End_Procedure
+    Function Value Integer iItem Returns String
+        Function_Return (value(oItems(Self),iItem))
+    End_Function
+
+    Procedure Set Label String sText
+        Set value Of (oItems(Self)) Item (Current_Item(Self)) To sText
+        Send Refresh
+    End_Procedure
+    Function Label Returns String
+        Function_Return (value(oItems(Self),Current_Item(Self)))
+    End_Function
+
+    Procedure Add_Item Integer iMsg String sText
+        Set value Of (oItems(Self))     Item (item_count(oItems(Self)))     To sText
+        Set value Of (oMessages(Self))  Item (item_count(oMessages(Self)))  To iMsg
+        Send Refresh
+    End_Procedure
+
+    Procedure Set ItemColor Integer iItem Integer iColor
+        If ((iItem>=0)And(iItem<Item_Count(Self))) Begin
+            Set Value Of (oColors(Self)) Item iItem To iColor
+            Send Refresh
+        End
+    End_Procedure
+    Function ItemColor Integer iItem Returns Integer
+        Function_Return (Value(oColors(Self),iItem))
+    End_Procedure
+
+    Procedure Set ItemTextColor Integer iItem Integer iColor
+        If ((iItem>=0)And(iItem<Item_Count(Self))) Begin
+            Set Value Of (oTextColors(Self)) Item iItem To iColor
+            Send Refresh
+        End
+    End_Procedure
+    Function ItemTextColor Integer iItem Returns Integer
+        Function_Return (Value(oTextColors(Self),iItem))
+    End_Procedure
+
+    Procedure Set Tooltip_value Integer iItem String sText
+        Set value Of (oToolTips(Self)) Item iItem To sText
+    End_Procedure
+    Function Tooltip_value Integer iItem Returns String
+        String sText
+        Get value Of (oToolTips(Self)) Item iItem To sText
+        Function_Return sText
+    End_Function
+
+    Procedure Delete_Item Integer iItem
+        Integer iCnt
+        Move (item_count(oItems(Self))) To iCnt
+        If ((iItem<=iCnt)And(iCnt>0)) Begin
+            Send Delete_Item To (oItems(Self))      iItem
+            Send Delete_Item To (oMessages(Self))   iItem
+            Send Delete_Item To (oColors(Self))     iItem
+            Send Delete_Item To (oTextColors(Self)) iItem
+            Send Delete_Item To (oItemShadowed(Self)) iItem
+            Send delete_item To (oToolTips(Self))   iItem
+            Send delete_item To (oAuxValues(Self))  iItem
+            Send RedrawMySelf
+        End
+    End_Procedure
+
+    Procedure Delete_Data
+        Send Delete_data To (oItems(Self))
+        Send Delete_data To (oMessages(Self))
+        Send Delete_data To (oColors(Self))
+        Send Delete_data To (oTextColors(Self))
+        Send delete_data To (oItemShadowed(Self))
+        Send delete_data To (oToolTips(Self))
+        Send delete_data To (oAuxValues(Self))
+        Send RedrawMySelf
+    End_Procedure
+
+    Procedure Set HeightAddedToSelected Integer iHeight
+        Set piSelHeightInc To iHeight
+    End_Procedure
+    Function HeightAddedToSelected Returns Integer
+        Function_Return (piSelHeightInc(Self))
+    End_Function
+
+    Procedure Set color Integer iColor
+        Set piBackgroundColor To iColor
+    End_Procedure
+    Function Color Returns Integer
+        Function_Return (piBackgroundColor(Self))
+    End_Function
+
+    Procedure Set item_shadow_state Integer iItem Integer iState
+        Set value Of (oItemShadowed(Self)) Item iItem To iState
+    End_Procedure
+    Function item_shadow_state Integer iItem Returns Integer
+        Function_Return (value(oItemShadowed(Self),iItem))
+    End_Function
+
+    Procedure Set aux_value Integer iItem Integer iValue
+        Set value Of (oAuxValues(Self)) Item iItem To iValue
+    End_Procedure
+    Function Aux_value Integer iItem Returns Integer
+        Function_Return (value(oAuxValues(Self),iItem))
+    End_Function
+
+End_Class

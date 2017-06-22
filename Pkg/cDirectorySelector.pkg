@@ -1,0 +1,76 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : cDirectorySelector.pkg
+// $ProjectName : Shared Classes
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 03-15-2001 @ 19:00
+//
+// Contents:
+//      Allows to select a directory.
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+Define MAX_PATH         For 260
+
+    // Structure for Directory Browsing.
+TYPE tBROWSEINFO
+    Field tBROWSEINFO.hwndOwner            as Handle        //TYPE: HWND
+    Field tBROWSEINFO.pidlRoot             as Pointer       //TYPE: LPCITEMIDLIST
+    Field tBROWSEINFO.pszDisplayName       as Pointer       //TYPE: LPTSTR
+    Field tBROWSEINFO.lpszTitle            as Pointer       //TYPE: LPCTSTR
+    Field tBROWSEINFO.ulFlags              as Integer       //TYPE: UINT
+    Field tBROWSEINFO.lpfn                 as Pointer       //TYPE: BFFCALLBACK
+    Field tBROWSEINFO.lParam               as Pointer       //TYPE: LPARAM
+    Field tBROWSEINFO.iImage               as Integer       //TYPE: int
+END_TYPE
+
+    // Item ID
+TYPE tSHITEMID
+    Field tSHITEMID.cb                     as Short     //TYPE: USHORT
+    Field tSHITEMID.abID                   as Char 1    //TYPE: BYTE
+END_TYPE
+
+    // Item ID list.
+TYPE tITEMIDLIST
+    Field tITEMIDLIST.mkid                 as Char tSHITEMID_SIZE  //TYPE: SHITEMID
+END_TYPE
+
+
+
+
+External_Function SHBrowseForFolder "SHBrowseForFolder" shell32.dll ;
+    Pointer lpdWord Returns Dword
+
+External_Function SHGetPathFromIDList "SHGetPathFromIDList" shell32.dll ;
+    Pointer pidList Pointer lpBuffer Returns Dword
+
+// returns folder name if a folder was selected, otherwise returns ""
+Function GetSelectFolder For Desktop String sDialogTitle Returns String
+    String sFolder sBrowseInfo sTitle
+    Pointer lpItemIdList lpsFolder lpsBrowseInfo lpsTitle
+    Integer iFolderSelected
+
+    // fill string variable with null characters
+    ZeroType tBrowseInfo To sBrowseInfo
+
+    If (sDialogTitle<>"") Begin
+        Move sDialogTitle To sTitle
+        GetAddress Of sTitle To lpsTitle
+        put lpsTitle To sBrowseInfo at tBrowseInfo.lpszTitle
+    End
+    GetAddress Of sBrowseInfo To lpsBrowseInfo
+
+    ZeroString MAX_PATH             To sFolder
+    GetAddress Of sFolder           To lpsFolder
+
+    Move (SHBrowseForFolder(lpsBrowseInfo))             To lpItemIdList
+    Move (SHGetPathFromIDList(lpItemIdList, lpsFolder)) To iFolderSelected
+
+    If (iFolderSelected<>0) Function_Return (CString(sFolder))
+    Else                    Function_Return ""
+End_Function  // GetSelectFolder

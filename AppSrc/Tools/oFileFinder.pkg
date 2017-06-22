@@ -1,0 +1,39 @@
+Object oFileFinder is a cFileFinder
+    Property String psCurrentFindText   ""
+    Property Integer phoTargetObject    0
+    Property Integer piMaxUseTabPages   4
+    Property Integer piShowAll 0
+
+    Procedure StartFileFind String sPath String sType String sText Integer bSubFolders Integer bMatchCase Integer bMatchWord Integer bShowAll Integer bRegExp
+        String sVal
+        Move (Trim(sText)) to sVal
+        If (length(sVal)) Gt 15 Move ( (Left(sVal,12)) + "..." ) to sVal
+        Set psCurrentFindText to sVal
+        Set piShowAll to bShowAll
+        Forward Send StartFileFind sPath sType sText bSubFolders bMatchCase bMatchWord bShowAll bRegExp
+    End_Procedure
+
+    Procedure AddLine String sVal
+        If (phoTargetObject(Self)) Send Add_Line to (phoTargetObject(Self)) sVal
+    End_Procedure
+
+    Procedure CreateFindPage
+        Integer hoObj
+        If (phoTargetObject(Self)=0) Begin
+            Get Add_Output_Page of ghoOutputDialog ("Searching:'" + (Trim(psCurrentFindText(Self))) + "'" ) to hoObj
+            Get Output_Area of ghoOutputDialog hoObj to hoObj
+            Set piCombineOutput of hoObj to (piShowAll(Self))
+            Set phoTargetObject to hoObj
+        End
+    End_Procedure
+    Procedure OnStart
+        Send OnStartFind to (oFindFiles(Self))
+        If (phoTargetObject(Self)) Ne 0 Set piCanCancel of (phoTargetObject(Self)) to True
+    End_Procedure
+    Procedure OnFinish
+        If (phoTargetObject(Self)) Set label of (parent(phoTargetObject(Self))) to ("Results:'" + (Trim(psCurrentFindText(Self))) + "'" )
+        Send OnFinishFind to (oFindFiles(Self))
+        If (phoTargetObject(Self)) Ne 0 Set piCanCancel of (phoTargetObject(Self)) to False
+        Set phoTargetObject to 0
+    End_Procedure
+End_Object

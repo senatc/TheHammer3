@@ -1,0 +1,976 @@
+//***************************************************************************************
+//* PopupMenu.Pkg
+//*
+//*
+//* Creates a PopupMenu based on the WIndows API becouse the DF PopupMenus
+//* don't work right!
+//*
+//*
+//*
+//*
+//*
+//* Michael Kurz 05.10.2000 mkurz@sbox.tu-graz.ac.at
+//***************************************************************************************
+//* Usage.: (Cascading is possible now!)
+//*
+//*
+//* Object oPopupMenu is a cPopupMenu
+//*     send Add_Item msg_XXXX sItemtxt [iAux_Value]        // Adds a Item to the Popup Menu
+//*     Object oSubPopupMenu is a cPopupMenu
+//*         set psLabel to "SubMenuLabel"                   // Label of the SubMenu Entry!
+//*         send Add_Item msg_XXXX sItemtxt [iAux_Value]    // Adds a Item to the SubPopup Menu
+//*         ...
+//*     End_Object
+//*     send Add_Item msg_XXXX sItemtxt [iAux_Value]        // Adds a Item to the Popup Menu
+//*     ...
+//*
+//*     set  Aux_Value item iX  to Object_ID            // Sets the aux_value
+//*     set Bitmap     item iX  to "XXXXX.BMP"          // Sets a Bitmap for a Menu Item.
+//*
+//*     set BitmapSelected   item iX to "XXX.BMP"       // Set Bitmaps for Select_State true
+//*     Set BitmapUnselected item iX to "XXX.BMP"       // and false, set Bitmap sets both for the same bitmap!
+//*
+//*     Set Select_State item iNr to    True/False      // Sets the selection bitmap on or off
+//*     Set Shadow_State item iNr to    True/False      // Shadow_State is supported!
+//*
+//* End_Object
+//*
+//*
+//* send Popup  to (oPopupMenu(Self))
+//*
+//*
+//***************************************************************************************
+//* MK 06.10.2000 Track Popupmenu also with the right mouse_button
+//* MK 06.10.2000 OemToAnsi conversion added
+//* MK 06.10.2000 added a Item_Count to menu
+//* MK 07.10.2000 set Popup_State to True to prevent object from getting the focus
+//* MK 09.10.2000 MIIM_Bitmap, MIIM_String, MIIM_FTYPE Win 98, Win2000 -> old MIIM_TYPE
+//* MK 09.10.2000 Cascading ability added: Problem
+//*                    ID of the Menu Item! ObjectID+ItemNr
+//*                    max. Items limited
+//*                    16 Bit available-> max Items 32, max.ObjectID 2047!!!
+//*                    If this doesn't work please tell!
+//* MK 25.10.2000 Shadowing for items, which point to a submenu added!
+//* MK 27.10.2000 onInitMenu added
+//*				  every Menu (submenu) get a onInitMenu call before creation, so that
+//*				  you can add e.g. dynamic shadowing.
+//* MK 15.11.2000 Transparentmode added to a suggest from Wil van Antwerpen
+//* MK 15.11.2000 Third way of retrieving a Window_Handle added ( The Popupmenu always needs one!)
+//* MK 15.11.2000 Bitmaps for SubMenu Entries supported!
+
+
+Use mPointer.pkg
+Use mBitmapStuff.pkg
+Use mWinAPIErrorText.pkg
+
+    // This limits the Menu to a max. number of items of 31
+    // and a max. Object ID of 2048
+Function PopupMenu_ComposeID Global Integer iOID Integer iItem Returns Integer
+    If iOID Gt 2047 Send Info_Box "PopupMenu: max. allowed Object ID = 2048!" "Warning"
+    If iItem Gt 31  Send Info_Box "PopupMenu: max. allowed Items = 32!" "Warning"
+    Function_Return ((iItem*2048)+iOID)
+End_Function
+Function PopupMenu_Low Global Integer iWert Returns Integer
+    Function_Return (iWert Iand 2047)
+End_Function
+Function PopupMenu_Hi GLobal Integer iWert Returns Integer
+    Function_Return ((iWert Iand 63488)/2048)
+End_Function
+
+// **WvA
+// These functions need to be defined in the case no workspace is used
+Register_Function CurrentProgramPath Returns String
+Register_Function CurrentBitmapPath  Returns String
+
+
+Define IMAGE_BITMAP        For 0
+Define LR_DEFAULTCOLOR	   For |CI$0000
+Define LR_COLOR     	   For |CI$0002
+Define LR_LOADFROMFILE     For |CI$0010
+Define LR_CREATEDIBSECTION For |CI$2000
+Define LR_LOADTRANSPARANT  For |CI$0020
+
+
+// Menu Item Info...
+Define MIIM_STATE       For |CI$00000001
+Define MIIM_ID          For |CI$00000002
+Define MIIM_SUBMENU     For |CI$00000004
+Define MIIM_CHECKMARKS  For |CI$00000008
+Define MIIM_TYPE        For |CI$00000010
+Define MIIM_DATA        For |CI$00000020
+//define MIIM_STRING      for |CI$00000040
+//define MIIM_BITMAP      for |CI$00000080
+//define MIIM_FTYPE       for |CI$00000100
+
+external_function SetMenuItemBitmaps "SetMenuItemBitmaps" USER32.DLL Handle hMenu Integer iPos Integer iFlag Handle hBmpChecked  Handle hUnChecked Returns Integer
+external_function DestroyMenu "DestroyMenu" user32.dll Handle hMenu Returns Integer
+external_function InsertMenuItem "InsertMenuItemA" user32.dll Handle hMenu Integer iItem Integer iFlag Pointer pStr Returns Integer
+external_function EndMenu "EndMenu" user32.dll Returns Integer
+
+external_function DrawState "DrawStateA" User32.Dll Handle hDC Handle hBrush Pointer pFnc Pointer lData Pointer wData Integer iX Integer iY Integer iCx Integer iCy Integer iFlags Returns Integer
+external_function FillRect  "FillRect"   User32.Dll Handle hDC Pointer pRect Handle hBrush Returns Integer
+External_Function32 SetBKColor "SetBkColor" GDI32.dll Handle hDC DWORD  crColor Returns DWord
+
+
+TYPE tagMENUITEMINFO
+    Field tagMENUITEMINFO.cbSize        As Integer
+    Field tagMENUITEMINFO.fMask         As Integer
+    Field tagMENUITEMINFO.fType         As Integer
+    Field tagMENUITEMINFO.fState        As Integer
+    Field tagMENUITEMINFO.wID           As Integer
+    Field tagMENUITEMINFO.hSubMenu      As Handle
+    Field tagMENUITEMINFO.hbmpChecked   As Handle
+    Field tagMENUITEMINFO.hbmpUnchecked As Handle
+    Field tagMENUITEMINFO.dwItemData    As Dword
+    Field tagMENUITEMINFO.dwTypeData    As Pointer
+    Field tagMENUITEMINFO.cch           As Integer
+END_TYPE
+
+Define WM_MEASUREITEM   For |CI$002C
+
+    // States for DRAWITEMSTRUCT.ItemState
+Define ODS_SELECTED     For |CI$0001
+Define ODS_GRAYED       For |CI$0002
+Define ODS_DISABLED     For |CI$0004
+Define ODS_CHECKED      For |CI$0008
+Define ODS_FOCUS        For |CI$0010
+Define ODS_DEFAULT      For |CI$0020
+Define ODS_COMBOBOXEDIT For |CI$1000
+Define ODS_HOTLIGHT     For |CI$0040
+Define ODS_INACTIVE     For |CI$0080
+
+Define DT_TOP              For |CI$00000000
+Define DT_LEFT             For |CI$00000000
+Define DT_CENTER           For |CI$00000001
+Define DT_RIGHT            For |CI$00000002
+Define DT_VCENTER          For |CI$00000004
+Define DT_BOTTOM           For |CI$00000008
+Define DT_WORDBREAK        For |CI$00000010
+Define DT_SINGLELINE       For |CI$00000020
+Define DT_EXPANDTABS       For |CI$00000040
+Define DT_TABSTOP          For |CI$00000080
+Define DT_NOCLIP           For |CI$00000100
+Define DT_EXTERNALLEADING  For |CI$00000200
+Define DT_CALCRECT         For |CI$00000400
+Define DT_NOPREFIX         For |CI$00000800
+Define DT_INTERNAL         For |CI$00001000
+Define DT_EDITCONTROL      For |CI$00002000
+Define DT_PATH_ELLIPSIS    For |CI$00004000
+Define DT_END_ELLIPSIS     For |CI$00008000
+Define DT_MODIFYSTRING     For |CI$00010000
+Define DT_RTLREADING       For |CI$00020000
+Define DT_WORD_ELLIPSIS    For |CI$00040000
+
+Define DST_COMPLEX          For |CI$0000
+Define DST_TEXT             For |CI$0001
+Define DST_PREFIXTEXT       For |CI$0002
+Define DST_ICON             For |CI$0003
+Define DST_BITMAP           For |CI$0004
+
+
+    // For Ownerdraw Items.
+TYPE MEASUREITEMSTRUCT
+    Field MEASUREITEMSTRUCT.CtlType              as Integer   //TYPE: UINT
+    Field MEASUREITEMSTRUCT.CtlID                as Integer   //TYPE: UINT
+    Field MEASUREITEMSTRUCT.itemID               as Integer   //TYPE: UINT
+    Field MEASUREITEMSTRUCT.itemWidth            as Integer   //TYPE: UINT
+    Field MEASUREITEMSTRUCT.itemHeight           as Integer   //TYPE: UINT
+    Field MEASUREITEMSTRUCT.itemData             as Integer   //TYPE: ULONG_PTR
+END_TYPE
+
+    // Structure to draw an Item.
+TYPE DRAWITEMSTRUCT
+    Field DRAWITEMSTRUCT.CtlType              as Integer            //TYPE: UINT
+    Field DRAWITEMSTRUCT.CtlID                as Integer            //TYPE: UINT
+    Field DRAWITEMSTRUCT.itemID               as Integer            //TYPE: UINT
+    Field DRAWITEMSTRUCT.itemAction           as Integer            //TYPE: UINT
+    Field DRAWITEMSTRUCT.itemState            as Integer            //TYPE: UINT
+    Field DRAWITEMSTRUCT.hwndItem             as Handle             //TYPE: HWND
+    Field DRAWITEMSTRUCT.hDC                  as Handle             //TYPE: HDC
+        // The rcItem is solve to the members of RECT becouse nested Structures are very unhandy in VDF.
+    Field DRAWITEMSTRUCT.rcItem.Left          as DWORD
+    Field DRAWITEMSTRUCT.rcItem.top           as DWORD
+    Field DRAWITEMSTRUCT.rcItem.Right         as DWORD
+    Field DRAWITEMSTRUCT.rcItem.bottom        as DWORD
+    Field DRAWITEMSTRUCT.itemData             as Pointer            //TYPE: ULONG_PTR
+END_TYPE
+
+external_function GetTextExtentPoint32 "GetTextExtentPoint32A" Gdi32.dll Handle hdc Pointer pStr Integer ilength Pointer pSize Returns Integer
+
+//____Modes_for_the RectangleDrawe (RD)
+Define RDModeTextTop     For 1     // Text is displayed in top of the Bitmap
+Define RDModeTextBottom  For 2     // Text is displayed under the Bitmap
+Define RDModeTextRight   For 4     // Text is displayed right from the Bitmap
+Define RDModeTextLeft    For 8     // Text is displayed left from the Bitmap
+
+Define RDModeAlignCenter For 16    // Align horizontaly: Center
+Define RDModeAlignRight  For 32    // Align horizontaly: Right
+Define RDModeAlignLeft   For 64    // Align horizontaly: Left
+
+
+
+Class cRectangleDrawer Is a Mixin
+        //Insert your Properties here.
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        Property Handle  phDC       Public 0    // Device Context to Draw to.
+
+        //__Rectangle_it_draws_in..._________
+        Property Integer piTop      Public 0
+        Property Integer piLeft     Public 0
+        Property Integer piBottom   Public 0
+        Property Integer piRight    Public 0
+
+        Property Integer piSizeX        Public 0
+        Property Integer piSizeY        Public 0
+
+        Property String  psBmp          Public ""       // Bitmap which is drawn
+        Property Integer piBmpSizeX     Public 0        //
+        Property Integer piBmpSizeY     Public 0        //
+
+        Property String  psText         Public ""   // Text wich is Drawn
+        Property Integer piTextSizeX    Public 0    //
+        Property Integer piTextSizeY    Public 0    //
+
+        Property String  psSuffix       Public ""   // Suffix text.
+        Property Integer piTextSuffSX   Public 0    // Width of the Suffix
+
+
+        Property Integer piMode         Public (RDModeTextRight+RDModeAlignRight)
+        Property Integer piBmpTextDist  Public 5    // Distance between Text and Bitmap
+
+        Property Integer piBorderLeft   Public 2
+        Property Integer piBorderRight  Public 2
+        Property Integer piBorderTop    Public 1
+        Property Integer piBorderBottom Public 1
+
+        Property Integer piTextColor        Public 0
+        Property Integer piBackGroundColor  Public 0
+
+
+        Property Integer piMaxTextSizeX     Public 0
+        Property Integer piMaxTextSizeY     Public 0
+        Property Integer piMaxSuffixSizeX   Public 0
+        Property Integer piMaxSuffixSizeY   Public 0
+        Property Integer piMaxBitmapSizeX   Public 0
+        Property Integer piMaxBitmapSizeY   Public 0
+
+    End_Procedure
+        // Resets the maxsizes properties to 0.
+    Procedure ResetMaxSizes
+       Set piMaxTextSizeX    To 0
+       Set piMaxTextSizeY    To 0
+       Set piMaxSuffixSizeX  To 0
+       Set piMaxSuffixSizeY  To 0
+       Set piMaxBitmapSizeX  To 0
+       Set piMaxBitmapSizeY  To 0
+    End_Procedure
+        // Sets the maxsizes of Text.
+    Procedure RequestSetMaxTextSize integer iX integer iY
+        If (iX > piMaxTextSizeX(Self))  set piMaxTextSizeX    to iX
+        If (iY > piMaxTextSizeY(Self))  set piMaxTextSizeY    to iY
+    End_Procedure
+        // Sets the maxsizes of Text.
+    Procedure RequestSetSuffixTextSize integer iX integer iY
+        If (iX > piMaxSuffixSizeX(Self))  set piMaxSuffixSizeX    to iX
+        If (iY > piMaxSuffixSizeY(Self))  set piMaxSuffixSizeY    to iY
+    End_Procedure
+        // Sets the maxsizes of Text.
+    Procedure RequestSetMaxBitmapSize integer iX integer iY
+        If (iX > piMaxBitmapSizeX(Self))  set piMaxTextSizeX    to iX
+        If (iY > piMaxBitmapSizeY(Self))  set piMaxTextSizeY    to iY
+    End_Procedure
+
+    Function MaxSizeX returns integer
+        Function_Return (piMaxTextSizeX(Self)+piMaxSuffixSizeX(Self)+piMaxBitmapSizeX(Self)+10)
+    End_Function
+
+
+        // Use these functions to retrieve the sizes of a Bitmap and a Text.
+    Function BmpSizeX Returns Integer
+        Function_Return (piBmpSizeX(Self))
+    End_Function
+    Function BmpSizeY Returns Integer
+        Function_Return (piBmpSizeY(Self))
+    End_Function
+    Function TextSizeX Returns Integer
+        Function_Return (piTextSizeX(Self))
+    End_Function
+    Function TextSizeY Returns Integer
+        Function_Return (piTextSizeY(Self))
+    End_Function
+
+
+
+        // To set the Rectangle information.
+    Procedure FillRectangle Integer iTop Integer iLeft Integer iBottom Integer iRight
+        Set piTop       To iTop
+        Set piLeft      To iLeft
+        Set piBottom    To iBottom
+        Set piRight     To iRight
+    End_Procedure
+        // For an easy access to the Properties (Set them)
+    Procedure FillInData Handle hDC String sBmp String sText
+        Move (Replace("\t",sText,Character(9)))    to sText
+        Move (Replace("\a",sText,Character(9)))    to sText
+        If (Character(9)) In sText Begin
+            set psText      to (Left(sText,Pos(Character(9),sText)-1))
+            Set psSuffix    to (Right(sText,Length(sText)-Pos(Character(9),sText)))
+        End
+        Else Begin
+            set psText      to sText
+            set psSuffix    to ""
+        End
+        Set phDC    To hDC
+        Set psBmp   To sBmp
+        Send DoCalculateSize
+    End_Procedure
+        // Fills in the BmpSize.
+    Procedure DoFillBitmapSize
+        Integer iSize
+        If (psBmp(Self)) Eq "" Begin
+            Set piBmpSizeX                  To 0
+            Set piBmpSizeY                  To 0
+            Procedure_Return                    // Only if a Bitmap
+        End
+        Move (APIBitmapSize(psBmp(Self)))   To iSize
+        Set piBmpSizeX                      To (Low(iSize))
+        Set piBmpSizeY                      To (Hi (iSize))
+        Send RequestSetMaxBitmapSize (Low(iSize)) (Hi (iSize))
+    End_Procedure
+        // Fills the TextSize
+    Procedure DoFillTextSize
+        Integer iRet iSx iSy iRelease iDeltaX iSuffX
+        Handle hDC
+        Local_Buffer sSize pSize tPOINT_Size
+        Local_Buffer sText pText
+        Local_Buffer sSuff pSuff
+        If (psText(Self)) Eq "" Begin
+            Set piTextSizeY                 To 0
+            Set piTextSizeX                 To 0
+            Procedure_Return                                    // Only if a Text
+        End
+        Get phDC                To hDC
+        Get psText              To sText
+        Get psSuffix            to sSuff
+        Move 0                  to iSuffX
+        If hDC Begin
+            GetAddress Of sText     To pText
+            Move (GetTextExtentPoint32(phDC(Self),pText,Length(sText),pSize))   To iRet
+            If iRet Eq 0 WinAPIError (GetLastError()) "GetTextExtentPoint32"
+            Else Begin
+                getbuff From sSize at tPOINT.x  To iSx
+                getbuff From sSize at tPOINT.y  To iSy
+            End
+            If sSuff Ne "" Begin
+                GetAddress Of sSuff             To pSuff
+                Move (GetTextExtentPoint32(phDC(Self),pSuff,Length(sSuff),pSize)) To iRet
+                If iRet Eq 0 WinAPIError (GetLastError()) "GetTextExtentPoint32"
+                Else getbuff From sSize at tPOINT.x  To iSuffX
+            End
+        End
+        Else Begin
+            Get Text_Extent sText   To iSy
+            Move (Low(iSy))         To iSx
+            Move (Hi (iSy))         To iSy
+            If sSuff ne "" Begin
+                Get Text_Extent sSuff   To iSuffX
+                Move (Low(iSuffX))      To iSuffX
+            End
+        End
+        Set piTextSizeY                 To iSy
+        Set piTextSizeX                 To (iSx+iDeltaX)
+        Set piTextSuffSX                To iSuffX
+        Send RequestSetMaxTextSize      iSx     iSy
+        Send RequestSetSuffixTextSize   iSuffX  iSy
+    End_Procedure
+        // Fills in the Size of the Rectangle which is neccessary to
+        // display the Bitmap and the Text.
+    Procedure DoCalculateSize
+        Integer iMode iSx iSy
+        Send DoFillBitmapSize           // Fills in the BitmapSize
+        Send DoFillTextSize             // Fills in the TextSize
+        Get piMode          To iMode
+        If ((iMode Iand RDModeTextTop) Or (iMode Iand RDModeTextBottom)) Begin
+            Move (BmpSizeY(Self))           To iSy  // Y Size of the Bitmap
+            Move (piBorderTop(Self)+iSy)    To iSy  // Border Top
+            Move (piBorderBottom(Self)+iSy) To iSy  // Border Bottom
+            Move (piBmpTextDist(Self)+iSy)  To iSy  // Distance between Text and Bitmap
+            Move (piTextSizeY(Self)+iSy)    To iSy  // Height of the Text
+            If (piTextSizeX(Self) Gt BmpSizeX(Self))   Move (piTextSizeX(Self)) To iSx
+            Else                                       Move (BmpSizeX(Self))    To iSx
+            Move (iSx+piBorderRight(Self))  To iSx
+            Move (iSx+piBorderLeft(Self))   To iSx
+        End
+        If ((iMode Iand RDModeTextLeft) Or (iMode Iand RDModeTextRight)) Begin
+//            Move (BmpSizeX(Self))           To iSx  // X Size of the Bitmap
+            Move (piMaxBitmapSizeX(Self))   To iSx  // X Size of the Bitmap
+            Move (piBorderLeft(Self)+iSx)   To iSx  // Border Left
+            Move (piBorderRight(Self)+iSx)  To iSx  // Border Right
+            Move (piBmpTextDist(Self)+iSx)  To iSx  // Distance between Text and Bitmap
+//            Move (piTextSizeX(Self)+iSx)    To iSx  // Width of the Text
+            Move (piMaxTextSizeX(Self)+iSx)    To iSx  // Width of the Text
+            Move (piMaxSuffixSizeX(Self)+iSx)   to iSx
+            If (piTextSizeY(Self) Gt BmpSizeY(Self))   Move (piTextSizeY(Self)) To iSy
+            Else                                       Move (BmpSizeY(Self))    To iSy
+            Move (iSy+piBorderTop(Self))    To iSy
+            Move (iSy+piBorderBottom(Self)) To iSy
+        End
+        Set piSizeY To iSy
+        Set piSizeX To iSx
+    End_Procedure
+        // Draws the Item.
+    Procedure DoDraw
+        Handle  hDC  hBmp
+        Integer iRet
+        Integer iBmpPx iBmpPy iTxtPx iTxtPy iTmp
+        Local_Buffer  sRect pRect tRECT_Size
+        Local_Buffer  sText pText   // Text
+        Local_Buffer  sSuff pSuff   // Rightaligned keytext -> seperated with a Ch09
+        Get phDC                                                        To hDC
+        Get psText                                                      To sText
+        Get psSuffix                                                    to sSuff
+        GetAddress Of sText                                             To pText
+        GetAddress of sSuff                                             to pSuff
+
+        Put (piTop(Self))       To sRect    at tRECT.Top
+        Put (piLeft(Self))      To sRect    at tRECT.Left
+        Put (piBottom(Self))    To sRect    at tRECT.Bottom
+        Put (piRight(Self))     To sRect    at tRECT.Right
+        GetAddress Of sRect     To pRect
+
+        //____Take_care_about_the_BackGround...________________________________
+        Move (SetBKColor(hDC,GetSysColor(piBackGroundColor(Self))))     To iRet
+        Move (SetTextColor(hDC,piTextColor(Self)))                      To iRet
+        Move (FillRect(hDC,pRect,piBackGroundColor(Self)+1))            To iRet
+
+        If (piMode(Self) Iand RDModeTextRight) Begin
+            Move (piTop(Self)+piBorderTop(Self))                To iBmpPy
+            Move (piLeft(Self)+piBorderLeft(Self))              To iBmpPx
+            Move (iBmpPx+BmpSizeX(Self)+piBmpTextDist(Self))    To iTxtPx
+            Move (iBmpPy)                                       To iTxtPy
+            Move (BmpSizeY(Self)-piTextSizeY(Self))             To iTmp
+            If iTmp Gt 0 Move (iTxtPy+(iTmp/2))                 To iTxtPy
+        End
+        If (piMode(Self) Iand RDModeTextLeft) Begin
+            Move (piTop(Self)+piBorderTop(Self))                        To iBmpPy
+            Move (piRight(Self)-piBorderRight(Self)-BmpSizeX(Self))   To iBmpPx
+            Move (piLeft(Self)+piBorderRight(Self))                     To iTxtPx
+            Move (iBmpPy)                                               To iTxtPy
+            Move (BmpSizeY(Self)-piTextSizeY(Self))                   To iTmp
+            If iTmp Gt 0 Move (iTxtPy+(iTmp/2))                         To iTxtPy
+        End
+        If (piMode(Self) Iand RDModeTextBottom) Begin
+            Move (piTop(Self)+piBorderTop(Self))                To iBmpPy
+            Move (iBmpPy+piBmpTextDist(Self)+BmpSizeY(Self))  To iTxtPy
+            Move (piLeft(Self)+piBorderLeft(Self))              To iBmpPx
+            Move (piLeft(Self)+piBorderLeft(Self))              To iTxtPx
+            If (piMode(Self) Iand RDModeAlignCenter) Begin
+                Move (piRight(Self)-piLeft(Self)-BmpSizeX(Self))  To iTmp
+                If iTmp Gt 0 Move (iBmpPx+(iTmp/2))                 To iBmpPx
+                Move (piRight(Self)-piLeft(Self)-piTextSizeX(Self)) To iTmp
+                If iTmp Gt 0 Move (iTxtPx+(iTmp/2))                 To iTxtPx
+
+            End
+            If (piMode(Self) Iand RDModeAlignRight) Begin
+                Move (piRight(Self)-BmpSizeX(Self)-piBorderRight(Self))   To iBmpPx
+                Move (piRight(Self)-piTextSizeX(Self)-piBorderRight(Self))  To iTxtPx
+            End
+        End
+        If (piMode(Self) Iand RDModeTextTop) Begin
+            Move (piTop(Self)+piBorderTop(Self))                To iTxtPy
+            Move (iTxtPy+piBmpTextDist(Self)+piTextSizeY(Self)) To iBmpPy
+            Move (piLeft(Self)+piBorderLeft(Self))              To iBmpPx
+            Move (piLeft(Self)+piBorderLeft(Self))              To iTxtPx
+            If (piMode(Self) Iand RDModeAlignCenter) Begin
+                Move (piRight(Self)-piLeft(Self)-BmpSizeX(Self))  To iTmp
+                If iTmp Gt 0 Move (iBmpPx+(iTmp/2))                 To iBmpPx
+                Move (piRight(Self)-piLeft(Self)-piTextSizeX(Self)) To iTmp
+                If iTmp Gt 0 Move (iTxtPx+(iTmp/2))                 To iTxtPx
+
+            End
+            If (piMode(Self) Iand RDModeAlignRight) Begin
+                Move (piRight(Self)-BmpSizeX(Self)-piBorderRight(Self))   To iBmpPx
+                Move (piRight(Self)-piTextSizeX(Self)-piBorderRight(Self))  To iTxtPx
+            End
+        End
+        //____DrawBitmap...____________________________________________________
+        If (psBmp(Self)) Ne "" Begin
+            Move (LoadBitmap(psBmp(Self),0,0,1))                            To hBMP
+            Move (DrawState(hDC,0,0,hBmp,0,iBmpPx,iBmpPy,0,0,DST_Bitmap))   To iRet
+            Move (DeleteObject(hBMP))                                                           To iRet
+        End
+        //____Drawtext...______________________________________________________
+        If sText Ne "" Begin
+            Move (DrawState(hDC,0,0,pText,Length(sText),iTxtPx,iTxtPy,0,0,DST_PrefixText))                      To iRet
+            If sSuff Ne "" Begin
+                Move (DrawState(hDC,0,0,pSuff,Length(sSuff),piRight(Self)-piMaxSuffixSizeX(Self)-piBorderRight(Self),iTxtPy,0,0,DST_Text))   To iRet
+            End
+        End
+    End_Procedure
+End_Class
+
+Class cPopupMenuRectangleDrawer Is a cRectangleDrawer
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piUseMaxBmpSizeX  Public false    // Uses always the max. Size of a Bitmap.
+        Property Integer piMaxBmpSizeX     Public false
+
+        Set piBmpTextDist       To 10
+        Set piBorderLeft        To 5
+        Set piBorderRight       To 18
+        Set piBorderTop         To 1
+        Set piBorderBottom      To 1
+    End_Procedure
+    Procedure DoFillBitmapSize
+        Forward Send DoFillBitmapSize
+        If (piBmpSizeX(Self)) Gt (piMaxBmpSizeX(Self)) Set piMaxBmpSizeX  To (piBmpSizeX(Self))
+    End_Procedure
+    Function BmpSizeX Returns Integer
+        Integer iRet
+        If (piUseMaxBmpSizeX(Self)) Function_Return (piMaxBmpSizeX(Self))
+        Forward Get BmpSizeX    To iRet
+        Function_Return iRet
+    End_Function
+        // Sets the Displaymode.
+    Procedure Set DisplayMode Integer iMode
+        Set piMode              To iMode
+        Set piUseMaxBmpSizeX    To False
+        If (iMode Iand RDModeTextRight) Begin
+            Set piUseMaxBmpSizeX    To True
+        End
+        If (iMode Iand RDModeTextLeft) Begin
+            Set piUseMaxBmpSizeX    To True
+        End
+        If (iMode Iand RDModeTextBottom) Begin
+            Set piBmpTextDist       To 2
+            Set piBorderTop         To 3
+            Set piBorderBottom      To 3
+            Set piBorderLeft        To 0
+            Set piBorderRight       To 0
+        End
+        If (iMode Iand RDModeTextTop) Begin
+            Set piBmpTextDist       To 2
+            Set piBorderTop         To 3
+            Set piBorderBottom      To 3
+            Set piBorderLeft        To 0
+            Set piBorderRight       To 0
+        End
+    End_Procedure
+End_Class
+
+Class cBasePopupMenu Is a DFControl
+    Register_Procedure onMeasureItem
+    Register_Procedure onCommand
+    Register_Procedure onDrawItem
+
+    Procedure onCommand Integer lP Integer wP
+    End_Procedure
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set external_class_name "cBasePopupMenu"    To "STATIC"
+        Set external_message    WM_COMMAND          To msg_onCommand
+        Set external_message    WM_MEASUREITEM      To msg_onMeasureItem
+        Set external_message    WM_DRAWITEM         To msg_onDrawItem
+        Set focus_mode                              To nonfocusable
+
+        Object oItemDrawer Is a cPopupMenuRectangleDrawer
+            Set piUseMaxBmpSizeX    To True
+//            Set DisplayMode         To RDModeTextLeft
+            Set DisplayMode         To RDModeTextRight
+//           Set DisplayMode           To (RDModeTextBottom+RDModeAlignCenter)
+        End_Object
+
+        Property Handle  phMenuHandle        Public 0
+        Property String  psLabel             Public ""
+        Property Integer piSendToFocusState  Public True
+        Property Integer piAlign             Public TPM_LeftAlign
+        Property Integer piDefaultItem       Public -1
+        Property Integer piRadioSelectMode   Public False
+        Property Integer piTransparant_State Public True  // **WvA
+        Property Integer Active_State        Public 0
+
+        Property Integer piBmpSizeY         Public (GetSystemMetrics(SM_CYMENUCHECK))
+        Property Integer piBmpSizeX         Public (GetSystemMetrics(SM_CXMENUCHECK))
+
+        Object oValues          Is an Array
+        End_Object
+        Object oMessages        Is an Array
+        End_Object
+        Object oAuxValues       Is an Array
+        End_Object
+        Object oSubMenuIDs      Is an Array
+        End_Object
+
+        Object oSelectStates    Is an Array
+        End_Object
+        Object oShadowStates    Is an Array
+        End_Object
+
+        Object oBitmapsSelected Is an Array
+        End_Object
+        Object oBitmapsUnSelected Is an Array
+        End_Object
+        Object oBitmapHandles   Is a  Set
+        End_Object
+
+        Object oItemHeights Is an Array
+        End_Object
+        Object oItemWidths Is an Array
+        End_Object
+    End_Procedure
+
+    Procedure Set ItemWidth Integer iItem Integer iWidth
+        Set Value Of (oItemWidths(Self))  Item iItem    To iWidth
+    End_Procedure
+    Function ItemWidth Integer iItem Returns Integer
+        Function_Return (Value(oItemWidths(Self),iItem))
+    End_Function
+    Procedure Set ItemHeight Integer iItem Integer iHeight
+        Set Value Of (oItemHeights(Self)) Item iItem    To iHeight
+    End_Procedure
+    Function ItemHeight Integer iItem Returns Integer
+        Function_Return (Value(oItemHeights(Self),iItem))
+    End_Function
+
+
+        // Is sent from the Menu to get the neccessary size of an item.
+        // The Size of the items is stored in the ItemHeight, -Width multiitem
+        // property.
+    Procedure onMeasureItem Integer wParam Integer lParam
+        String  sBmp sTxt
+        Integer hoItem
+        Local_Buffer  sMI pMI MEASUREITEMSTRUCT_Size
+        Integer iRet iItem hoID
+        Move (CopyMemory(pMI,lParam,MEASUREITEMSTRUCT_Size))    To iRet
+
+            // Get Information about Object and ItemNr.
+        GetBuff From sMI at MEASUREITEMSTRUCT.itemID            To iItem
+
+        Move (PopupMenu_Low(iItem))                             To hoID
+        Move (PopupMenu_Hi(iItem))                              To iItem
+
+        Get value Of (oBitmapsSelected(hoID)) Item iItem        To sBmp
+        Get value Of (oValues(hoID))          Item iItem        To sTxt
+
+        Move (oItemDrawer (hoID))   To hoItem
+        Send FillInData             To hoItem 0 sBmp sTxt
+            // Set the size of the Item.
+        Put (piSizeY(hoItem)) To sMI at MEASUREITEMSTRUCT.itemHeight
+        Put (piSizeX(hoItem)) To sMI at MEASUREITEMSTRUCT.itemWidth
+//        Put (MaxSizeX(hoItem)) To sMI at MEASUREITEMSTRUCT.itemWidth
+        GetAddress Of sMI   To pMI
+        Move (CopyMemory(lParam,pMI,MEASUREITEMSTRUCT_Size))    To iRet
+    End_Procedure
+        // Draws the Items.
+    Procedure onDrawItem Integer wParam Integer lParam
+        Local_Buffer  sDI   pDI     DRAWITEMSTRUCT_Size
+        Local_Buffer  sRect pRect   tRECT_Size
+        Local_Buffer  sTxt  pTxt
+        String  sBmp
+        Integer iRet iItem hoID iSize
+        Integer iLeft iRight iTop iBottom
+        Integer iState
+        Handle  hDC hBMP hBrush
+        Integer iSy iSx hoDrawer
+        Move (CopyMemory(pDI,lParam,DRAWITEMSTRUCT_Size))       To iRet
+            // Get Information about Object and ItemNr.
+        GetBuff From sDI at DRAWITEMSTRUCT.itemID               To iItem
+        Move (PopupMenu_Low(iItem))                             To hoID
+        Move (PopupMenu_Hi(iItem))                              To iItem
+        Move (oItemDrawer (hoID))                               To hoDrawer
+            // Get Info about the rectangel to draw in.
+        GetBuff From sDI at DRAWITEMSTRUCT.rcItem.Left          To iLeft
+        GetBuff From sDI at DRAWITEMSTRUCT.rcItem.Right         To iRight
+        GetBuff From sDI at DRAWITEMSTRUCT.rcItem.Top           To iTop
+        GetBuff From sDI at DRAWITEMSTRUCT.rcItem.Bottom        To iBottom
+
+        GetBuff From sDI at DRAWITEMSTRUCT.itemState            To iState
+        GetBuff From sDI at DRAWITEMSTRUCT.HDC                  To hDC
+
+        Set piTextColor         Of hoDrawer To (GetSysColor(COLOR_WINDOWTEXT))
+        Set piBackGroundColor   Of hoDrawer To COLOR_BTNFACE
+        If (iState Iand ODS_SELECTED) Begin
+            Set piTextColor         Of hoDrawer To (GetSysColor(COLOR_HIGHLIGHTTEXT))
+            Set piBackGroundColor   Of hoDrawer To COLOR_HIGHLIGHT
+        End
+        Get  value Of (oBitmapsSelected(hoID)) Item iItem               To sBmp
+        Get value Of (oValues(hoID)) Item iItem                         To sTxt
+
+        Send FillRectangle  To (oItemDrawer(hoID)) iTop iLeft iBottom iRight
+        Send FillInData     To (oItemDrawer(hoID)) hDC sBmp sTxt
+        Send DoDraw         To (oItemDrawer(hoID))
+    End_Procedure
+
+        // Item count...
+    Function Item_Count Returns Integer
+        Function_Return (Item_Count(oValues(Self)))
+    End_Function
+        // To make it possible that children check that they are
+        // in a parent!
+    Function isaPopupMenu Returns Integer
+        Function_Return 1
+    End_Function
+        // Checks if an Obj is from the same kind!
+    Function isObjaPopupMenu Integer iID Returns Integer
+        Integer iDelOld iRet
+        Get Delegation_Mode     Of iID  To iDelOld
+        Set Delegation_Mode     Of iID  To No_Delegate_Or_Error
+        Get isaPopupMenu        Of iID  To iRet
+        Set Delegation_Mode     Of iID  To iDelOld
+        Function_Return iRet
+    End_Function
+        // Checks if parent is from the same kind!
+    Function IsParentaPopupMenu Returns Integer
+        Function_Return (isObjaPopupMenu(Self,Parent(Self)))
+    End_Function
+
+    // A function to retrieve the full pathname of the icon.
+    // If a workspace is defined it will first look in the programpath and
+    // if the icon is not present it will look into the bitmappath after that.
+    // When no workspacename is defined the normal iconname is returned and
+    // the program assumes that the icon resides in the same folder as the program.
+    Function BitMapFullPathName String sIcon Returns String
+      String  sIconFullPathName
+      String  sBitmapPath
+      Integer bFile_Exists
+      String sDirSeperator // this is "\" for windows, or "/" for unix
+      Get_File_Path sIcon       to sIcon
+      Function_Return sIcon
+    End_Function // IconFullPathName
+        // Adds a item to the popup_menu...
+    Procedure Add_Item Integer iMsg String sItem Integer iAux
+        Set value Of (oValues(Self))     Item (Item_Count(oValues(Self)))         To sItem
+        Set value Of (oMessages(Self))   Item (Item_Count(oMessages(Self)))       To iMsg
+        Set value Of (oSubMenuIDs(Self)) Item (Item_Count(oSubMenuIDs(Self)))     To 0
+        If NUM_Arguments Ge 3 ;
+             Set value Of (oAuxValues(Self)) Item (Item_Count(oAuxValues(Self))) To iAux
+        Else Set value Of (oAuxValues(Self)) Item (Item_Count(oAuxValues(Self))) To 0
+    End_Procedure
+        // Adds a Submenu to the Object
+        // only for internal use!
+    Procedure Add_SubMenu String sItem Integer iID
+        Set value Of (oValues(Self))        Item (Item_Count(oValues(Self)))     To sItem
+        Set value Of (oMessages(Self))      Item (Item_Count(oMessages(Self)))   To 0
+        Set value Of (oSubMenuIDs(Self))    Item (Item_Count(oSubMenuIDs(Self))) To iID
+        Set value Of (oAuxValues(Self))     Item (Item_Count(oAuxValues(Self)))  To 0
+    End_Procedure
+        // Sets the bitmap for a menu item...
+    Procedure Set Bitmap Integer iNr String sBMP
+        Set value Of (oBitmapsSelected(Self))   Item iNr    To (BitMapFullPathName(Self,sBMP))
+        Set value Of (oBitmapsUnSelected(Self)) Item iNr    To (BitMapFullPathName(Self,sBMP))
+    End_Procedure
+        // Sets the Selected bitmap for a menu item...
+    Procedure Set BitmapSelected Integer iNr String sBMP
+        Set value Of (oBitmapsSelected(Self))   Item iNr    To (BitMapFullPathName(Self,sBMP))
+    End_Procedure
+        // Sets the Unselected bitmap for a menu item...
+    Procedure Set BitmapUnSelected Integer iNr String sBMP
+        Set value Of (oBitmapsUnSelected(Self)) Item iNr    To (BitMapFullPathName(Self,sBMP))
+    End_Procedure
+        // Sets the aux_value...
+    Procedure Set Aux_Value Integer iNr Integer iID
+        Set value Of (oAuxValues(Self)) Item iNr    To iID
+    End_Procedure
+        // Sets the Select_State of an Item
+    Procedure Set Select_State Integer iNr Integer iFlag
+        Set value Of (oSelectStates(Self)) Item iNr To iFlag
+    End_Procedure
+        // Sets the Shadow_State of an Item
+    Procedure Set Shadow_State Integer iNr Integer iFlag
+        Set value Of (oShadowStates(Self)) Item iNr To iFlag
+    End_Procedure
+        // Deletes a Item
+    Procedure Delete_Item Integer iNr
+        Send Delete_Item To (oValues(Self))             iNr
+        Send Delete_Item To (oMessages(Self))           iNr
+        Send Delete_Item To (oAuxValues(Self))          iNr
+        Send Delete_Item To (oBitmapsSelected(Self))    iNr
+        Send Delete_Item To (oBitmapsUnSelected(Self))  iNr
+        Send Delete_Item To (oShadowStates(Self))       iNr
+        Send Delete_Item To (oSelectStates(Self))       iNr
+        Send Delete_Item To (oSubMenuIDs(Self))         iNr
+    End_Procedure
+
+        // Deletes all Items...
+    Procedure Delete_Data
+        Send Delete_Data To (oValues(Self))
+        Send Delete_Data To (oMessages(Self))
+        Send Delete_Data To (oAuxValues(Self))
+        Send Delete_Data To (oBitmapsSelected(Self))
+        Send Delete_Data To (oBitmapsUnSelected(Self))
+        Send Delete_Data To (oShadowStates(Self))
+        Send Delete_Data To (oSelectStates(Self))
+        Send Delete_Data To (oSubMenuIDs(Self))
+    End_Procedure
+
+
+        // Does an Action for a Item...
+    Procedure DoAction Integer iNr
+        Integer iMsg iAux
+        Get value Of (oMessages(Self))  Item iNr                            To iMsg
+        Get value Of (oAuxValues(Self)) Item iNr                            To iAux
+        If iAux Eq 0 If (piSendToFocusState(Self)) Move (Focus(Desktop))    To iAux
+        If iAux Send iMsg                                                   To iAux
+        Else    Send iMsg
+    End_Procedure
+
+
+        // Creates a Menu with the items
+        // ans returns a handle...
+    Function CreateMenu Returns Handle
+        Handle  hBmpSel hBmpUnSel hMenu  hSubMenu
+        String  sInfo sItem sBmpSel sBmpUnsel
+        Pointer pInfo pItem
+        Integer iC iRet iSubMenuID
+        Integer iState iType iIdentity
+        Send onInitMenu
+        Move (CreatePopupMenu())            To hMenu    // Creates a Menu...
+        If hMenu Begin
+            Set phMenuHandle To hMenu    // Save the Handle!
+
+            // Adds all Items...
+            Send Delete_Data To (oBitmapHandles(Self))
+            For iC From 0 To (Item_Count(oValues(Self))-1)
+                Move 0                                      To hSubMenu
+                Move (PopupMenu_ComposeID(Self,iC))         To iIdentity
+                Get value Of (oValues(Self)) Item iC        To sItem
+                Get value Of (oSubMenuIDs(Self)) Item iC    To iSubMenuID
+                If iSubMenuID Move (CreateMenu(iSubMenuID)) To hSubMenu
+                GetAddress Of sItem                         To pItem
+                Move (OemToAnsi(pItem,pItem))               To iRet
+
+                Move 0                                                                  To iState
+                If iC Eq (piDefaultItem(Self)) Move (iState+MFS_Default)                To iState
+                If (Integer_Value(oSelectStates(Self),iC))  Move (iState+MFS_Checked)   To iState
+                If (Integer_Value(oShadowStates(Self),iC))  Move (iState+MFS_Grayed)    To iState
+                Move 0                                                                  To iType
+                If (piRadioSelectMode(Self))    Move (iType+MFT_RADIOCHECK)             To iType
+                If sItem Ne "" ;
+                Move (iType+MFT_OWNERDRAW)      To iType
+
+
+                Get  value Of (oBitmapsSelected(Self))   Item iC                        To sBmpSel
+                Get  value Of (oBitmapsUnSelected(Self)) Item iC                        To sBmpUnSel
+                Move 0                                                                  To hBMPSel
+                Move 0                                                                  To hBmpUnSel
+                If (Trim(sBmpSel)) Ne "" Begin
+                    Move (LoadBitmap(sBMPSel,piBmpSizeX(Self),piBmpSizeY(Self),piTransparant_State(Self)))      To hBMPSel
+                    If hBMPSel Gt 0 Send Add_Element To (oBitmapHandles(Self)) hBMPSel
+                End
+                If sBmpSel Eq sBmpUnsel Move hBmpSel                                    To hBmpUnSel
+                Else If (Trim(sBmpUnSel)) Ne "" Begin
+                    Move (LoadBitmap(sBMPUnSel,piBmpSizeX(Self),piBmpSizeY(Self),piTransparant_State(Self)))    To hBMPUnSel
+                    If hBMPUnSel Gt 0 Send Add_Element To (oBitmapHandles(Self)) hBMPUnSel
+                End
+
+                Zerotype tagMENUITEMINFO    To sInfo
+                Put tagMENUITEMINFO_SIZE    To sInfo at tagMENUITEMINFO.cbSize
+                If ((hSubMenu) And (Not(Integer_Value(oShadowStates(Self),iC)))) Begin
+                    Put (MIIM_SUBMENU+MIIM_ID+MIIM_TYPE+MIIM_CHECKMARKS)    To sInfo at tagMENUITEMINFO.fMask
+                    Put hSubMenu                                            To sInfo at tagMENUITEMINFO.hSubMenu
+                End
+                Else Begin
+                    Put (MIIM_STATE+MIIM_ID+MIIM_CHECKMARKS+MIIM_TYPE+MIIM_DATA) ;
+                                                To sInfo at tagMENUITEMINFO.fMask
+                    Put pItem                   To sInfo at tagMENUITEMINFO.dwTypeData
+                    Put (Length(sItem))         To sInfo at tagMENUITEMINFO.cch
+                End
+                Put hBMPSel                 To sInfo at tagMENUITEMINFO.hbmpChecked
+                Put hBMPUnSel               To sInfo at tagMENUITEMINFO.hbmpUnChecked
+                Put pItem                   To sInfo at tagMENUITEMINFO.dwTypeData
+                Put (Length(sItem))         To sInfo at tagMENUITEMINFO.cch
+                Put iType                   To sInfo at tagMENUITEMINFO.fType
+                Put iState                  To sInfo at tagMENUITEMINFO.fState
+                Put (iIdentity)             To sInfo at tagMENUITEMINFO.wID
+                Put (iIdentity)             To sInfo at tagMENUITEMINFO.dwItemData
+                GetAddress Of sInfo         To pInfo
+                Move (InsertMenuItem(hMenu,iC,True,pInfo))                          To iRet
+            End
+        End
+        Function_Return hMenu
+    End_Function
+
+        // Destroys the Menu and the Image Resources...
+    Procedure DestroyResources
+        Integer iRet iC iID
+        Handle  hBMP
+
+            // Destroy the Menu...
+        If (phMenuHandle(Self)) Begin
+            Move (DestroyMenu(phMenuHandle(Self)))      To iRet
+            Set  phMenuHandle                           To 0
+        End
+
+            // Destroy Image Resources...
+        For iC From 0 To (Item_Count(oBitmapHandles(Self))-1)
+            Get value Of (oBitmapHandles(Self)) Item iC To hBMP
+            If hBMP Gt 0 Move (DeleteObject(hBMP))      To iRet
+        End
+        Send Delete_Data To (oBitmapHandles(Self))
+
+            // Destroys the resources of the submenus...
+        For iC From 0 To (Item_Count(oSubMenuIDs(Self))-1)
+            Get value Of (oSubMenuIDs(Self)) Item iC To iID
+            If iID Gt 0 Send DestroyResources        To iID
+        End
+    End_Procedure
+
+        // Displays the PopupMenu
+    Procedure Popup
+        Integer iItem iOID
+        Handle  hMenu hwnd
+
+        If (Active_State(Self)) Procedure_Return // The menu should only be tracked once!
+
+            // Looks for a Window_Handle...
+        Move (Window_Handle(Self))                                                  To hwnd     // First try own window_handle
+        If hwnd Eq 0 If (Focus(Desktop)) Gt 0 Move (Window_Handle(Focus(Desktop)))  To hwnd     // If not try the one of the current focus!
+        If hwnd Eq 0 Begin
+            Send Info_Box "MKPopupMenu: Couldn't find a window_handle!" "Warning"
+            Procedure_Return
+        End
+
+        Move (CreateMenu(Self)) To hMenu
+        If hMenu Begin // TPM_RETURNCMD+
+            Set Active_State    To True
+            Move (TrackPopupMenu(hMenu,piAlign(Self)+TPM_RETURNCMD+TPM_LEFTBUTTON+TPM_RIGHTBUTTON,Low(GuiLocation(Self)),Hi(GuiLocation(Self)),0,hwnd,0)) To iItem
+            Set Active_State    To False
+            Move (PopupMenu_Low(iItem)) To iOID
+            Move (PopupMenu_Hi (iItem)) To iItem
+            If iOID Gt 0 Send DoAction  To iOID iItem
+        End
+        Send DestroyResources
+    End_Procedure
+
+    Procedure End_Construct_Object
+        If (IsParentaPopupMenu(Self)) Send Add_SubMenu To (Parent(Self)) (psLabel(Self)) Self
+        Forward Send End_Construct_Object
+    End_Procedure
+
+
+    Procedure MkTest
+        integer iRet
+        Send Info_Box "Aha"
+        Get Text_Extent "Michi"   To iRet
+        Showln " "
+        Showln "Y: " (Hi(iRet))
+        Showln "X: " (Low(iRet))
+    End_Procedure
+
+    Procedure onInitMenu
+    End_Procedure
+End_Class
+
+
+    // Positioning to the MouseCursor...
+Class cPopupMenu Is a cBasePopupMenu
+    Procedure Popup
+        Integer Loc
+        Get Absolute_Mouse_Location Of Desktop To Loc
+        Set GuiLocation To (Hi(Loc)) (Low(Loc))
+        Forward Send Popup
+   End_Procedure
+End_Class

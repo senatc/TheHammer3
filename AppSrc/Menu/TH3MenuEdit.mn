@@ -1,0 +1,292 @@
+// TH3EditMenu.mn
+
+Object oEditMenu is a cCJMenuItem
+    Set peControlType to xtpControlPopup          
+    Set psCaption to "&Edit"
+    Set psDescription to "Edit text options (Cut, Copy, Paste, ... etc.)"
+    Set psCategory to "Edit"
+
+    Object oUndoItem is a cCJUndoMenuItem
+        Set pbControlBeginGroup to True
+    End_Object
+
+    Object oRedoItem is a cCJMenuItem
+        Set psCaption   to "Redo"
+        Set psToolTip to "Redo"
+        Set psDescription to "Redo last action"
+        Set psImage to "THRedo32.ico"
+        Set pbActiveUpdate to True
+        Set psCategory to C_$CategoryEdit
+    
+        Procedure OnExecute Variant vCommandBarControl
+            Send Redo of (focus(Self))
+        End_Procedure
+        
+        Function IsEnabled Returns Boolean
+            Boolean bEnabled
+            Get CanRedo of (Focus(Self)) to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oCutItem is a cCJCutMenuItem
+        Set pbControlBeginGroup to True
+    End_Object
+    
+    Object oCopyItem is a cCJCopyMenuItem
+    End_Object
+
+    Object oPasteItem is a cCJPasteMenuItem
+    End_Object
+
+    Object oSelectAllItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Select All"
+        Set psToolTip to "Select Code Editor text"
+        Set psDescription to "Select editor text"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CASelectAll    of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oSelectLineItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Select Line"
+        Set psToolTip to "Select the current line of the code"
+        Set psDescription to "Cut the selection"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CASelectLine   of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oDeleteLineItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Delete Line"
+        Set psToolTip to "Delete current line in the editor"
+        Set psDescription to "Delete line"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CADeleteLine   of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oGoToLineItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        Set psCaption   to "&Goto Line..."
+        Set psToolTip to "Go to the particular line"
+        Set psDescription to "Go to line"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CAGotoLine     of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oFindItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "&Find..."
+        Set psToolTip to "Find text in the current source (including regular expressions)"
+        Set psDescription to "Find text"
+        Set psImage to "Find16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CAFind         of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oFindNextItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Find Next"
+        Set psToolTip to "Find next occurance of the text specified"
+        Set psDescription to "Find next"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CAFindNext     of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oReplaceItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "&Replace..."
+        Set psToolTip to "Replace the specified text with another text"
+        Set psDescription to "Replace text"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id       to hoClient
+            Send CAReplace      of hoClient
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oFindInFilesItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Find in Files..."
+        Set psToolTip to "Search the text in multiple files"
+        Set psDescription to "Find in files"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id           to hoClient
+            Send CAPopUpFindInFiles of hoClient
+        End_Procedure
+    End_Object
+
+    Procedure OnPopupInit
+        Forward Send OnPopupInit
+        Send AddCJKeyStringToMenuItem (oUndoItem       (Self)) CMD_Undo
+        Send AddCJKeyStringToMenuItem (oRedoItem       (Self)) CMD_Redo
+        Send AddCJKeyStringToMenuItem (oCutItem        (Self)) CMD_CUT
+        Send AddCJKeyStringToMenuItem (oCopyItem       (Self)) CMD_COPY
+        Send AddCJKeyStringToMenuItem (oPasteItem      (Self)) CMD_PASTE
+        Send AddCJKeyStringToMenuItem (oSelectAllItem  (Self)) CMD_SELECTALL
+        Send AddCJKeyStringToMenuItem (oSelectLineItem (Self)) CMD_SELECTLINE
+        Send AddCJKeyStringToMenuItem (oDeleteLineItem (Self)) CMD_LINEDELETE
+        Send AddCJKeyStringToMenuItem (oGoToLineItem   (Self)) CMD_GOTOLINE
+        Send AddCJKeyStringToMenuItem (oFindItem       (Self)) CMD_FIND
+        Send AddCJKeyStringToMenuItem (oFindNextItem   (Self)) CMD_FINDNEXT
+        Send AddCJKeyStringToMenuItem (oReplaceItem    (Self)) CMD_REPLACE
+        Send AddCJKeyStringToMenuItem (oFindInFilesItem(Self)) CMD_FindInFiles
+    End_Procedure
+    
+End_Object
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

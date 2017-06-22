@@ -1,0 +1,920 @@
+Use Windows.pkg
+Use Tools\TH3Workspace.pkg
+Use cSplitButton.pkg
+Use Dir_Dlg.pkg
+Use File_dlg.pkg
+Use THDialog.pkg
+Use cTextEdit.pkg
+
+Class cTHWSGrid is a Grid
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Size to 115 233
+        Set Location to 11 7
+        Set CurrentCellColor     to (RGB(39,150,216))
+        Set CurrentCellTextColor to clWhite
+        Set CurrentRowColor      to (RGB(39,150,216))
+        Set CurrentRowTextColor  to clWhite
+        Set Resize_Column_State to False
+        Set Highlight_Row_State to True
+        Set GridLine_Mode to Grid_Visible_Horz
+        Set Select_Mode to No_Select
+        On_Key Key_Delete Send mRemoveLine
+        On_Key Key_Insert Send mInsertLine
+        On_Key Key_Enter  Send Next
+    End_Procedure
+    Procedure DoFillGrid
+    End_Procedure
+    Function Base_Row_Item Integer iItem Returns Integer
+        Function_Return (iItem-mod(iItem,low(matrix_size(Self))))
+    End_Function
+End_Class
+
+
+Object oTH3WorkspaceConfigure is a ModalPanel
+    Set Size to 195 325
+    Set Label to "Configure Project Workspace"
+    Set piMinSize to 195 325
+    Set Location to 2 2
+    Set Border_Style To Border_Thick
+    Set Locate_Mode to CENTER_ON_SCREEN
+    Set Icon to "Configure16.ico"
+
+    Object oApplyBtn is a Button
+        Set Label to "&Apply"
+        Set Location to 176 213
+        Set peAnchors To anBottomRight
+
+        Procedure OnClick
+            Send mApplyChanges
+        End_Procedure
+
+    End_Object
+
+    Object oCancelBtn is a Button
+        Set Label    to "&Cancel"
+        Set Location to 176 269
+        Set peAnchors to anBottomRight
+
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+
+    End_Object
+
+    Object oWSConfig is a TabDialog
+        Set Size to 165 315
+        Set Location to 5 5
+        Set peAnchors to anAll
+
+        Object oGeneralPage is a TabPage
+            Set Label to "General"
+
+            Object oProjectGroup is a Group
+                Set Size to 58 300
+                Set Location to 3 5
+                Set peAnchors to anTopLeftRight
+                Set Label to "Project"
+
+                Object oProjectName is a Form
+                    Set Size to 13 170
+                    Set Location to 10 75
+                    Set Status_Help to "Leave blank for the default name"
+                    Set Label to "Name (optional)"
+                    Set Label_Col_Offset to 2
+                    Set Label_Justification_Mode to JMode_Right
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sName
+                    End_Procedure
+                End_Object
+    
+                Object oSchema is a ComboForm
+                    Set Size to 12 100
+                    Set Location to 26 75
+                    Set Label to "Schema (optional)"
+                    Set Status_Help to "Optional The Hammer Schema"
+                    Set Label_Col_Offset to 2
+                    Set Label_Justification_Mode to JMode_Right
+                    Set peAnchors to anTopLeftRight
+                    Procedure Combo_Fill_List
+                        Send Combo_Add_Item TH_SCHEMA_DATAFLEX
+                        Send Combo_Add_Item TH_SCHEMA_DELPHI  
+                        Send Combo_Add_Item TH_SCHEMA_CCPP    
+                        Send Combo_Add_Item TH_SCHEMA_PYTHON  
+                        Send Combo_Add_Item TH_SCHEMA_WEB
+                        Send Combo_Add_Item TH_SCHEMA_OTHER   
+                        Set Entry_State item 0 to False
+                        If (gtTHWorkspace.sSchema<>"") Set Value to gtTHWorkspace.sSchema
+                        Else Set Value to TH_SCHEMA_OTHER
+                    End_Procedure
+                    Procedure Activating
+                        Forward Send Activating
+                        If (gtTHWorkspace.sSchema<>"") Set Value to gtTHWorkspace.sSchema
+                        Else Set Value to TH_SCHEMA_OTHER
+                    End_Procedure
+                End_Object
+                
+                Object oShowPaths is a CheckBox
+                    Set Size to 10 50
+                    Set Location to 42 75
+                    Set Label to "Show file paths"
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Checked_State to gtTHWorkspace.iShowPaths
+                    End_Procedure
+                End_Object
+    
+            End_Object
+
+            Object oWorkspaceGroup is a Group
+                Set Size to 85 301
+                Set Location to 61 5
+                Set Label to 'Workspace*'
+                Set peAnchors to anAll
+
+                Object oOpenDialog is a OpenDialog
+                    Set Filter_String to ;
+                    'Executable|*.exe|All Files|*.*'
+                    Set Initial_Folder to 'C:\Program Files (x86)'
+                End_Object
+
+                Object oStudio is a Form
+                    Set Size to 13 170
+                    Set Location to 10 75
+                    Set Status_Help to "Leave blank for the default option"
+                    Set Label to "Studio / IDE"
+                    Set Label_Col_Offset to 2
+                    Set Label_Justification_Mode to JMode_Right
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sStudio
+                    End_Procedure
+                End_Object
+                Object oBrowse is a cCmdLineSelector
+                    Set Location to 10 250
+                    Set Size to 13 40
+                    Set psFileDialogCaption to "Select the Studio / IDE"
+                    Set phoPathForm to (oStudio(Self))
+                    Set peAnchors to anTopRight
+                End_Object
+                
+                
+                Object oCompiler is a Form
+                    Set Size to 13 170
+                    Set Location to 26 75
+                    Set Status_Help to "Leave blank for the default option"
+                    Set Label to "Compiler"
+                    Set Label_Col_Offset to 2
+                    Set Label_Justification_Mode to JMode_Right
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sCompiler
+                    End_Procedure
+                End_Object
+                Object oBrowse is a cCmdLineSelector
+                    Set Location to 26 250
+                    Set Size to 13 40
+                    Set psFileDialogCaption to "Select Project Compiler"
+                    Set phoPathForm to (oCompiler(Self))
+                    Set peAnchors to anTopRight
+                End_Object
+
+                Object oDBEditor is a Form
+                    Set Size to 13 170
+                    Set Location to 42 75
+                    Set Status_Help to "Leave blank for the default option"
+                    Set Label to "Database Editor"
+                    Set Label_Col_Offset to 2
+                    Set Label_Justification_Mode to JMode_Right
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sDBEditor
+                    End_Procedure
+                End_Object
+                Object oBrowse is a cCmdLineSelector
+                    Set Location to 42 250
+                    Set Size to 13 40
+                    Set psFileDialogCaption to "Select Database Editor"
+                    Set phoPathForm to (oDBEditor(Self))
+                    Set peAnchors to anTopRight
+                End_Object
+
+                Object oDBViewer is a Form
+                    Set Size to 13 170
+                    Set Location to 58 75
+                    Set Status_Help to "Leave blank for the default option"
+                    Set Label to "Database Viewer"
+                    Set Label_Col_Offset to 2
+                    Set Label_Justification_Mode to JMode_Right
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sDBViewer
+                    End_Procedure
+                End_Object
+                Object oBrowse is a cCmdLineSelector
+                    Set Location to 58 250
+                    Set Size to 13 40
+                    Set psFileDialogCaption to "Select Database Viewer"
+                    Set phoPathForm to (oDBViewer(Self))
+                    Set peAnchors to anTopRight
+                End_Object
+
+                Object oNote is a TextBox
+                    Set Auto_Size_State to False
+                    Set Size to 10 215
+                    Set Location to 72 75
+                    Set Label to '* Leave these options blank to use The Hammer defaults.'
+                End_Object
+
+            End_Object
+
+            Procedure mApply
+                Get Value           of oProjectName to gtTHWorkspace.sName
+                Get Value           of oSchema      to gtTHWorkspace.sSchema
+                Get Checked_State   of oShowPaths   to gtTHWorkspace.iShowPaths
+                Get Value           of oStudio      to gtTHWorkspace.sStudio
+                Get Value           of oCompiler    to gtTHWorkspace.sCompiler
+                Get Value           of oDBEditor    to gtTHWorkspace.sDBEditor
+                Get Value           of oDBViewer    to gtTHWorkspace.sDBViewer
+            End_Procedure
+
+        End_Object // oGenralPage
+
+        Object oFoldersPage is a TabPage
+            Set Label to "Folders"
+
+            Object oFoldersGroup is a Group
+                Set Size to 140 300
+                Set Location to 3 5
+                Set peAnchors to anAll
+
+                Object oListFolders is an OpenDirDialog
+                    Set Dialog_Caption to "Select Source Directory"
+                End_Object
+                
+                Object oFolders is a cTHWSGrid
+                    Set Line_Width      to 1 0
+                    Set Form_Width    0 to 230
+                    Set Header_Label  0 to "Folder"
+                    Set peAnchors to anAll
+                    On_Key Key_Insert Send mAddFolder
+                    Procedure DoFillGrid
+                        Integer iFolder iFolders
+                        Send Delete_Data
+                        Move (SizeOfArray(gtTHWorkspace.saFolders)) to iFolders
+                        For iFolder from 0 to (iFolders-1)
+                            If (iFolder=0) Send Add_Item Msg_None ('['+gtTHWorkspace.saFolders[iFolder]+"]*")
+                            Else Send Add_Item Msg_None gtTHWorkspace.saFolders[iFolder]
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                        Loop
+                    End_Procedure
+                    Procedure Add_New_Line String sName 
+                        Send Add_Item       Msg_None sName
+                        Set ItemTextColor   (Item_Count(oFolders(Self))-1) to clRed
+                    End_Procedure
+                End_Object
+
+                Procedure mRemoveLine
+                    Integer iItem
+                    Get Current_Item of oFolders to iItem
+                    If (iItem=0) Begin
+                        Send Info_Box "Project Home folder can not be removed." "Warning"
+                        Procedure_Return
+                    End
+                    Send Delete_Item to oFolders (Current_Item(oFolders(Self)))
+                End_Procedure
+                
+                Procedure mAddFolder
+                    Integer iOK
+                    String sFolder
+                    Get Show_Dialog of oListFolders to iOK
+                    If (iOK) Begin
+                        Get Dir_Name of oListFolders to sFolder
+                        Send Add_New_Line to oFolders sFolder
+                    End
+                End_Procedure
+
+                Object oAdd is a Button
+                    Set Location to 11 245
+                    Set Label to "Add (Ins)"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mAddFolder
+                    End_Procedure
+                End_Object
+
+                Object oRemove is a Button
+                    Set Location to 28 245
+                    Set Label to "Remove (Del)"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mRemoveLine
+                    End_Procedure
+                End_Object
+
+                Object oHelp is a TextBox
+                    Set Auto_Size_State to False
+                    Set Size to 10 287
+                    Set Location to 126 8
+                    Set Label to "* Project Workspace Folder"
+                    Set peAnchors to anBottomLeft
+                End_Object
+            End_Object
+
+            Procedure mApply
+                Integer iFolder iFolders
+                String sFolder
+                Get Item_Count of oFolders to iFolders
+                For iFolder from 0 to (iFolders-1)
+                    Get Value of oFolders item iFolder to sFolder
+                    If (sFolder<>"") Begin
+                        If (iFolder=0) Begin
+                            // '['
+                            Move (Right(sFolder, Length(sFolder)-1)) to sFolder
+                            // ']*'
+                            Move (Left(sFolder, Length(sFolder)-2)) to sFolder
+                        End
+                        Move sFolder to gtTHWorkspace.saFolders[SizeOfArray(gtTHWorkspace.saFolders)]
+                    End
+                Loop
+            End_Procedure
+
+        End_Object // oFoldersPage
+
+        Object oFilesPage is a TabPage
+            Set Label to "Include"
+            
+            Object oFilesGroup is a Group
+                Set Size to 140 300
+                Set Location to 3 5
+                Set peAnchors to anAll
+
+                Object oFiles is a cTHWSGrid
+                    Set Line_Width      to 2 0
+                    Set Form_Width    0 to 60
+                    Set Header_Label  0 to "Extension"
+                    Set Form_Width    1 to 170
+                    Set Header_Label  1 to "Description"
+                    Set peAnchors to anAll
+                    Procedure DoFillGrid
+                        Integer iFile iFiles
+                        Send Delete_Data
+                        Move (SizeOfArray(gtTHWorkspace.saFiles)) to iFiles
+                        For iFile from 0 to (iFiles-1)
+                            Send Add_Item Msg_None gtTHWorkspace.saFiles[iFile]
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                            Send Add_Item Msg_None gtTHWorkspace.saFileDesc[iFile]
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                        Loop
+                    End_Procedure
+                    Procedure Add_New_Line String sName String sDesc
+                        Send Add_Item       Msg_None sName
+                        Set ItemTextColor   (Item_Count(oFiles(Self))-1) to clRed
+                        Send Add_Item       Msg_None sDesc
+                        Set ItemTextColor   (Item_Count(oFiles(Self))-1) to clRed
+                    End_Procedure
+                End_Object
+
+                Procedure mRemoveLine
+                    Integer iRowBase
+                    If (Item_Count(oFiles(Self))=0) Procedure_Return
+                    Get Base_Row_Item of oFiles (Current_Item(oFiles(Self))) to iRowBase
+                    Send Delete_Item to oFiles (iRowBase+1)
+                    Send Delete_Item to oFiles iRowBase
+                End_Procedure
+
+                Procedure mInsertLine
+                    Send Add_New_Line   to oFiles "" ""
+                    Send End_of_Data    to oFiles
+                    Send Activate       to oFiles
+                End_Procedure
+                
+                Procedure mRemoveAll
+                    Integer iOK
+                    If (Item_Count(oFiles(Self))) Begin
+                        Get YesNo_Box "Confirm You wish to remove all files extensions?" "Confirmation" MBR_No to iOK
+                        If (iOk=MBR_Yes) Send Delete_Data to oFiles
+                    End
+                End_Procedure
+                
+                Procedure ApplyDataFlex
+                    Send Add_New_Line   to oFiles "SRC"         "DataFlex Project (Program)"
+                    Send Add_New_Line   to oFiles "PKG"         "DataFlex Package"
+                    Send Add_New_Line   to oFiles "DD"          "DataFlex Data Dictionary"
+                    Send Add_New_Line   to oFiles "BP"          "DataFlex Business Process"
+                    Send Add_New_Line   to oFiles "DG"          "DataFlex Dialog"
+                    Send Add_New_Line   to oFiles "SL"          "DataFlex Selection List"
+                    Send Add_New_Line   to oFiles "VW"          "DataFlex View"
+                    Send Add_New_Line   to oFiles "RV"          "DataFlex Report View"
+                    Send Add_New_Line   to oFiles "WO"          "DataFlex Web Object"
+                    Send Add_New_Line   to oFiles "UTL"         "Sture's DataFlex Utility"
+                    Send Add_New_Line   to oFiles "MN"          "DataFlex Menu (Obsolete)"
+                    Send Add_New_Line   to oFiles "HTM"         "HyperText Markup Language"
+                    Send Add_New_Line   to oFiles "HTML"        "HyperText Markup Language"
+                    Send Add_New_Line   to oFiles "ASP"         "Active Server Page"
+                    Send Add_New_Line   to oFiles "JS"          "JavaScript"
+                    Send Add_New_Line   to oFiles "WS"          "DataFlex Workspace"
+                    Send Add_New_Line   to oFiles "SWS"         "DataFlex Studio Workspace"
+                    Send Add_New_Line   to oFiles "INI"         "Configuration File"
+                    Send Add_New_Line   to oFiles "CSS"         "Cascading Style Sheet"
+                    Send Add_New_Line   to oFiles "INT"         "Database Intermediate File"
+                End_Procedure
+
+                Procedure ApplyWeb
+                    Send Add_New_Line   to oFiles "HTM"         "HyperText Markup Language"
+                    Send Add_New_Line   to oFiles "HTML"        "HyperText Markup Language"
+                    Send Add_New_Line   to oFiles "ASP"         "Active Server Page"
+                    Send Add_New_Line   to oFiles "JS"          "JavaScript"
+                    Send Add_New_Line   to oFiles "JSON"        "JSON Object"
+                    Send Add_New_Line   to oFiles "CSS"         "Cascading Style Sheet"
+                    Send Add_New_Line   to oFiles "XML"         "eXtensible Markup Language"
+                End_Procedure
+
+                Procedure ApplyDelphi
+                    Send Add_New_Line   to oFiles "PAS"         "Delphi Unit Source File"
+                    Send Add_New_Line   to oFiles "DOF"         "Delphi Project Options"
+                    Send Add_New_Line   to oFiles "DPK"         "Delphi Package Project"
+                    Send Add_New_Line   to oFiles "DPKW"        "Delphi Package Project for Windows"
+                    Send Add_New_Line   to oFiles "DPR"         "Delphi Project File"
+                    Send Add_New_Line   to oFiles "BDSPROJ"     "Developer Studio Project File"
+                    Send Add_New_Line   to oFiles "DPROJ"       "Project File for the native compiler"
+                    Send Add_New_Line   to oFiles "GROUPPROJ"   "Project Group File"
+                    Send Add_New_Line   to oFiles "PROJ"        "Codegear RAD Studio project"
+                End_Procedure
+
+                Procedure ApplyCCPP
+                    Send Add_New_Line   to oFiles "VCXPROJ"     "Visual C++ Project File"
+                    Send Add_New_Line   to oFiles "H"           "Header"
+                    Send Add_New_Line   to oFiles "C"           "C Source File"
+                    Send Add_New_Line   to oFiles "CPP"         "C++ Source File"
+                End_Procedure
+
+                Procedure ApplyPython
+                    Send Add_New_Line   to oFiles "PY"     "Python Source File"
+                    Send Add_New_Line   to oFiles "PYW"     "Python for Windows"
+                End_Procedure
+                
+                Procedure ApplyDefaults String sType
+                    Integer iOk
+                    Get YesNo_Box ("Confirm You wish to apply"*sType*"defaults?") "Confirmation" MBR_No to iOK
+                    If (iOk=MBR_Yes) Begin
+                        Send Delete_Data to oFiles
+                        If      (sType=TH_SCHEMA_DATAFLEX)  Send ApplyDataFlex
+                        Else If (sType=TH_SCHEMA_WEB)       Send ApplyWeb
+                        Else If (sType=TH_SCHEMA_DELPHI)    Send ApplyDelphi
+                        Else If (sType=TH_SCHEMA_CCPP)      Send ApplyCCPP
+                        Else If (sType=TH_SCHEMA_PYTHON)    Send ApplyPython
+                    End
+                End_Procedure
+
+                Object oAdd is a Button
+                    Set Location to 10 245
+                    Set Label to "Add (Ins)"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mInsertLine
+                    End_Procedure
+                End_Object
+
+                Object oRemove is a Button
+                    Set Location to 26 245
+                    Set Label to "Remove (Del)"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mRemoveLine
+                    End_Procedure
+                End_Object
+
+                Object oRemoveAll is a Button
+                    Set Location to 42 245
+                    Set Label to "Remove All"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mRemoveAll
+                    End_Procedure
+                End_Object
+
+                Object oAddDefault is a cSplitButton
+                    Set Location to 112 245
+                    Set Label to 'Defaults'
+                    Set peAnchors to anBottomRight
+                    Procedure OnClick
+                        String sLabel
+                        Move (Label(Self)) to sLabel
+                        If (sLabel="Defaults") Send OnDropDown
+                        Else Send ApplyDefaults sLabel
+                    End_Procedure
+                    Object oButtonMenu is a cCJContextMenu
+                        Object oDataFlexDefaults is a cCJMenuItem
+                            Set psCaption to TH_SCHEMA_DATAFLEX
+                            Procedure OnExecute Variant vCommandBarControl
+                                Delegate Set Label to TH_SCHEMA_DATAFLEX
+                                Send ApplyDefaults TH_SCHEMA_DATAFLEX
+                            End_Procedure
+                        End_Object
+                        Object oDelphiDefaults is a cCJMenuItem
+                            Set psCaption to TH_SCHEMA_DELPHI
+                            Procedure OnExecute Variant vCommandBarControl
+                                Delegate Set Label to TH_SCHEMA_DELPHI
+                                Send ApplyDefaults TH_SCHEMA_DELPHI
+                            End_Procedure
+                        End_Object
+                        Object oCCPPDefaults is a cCJMenuItem
+                            Set psCaption to TH_SCHEMA_CCPP
+                            Procedure OnExecute Variant vCommandBarControl
+                                Delegate Set Label to TH_SCHEMA_CCPP
+                                Send ApplyDefaults TH_SCHEMA_CCPP
+                            End_Procedure
+                        End_Object
+                        Object oPythonDefaults is a cCJMenuItem
+                            Set psCaption to TH_SCHEMA_PYTHON
+                            Procedure OnExecute Variant vCommandBarControl
+                                Delegate Set Label to TH_SCHEMA_PYTHON
+                                Send ApplyDefaults TH_SCHEMA_PYTHON
+                            End_Procedure
+                        End_Object
+                        Object oWebDefaults is a cCJMenuItem
+                            Set psCaption to TH_SCHEMA_WEB
+                            Procedure OnExecute Variant vCommandBarControl
+                                Delegate Set Label to TH_SCHEMA_WEB
+                                Send ApplyDefaults TH_SCHEMA_WEB
+                            End_Procedure
+                        End_Object
+                    End_Object
+                    Set phoButtonPopup to oButtonMenu 
+                End_Object
+
+                Object oHelp is a TextBox
+                    Set Auto_Size_State to False
+                    Set Size to 10 287
+                    Set Location to 126 8
+                    Set Label to "* File extensions to be shown on the Project list"
+                    Set peAnchors to anBottomLeft
+                End_Object
+
+            End_Object
+
+            Procedure mApply
+                Integer iFile iFiles iCount
+                String  sFile
+                Get Item_Count of oFiles to iFiles
+                For iFile from 0 to (iFiles-1)
+                    Get Value of oFiles item iFile to sFile
+                    If (sFile="") Increment iFile
+                    Else Begin
+                        Move sFile to gtTHWorkspace.saFiles[iCount]
+                        Increment iFile
+                        Get Value of oFiles item iFile to gtTHWorkspace.saFileDesc[iCount]
+                        Increment iCount
+                    End
+                Loop
+            End_Procedure
+
+        End_Object // oFilesPage
+        
+        Object oExcludePage is a TabPage
+            Set Label to "Exclude"
+
+            Object oExcludeGroup is a Group
+                Set Size to 140 300
+                Set Location to 3 5
+                Set peAnchors to anAll
+
+                Object oExcludes is a cTHWSGrid
+                    Set Line_Width      to 1 0
+                    Set Form_Width    0 to 230
+                    Set Header_Label  0 to "Pattern"
+                    Set peAnchors to anAll
+                    On_Key Key_Insert Send mAddExclude
+                    Procedure DoFillGrid
+                        Integer iExclude iExcludes
+                        Send Delete_Data
+                        Move (SizeOfArray(gtTHWorkspace.saExclude)) to iExcludes
+                        For iExclude from 0 to (iExcludes-1)
+                            Send Add_Item Msg_None gtTHWorkspace.saExclude[iExclude]
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                        Loop
+                    End_Procedure
+                    Procedure Add_New_Line String sName 
+                        Send Add_Item       Msg_None sName
+                        Set ItemTextColor   (Item_Count(Self)-1) to clRed
+                    End_Procedure
+                End_Object
+
+                Procedure mRemoveLine
+                    Send Delete_Item to oExcludes (Current_Item(oExcludes(Self)))
+                End_Procedure
+                
+                Procedure mAddExclude
+                    Send Add_New_Line to oExcludes ""
+                    Send End_of_Data  to oExcludes
+                    Send Activate     to oExcludes
+                End_Procedure
+
+                Object oAdd is a Button
+                    Set Location to 11 245
+                    Set Label to "Add (Ins)"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mAddExclude
+                    End_Procedure
+                End_Object
+
+                Object oRemove is a Button
+                    Set Location to 28 245
+                    Set Label to "Remove (Del)"
+                    Set peAnchors to anTopRight
+                    Procedure OnClick
+                        Send mRemoveLine
+                    End_Procedure
+                End_Object
+
+                Object oHelp is a TextBox
+                    Set Auto_Size_State to False
+                    Set Size to 10 287
+                    Set Location to 126 8
+                    Set Label to "* Enter file or folder name to be excluded"
+                    Set peAnchors to anBottomLeft
+                End_Object
+            End_Object
+
+            Procedure mApply
+                Integer iExclude iExcludes
+                String sPattern
+                Get Item_Count of oExcludes to iExcludes
+                For iExclude from 0 to (iExcludes-1)
+                    Get Value of oExcludes item iExclude to sPattern
+                    If (sPattern<>"") ;
+                        Move sPattern to gtTHWorkspace.saExclude[SizeOfArray(gtTHWorkspace.saExclude)]
+                Loop
+            End_Procedure
+
+        End_Object // oExcludePage
+
+        Object oSourcePage is a TabPage
+            Set Label to "Repository"
+
+            Object oSourceGroup is a Group
+                Set Size to 145 300
+                Set Location to 1 5
+                Set peAnchors to anAll
+
+                Object oListFolders is an OpenDirDialog
+                    Set Dialog_Caption to "Select Source Directory"
+                End_Object
+                
+                Object oSources is a cTHWSGrid
+                    Set Location to 10 7
+                    Set Size to 112 288
+                    Set Line_Width to 3 0
+                    Set Form_Width 0 to 180
+                    Set Header_Label 0 to "Source File Name"
+                    Set Header_Label 1 to "Cursor Position"
+                    Set Form_Width 1 to 60
+                    Set Header_Label 2 to "Bookmarks"
+                    Set Form_Width 2 to 45
+                    Set peAnchors to anAll
+                    Set peResizeColumn to rcSelectedColumn
+                    Set Resize_Column_State to True
+                    On_Key Key_Insert Send mAddLine
+                    Procedure DoFillGrid
+                        Integer iFile iFiles
+                        Send Delete_Data
+                        Move (SizeOfArray(gtTHWorkspace.taSources)) to iFiles
+                        For iFile from 0 to (iFiles-1)
+                            Send Add_Item Msg_None gtTHWorkspace.taSources[iFile].sFile
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                            Send Add_Item Msg_None ;
+                                ("Ln"*String(gtTHWorkspace.taSources[iFile].iCursorLine)+", Col"*String(gtTHWorkspace.taSources[iFile].iCursorColumn))
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                            Send Add_Item Msg_None gtTHWorkspace.taSources[iFile].iBookmarkCount
+                            Set Entry_State item (Item_Count(Self)-1) to False
+                        Loop
+                    End_Procedure
+                    Procedure mAddLine
+                    End_Procedure
+                    Procedure mRemoveLine
+                        Integer iRowBase
+                        If (Item_Count(Self)=0) Procedure_Return
+                        Get Base_Row_Item (Current_Item(Self)) to iRowBase
+                        Send Delete_Item  (iRowBase+2)
+                        Send Delete_Item  (iRowBase+1)
+                        Send Delete_Item  iRowBase
+                    End_Procedure
+                End_Object
+                
+                Object oRemove is a Button
+                    Set Location to 125 245
+                    Set Label to "Remove (Del)"
+                    Set peAnchors to anBottomRight
+                    Procedure OnClick
+                        Integer iOK
+                        Get YesNo_Box "Confirm You wish delete pre-saved file information?" "Confirmation" MBR_No to iOK
+                        If (iOk=MBR_Yes) Send mRemoveLine to oSources
+                    End_Procedure
+                End_Object
+
+                Object oHelp is a TextBox
+                    Set Auto_Size_State to False
+                    Set Size to 10 230
+                    Set Location to 125 8
+                    Set Label to "Pre-saved file information (Bookmarks and Cursor position)"
+                    Set peAnchors to anBottomLeft
+                End_Object
+                
+            End_Object //oSourceGroup
+            
+            Procedure mApply
+                Integer iFile iFiles iFound
+                String  sFile
+                tTHSource[] lTHSources
+                Get Item_Count of oSources to iFiles
+                For iFile from 0 to (iFiles-1)
+                    Get Value of oSources item iFile to sFile
+                    If (sFile<>"") Begin
+                        Get THWS_FindFile sFile to iFound
+                        If (iFound>=0) Move gtTHWorkspace.taSources[iFound] to lTHSources[SizeOfArray(lTHSources)]
+                        Increment iFile
+                        Increment iFile
+                    End
+                Loop
+                Move lTHSources to gtTHWorkspace.taSources
+            End_Procedure
+            
+        End_Object // oSourcePage
+
+        Object oFindPage is a TabPage
+            Set Label to "Find-in-Files"
+
+            Object oFindOptionsGroup is a Group
+                Set Size to 34 301
+                Set Location to 1 5
+                Set Label to "Options"
+                Set peAnchors to anTopLeftRight
+
+                Object oMatchWord is a CheckBox
+                    Set Size to 10 50
+                    Set Location to 10 60
+                    Set Label to "Match Whole Word"
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Checked_State to gtTHWorkspace.iFFMatchWord
+                    End_Procedure
+                End_Object
+
+                Object oMatchCase is a CheckBox
+                    Set Size to 10 50
+                    Set Location to 20 60
+                    Set Label to "Match Case"
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Checked_State to gtTHWorkspace.iFFMatchCase
+                    End_Procedure
+                End_Object
+
+                Object oRegExp is a CheckBox
+                    Set Size to 10 50
+                    Set Location to 10 145
+                    Set Label to "Regular Expression"
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Checked_State to gtTHWorkspace.iFFRegExp
+                    End_Procedure
+                End_Object
+
+                Object oSearchSub is a CheckBox
+                    Set Size to 10 50
+                    Set Location to 20 145
+                    Set Label to "Search Subfolders"
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Checked_State to gtTHWorkspace.iFFSubFolders
+                    End_Procedure
+                End_Object
+
+                Object oShowAll is a CheckBox
+                    Set Size to 10 50
+                    Set Location to 10 225
+                    Set Label to "Show All Results"
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Checked_State to gtTHWorkspace.iFFShowAll
+                    End_Procedure
+                End_Object
+            End_Object
+
+            Object oFindParametersGroup is a Group
+                Set Size to 111 301
+                Set Location to 35 5
+                Set Label to "Parameters"
+                Set peAnchors to anAll
+
+                Object oFFText is a cTextEdit
+                    Set Size to 30 230
+                    Set Location to 10 60
+                    Set Label to "Search Text"
+                    Set Label_Justification_Mode to JMode_Right
+                    Set Label_Col_Offset to 2
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sFFText
+                    End_Procedure
+                End_Object
+
+                Object oFFType is a cTextEdit
+                    Set Size to 30 230
+                    Set Location to 43 60
+                    Set Label to "File Types"
+                    Set Label_Justification_Mode to JMode_Right
+                    Set Label_Col_Offset to 2
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sFFTypes
+                    End_Procedure
+                End_Object
+
+                Object oFFFolders is a cTextEdit
+                    Set Size to 30 230
+                    Set Location to 76 60
+                    Set Label to "Folders"
+                    Set Label_Justification_Mode to JMode_Right
+                    Set Label_Col_Offset to 2
+                    Set peAnchors to anTopLeftRight
+                    Procedure Activating
+                        Forward Send Activating
+                        Set Value to gtTHWorkspace.sFFPath
+                    End_Procedure
+                End_Object
+                
+            End_Object // oFindParametersGroup
+            
+            Procedure mApply
+                Get Checked_State   of oMatchWord   to gtTHWorkspace.iFFMatchWord
+                Get Checked_State   of oMatchCase   to gtTHWorkspace.iFFMatchCase
+                Get Checked_State   of oRegExp      to gtTHWorkspace.iFFRegExp
+                Get Checked_State   of oSearchSub   to gtTHWorkspace.iFFSubFolders
+                Get Checked_State   of oShowAll     to gtTHWorkspace.iFFShowAll
+                Get Value           of oFFText      to gtTHWorkspace.sFFText
+                Get Value           of oFFType      to gtTHWorkspace.sFFTypes
+                Get Value           of oFFFolders   to gtTHWorkspace.sFFPath
+            End_Procedure
+            
+        End_Object // oFindPage
+
+    End_Object
+
+    On_Key Key_Alt+Key_A Send KeyAction of oApplyBtn
+    On_Key Key_Alt+Key_C Send KeyAction of oCancelBtn
+
+    Procedure mApplyChanges
+        tTHWorkspace ltTHWorkspace
+        tTHSource[]  lTHSources
+        String[]     lsaOpened
+        String sFullName
+        Integer iOK
+        Get YesNo_Box "Confirm You wish apply changes made?" "Confirmation" MBR_No to iOK
+        If (iOK=MBR_Yes) Begin
+            Move gtTHWorkspace.sFullName    to sFullName
+            Move gtTHWorkspace.taSources    to lTHSources
+            Move gtTHWorkspace.saOpened     to lsaOpened
+            Move ltTHWorkspace              to gtTHWorkspace
+            Move sFullName                  to gtTHWorkspace.sFullName
+            Send mApply                     to oFoldersPage
+            Send mApply                     to oFilesPage
+            Send mApply                     to oGeneralPage
+            Send mApply                     to oExcludePage
+            Send mApply                     to oFindPage
+            Move lTHSources                 to gtTHWorkspace.taSources
+            Move lsaOpened                  to gtTHWorkspace.saOpened
+            Send mApply                     to oSourcePage
+            Send THDoWriteWorkspace            sFullName
+            Move gtTHWorkspace to ltTHWorkspace
+            Send Close_Panel
+        End
+    End_Procedure
+
+    Procedure Activating
+        Integer iRetVal
+        Forward Send Activating
+        Send THDoReadWorkspace
+        //
+        If (gtTHWorkspace.sFullName<>"") ;
+            Set Label to ("Configure Project Workspace ["+gtTHWorkspace.sFullName+"]")
+        //
+        Send DoFillGrid to oFiles
+        Send DoFillGrid to oFolders
+        Send DoFillGrid to oExcludes
+        Send DoFillGrid to oSources
+        Procedure_Return iRetVal
+    End_Procedure
+
+End_Object
+

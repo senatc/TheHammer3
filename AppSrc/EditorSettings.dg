@@ -1,0 +1,237 @@
+Use Windows.pkg
+Use cParser.pkg
+Use cTextEdit.pkg
+
+//
+// It is probably best to roll this dialog into the new settings instead of having
+// a separate dialog.
+// So this is a quick dialog that just allows you to change the settings
+//
+
+Object oEditorSettingsDialog is a ModalPanel
+    Set Size to 220 230
+    Set Label to "Editor Settings"
+    Set piMinSize to 214 230
+    Set Location to 2 2
+    Set Border_Style To Border_Thick
+    
+    Property Handle phoEditor   0
+
+    Object oOK_Btn is a Button
+        Set Label    to "&OK"
+        Set Location to 201 120
+        Set peAnchors to anBottomRight
+        On_Key kCancel Send Request_Cancel
+
+        Procedure OnClick
+          Send ApplySettings
+          Send Close_Panel
+        End_Procedure
+
+    End_Object
+
+    Object oCancel_Btn is a Button
+        Set Label    to "&Cancel"
+        Set Location to 201 175
+        Set peAnchors to anBottomRight
+        On_Key kCancel Send Request_Cancel
+
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+
+    End_Object
+
+  Object oEditorSettings_TD is a TabDialog
+    Set Size to 190 220
+    Set Location to 5 5
+      Set peAnchors to anAll
+
+    Object oEditor_TP is a TabPage
+      Set Label to "Editor"
+
+        Object oGroup1 is a Group
+            Set Size to 170 207
+            Set Location to 2 5
+            Set peAnchors to anAll
+
+            Object oShowLineNrMargin_cb is a CheckBox
+              Set Size to 10 50
+              Set Location to 10 75
+              Set Label to "Show LineNumbers"
+              Set psToolTip to "Display line numbers in margin"
+            End_Object
+            Object oDisplayWhiteSpace_cb is a CheckBox
+              Set Size to 10 50
+              Set Location to 42 75
+              Set Label to "Display Whitespace"
+              Set psToolTip to "Display white space"
+            End_Object
+            Object oTabsAsSpaces_cb is a CheckBox
+              Set Size to 10 50
+              Set Location to 58 75
+              Set Label to "Convert tabs to spaces"
+              Set psToolTip to "Convert tab characters into spaces"
+            End_Object
+            Object oTabSizeForm is a Form
+              Set Size to 13 37
+              Set Location to 74 75
+              Set Label to "Tab Size:"
+              Set Label_Col_Offset to 4
+              Set Label_Justification_Mode to JMode_Right
+              Set Form_Datatype to 0
+              Set psToolTip to "Size of tab character in spaces"
+            End_Object
+            Object oAutoIndent_cb is a CheckBox
+              Set Size to 10 83
+              Set Location to 90 75
+              Set Label to "Auto Indent"
+              Set psToolTip to "Take indent from previous line"
+            End_Object
+            Object oShowMatchingBraces_cb is a CheckBox
+              Set Size to 10 50
+              Set Location to 106 75
+              Set Label to "Show matching braces"
+              Set psToolTip to "Highlight braces that match and also show unmatched braces"
+            
+                //Fires whenever the value of the control is changed
+                //Procedure OnChange
+                //    Boolean bChecked
+                //
+                //    Get Checked_State To bChecked
+                //End_Procedure
+            
+            End_Object
+            Object oShowEOLChars_cb is a CheckBox
+              Set Size to 10 50
+              Set Location to 122 75
+              Set Label to "Show EOL Characters"
+              Set psToolTip to "Display End Of Line characters"
+            
+                //Fires whenever the value of the control is changed
+                //Procedure OnChange
+                //    Boolean bChecked
+                //
+                //    Get Checked_State To bChecked
+                //End_Procedure
+            
+            End_Object
+            Object oShowLeftMargin_cb is a CheckBox
+              Set Size to 10 50
+              Set Location to 26 75
+              Set Label to "Show Left Margin"
+              Set psToolTip to "Display the code folding margin"
+            End_Object
+        End_Object
+    End_Object
+
+  End_Object
+    
+    Procedure ReadSettings
+      Boolean bEnabled
+      Boolean bShowLineNrs
+      Boolean bShowLeftMargin
+      Boolean bDisplayWhiteSpace
+      Boolean bTabsAsSpaces
+      Boolean bAutoIndent
+      Boolean bMatchBraces
+      Boolean bShowEOL
+      Integer eMode
+      Integer iTabSize
+      //String  sAllShortCutDefinitions
+      Handle  hoEditor
+      
+      Get phoEditor to hoEditor
+      If (hoEditor) Begin
+        Get CM_GetLineNumbering           of hoEditor to eMode
+        Move (eMode<>0) To bShowLineNrs
+        Get CM_IsLeftMarginEnabled        of hoEditor to bShowLeftMargin
+        Get CM_IsWhitespaceDisplayEnabled of hoEditor to bDisplayWhiteSpace
+        Get CM_IsTabExpandEnabled         of hoEditor to bTabsAsSpaces
+        Get CM_GetTabSize                 of hoEditor to iTabSize
+        Get CM_GetAutoIndentMode          of hoEditor to eMode
+        Move (eMode<>CM_INDENT_OFF) to bAutoIndent
+        Get pbShowMatchingBraces          of hoEditor to bMatchBraces
+        Get DisplayEOLCharacters          of hoEditor to bShowEOL
+        //
+        Set Checked_State of oShowLineNrMargin_cb   to bShowLineNrs
+        Set Checked_State of oShowLeftMargin_cb     to bShowLeftMargin
+        Set Checked_State of oDisplayWhiteSpace_cb  to bDisplayWhiteSpace
+        Set Checked_State of oTabsAsSpaces_cb       to bTabsAsSpaces
+        Set Value         of oTabSizeForm           to iTabSize
+        Set Checked_State of oAutoIndent_cb         to bAutoIndent
+        Set Checked_State of oShowMatchingBraces_cb to bMatchBraces
+        Set Checked_State of oShowEOLChars_cb       to bShowEOL
+        // We don't have to read the shortcuts here from the ini file, we already did
+        //Get psEditorHotKeys of ghoEditorProperties to sAllShortCutDefinitions
+        //Set ShortCutKeyDefinitions of oSciCommandHotKeys to sAllShortCutDefinitions
+      End
+    End_Procedure
+    
+    //
+    // We are currently just setting the editor that is active. This has to be changed
+    // so that ALL editor windows have the same settings. So apply on all and you can
+    // keep on reading the current settings from just one.
+    //
+    Procedure ApplySettings
+      Boolean bShowLineNrs
+      Boolean bShowLeftMargin
+      Boolean bDisplayWhiteSpace
+      Boolean bTabsAsSpaces
+      Boolean bAutoIndent
+      Boolean bMatchBraces
+      Boolean bShowEOL
+      Integer eMode
+      Integer iTabSize
+      Integer iVoid
+      //String  sAllShortCutDefinitions
+      Handle  hoEditor
+      
+      Get phoEditor to hoEditor
+      If (hoEditor) Begin
+        Get Checked_State of oShowLineNrMargin_cb   to bShowLineNrs
+        Get Checked_State of oShowLeftMargin_cb     to bShowLeftMargin
+        Get Checked_State of oDisplayWhiteSpace_cb  to bDisplayWhiteSpace
+        Get Checked_State of oTabsAsSpaces_cb       to bTabsAsSpaces
+        Get Value         of oTabSizeForm           to iTabSize
+        Get Checked_State of oAutoIndent_cb         to bAutoIndent
+        Get Checked_State of oShowMatchingBraces_cb to bMatchBraces
+        Get Checked_State of oShowEOLChars_cb       to bShowEOL
+        
+        Get CM_SetLineNumbering        of hoEditor bShowLineNrs 0 0   to iVoid
+        Get CM_EnableLeftMargin        of hoEditor bShowLeftMargin    to iVoid
+        Get CM_EnableWhitespaceDisplay of hoEditor bDisplayWhiteSpace to iVoid
+        Get CM_EnableTabExpand         of hoEditor bTabsAsSpaces      to iVoid
+        Get CM_SetTabSize              of hoEditor iTabSize           to iVoid
+        If (bAutoIndent) Move CM_INDENT_PREVLINE To eMode
+        Else             Move CM_INDENT_OFF      To eMode
+        Get CM_SetAutoIndentMode       of hoEditor eMode              to iVoid
+        Set pbShowMatchingBraces       of hoEditor  to bMatchBraces
+        Set DisplayEOLCharacters       of hoEditor  to bShowEOL
+        Send onPropsChange of hoEditor
+        // We don't have to set the shortcut keys here, it is directly set. Perhaps we should
+        // use a temporary property so that a cancel does not make changes.
+        //Get ShortCutKeyDefinitions of oSciCommandHotKeys to sAllShortCutDefinitions
+        //Set psEditorHotKeys of ghoEditorProperties to sAllShortCutDefinitions
+      End
+    End_Procedure
+    
+    Procedure Request_Cancel
+      Send Close_Panel
+    End_Procedure
+    
+    Procedure Popup
+      Send ReadSettings
+      Forward Send Popup
+    End_Procedure
+
+    On_Key Key_Alt+Key_O Send KeyAction of oOK_Btn
+    On_Key Key_Alt+Key_C Send KeyAction of oCancel_Btn
+
+End_Object
+
+
+Procedure PopupEditorSettingsDialog Handle hoEditor
+  Set phoEditor of oEditorSettingsDialog to hoEditor
+  Send Popup of oEditorSettingsDialog
+End_Procedure

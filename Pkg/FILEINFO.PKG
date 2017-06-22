@@ -1,0 +1,274 @@
+//**************************************************************************************************
+//* File:  FileInfo.Pkg                                                                            *
+//*                                                                                                *
+//* Beschreibung:                                                                                  *
+//*     EnthÑlt Proeduren Deklarationen etc. um diverse Infos Åber ein File zu bekommen!           *
+//*     FÅr den direkten Gebrauch sind nur 2 Funktionen gedacht:                                   *
+//*                                                                                                *
+//*     -Function GetFileSize for Desktop string sName returns integer                             *
+//*     -Function GetFileInfo for Desktop string sName returns integer                             *
+//*                                                                                                *
+//*     Wobei letztere Funktion eine Object_ID auf ein Object der Klasse: cFileInformation         *
+//*     liefert.                                                                                   *
+//*
+//*     Class cFileInformation
+//*         Property integer piFileAttributes       Public 0
+//*         Property string  psCreationTime         Public ""  // String:SystemTime!
+//*         Property string  psLastAccessTime       Public ""  // String:SystemTime!
+//*         Property string  psLastWriteTime        Public ""  // String:SystemTime!
+//*         Property integer piVolumeSerialNumber   Public 0
+//*         Property integer piFileSize             Public 0
+//*     End_Class
+//*                                                                                                *
+//*     FÅr den Zugriff auf die Strings vom Typ SystemTime werden 2 Funktionen bereitgestellt:     *
+//*         - Function SystemTime_Date string sBuff returns string -> DD.MM.YYYY                   *
+//*         - Function SystemTime_Time string sBuff returns string -> HH:MM:SS                     *
+//*                                                                                                *
+//*     Sollte man andere Members der Structure SYSTEMTIME direkt abholen wollen ist zu beachten,  *
+//*     dass alle Char(0) durch "@@" ersetzt worden sind und dieses vor dem Arbeiten mit den       *
+//*     Strings wieder rÅckegÑngig zu machen ist!                                                  *
+//*     ( Grund: Weist man Properties via "move" zu wird ein String nach jedem Char(0) abgebrochen)*
+//*     (        Mit "Get" wÑre es gegangen, aber ich wollte nicht immer eine temporÑre Variable  )*
+//*     (        und eine zweite Zeile Code verpflichtend machen!  -Schaut ja grausig aus!-       )*
+//*                                                                                                *
+//* Michael Kurz (c) 1999' 25.08                                                                   *
+//**************************************************************************************************
+
+
+
+External_Function CreateFile                 "CreateFileA"                  Kernel32.DLL Pointer pFile DWORD iAccess DWORD iShare Pointer pSecurity DWORD iCreate DWORD iFlags Handle hTemplate Returns Handle
+External_Function CloseHandle                "CloseHandle"                  Kernel32.DLL Handle hFile Returns Integer
+External_Function GetFileSizeInt             "GetFileSize"                  Kernel32.DLL Handle hFile Pointer lpSize Returns Integer
+External_Function GetFileInformationByHandle "GetFileInformationByHandle"   Kernel32.DLL Handle hFile Pointer lpInfo Returns Integer
+External_Function FileTimeToSystemTimeInt    "FileTimeToSystemTime"         Kernel32.DLL Pointer lpFileTime Pointer lpSysTime Returns Integer
+
+
+#Replace GENERIC_READ                       |CI$40000000
+#Replace FILE_SHARE_READ                    |CI$00000001
+#Replace OPEN_EXISTING                      3
+#Replace FILE_ATTRIBUTE_NORMAL              |CI$00000080
+#Replace FILE_FLAG_SEQUENTIAL_SCAN          |CI$08000000
+#Replace STANDARD_RIGHTS_ALL                |CI$001F0000
+
+TYPE FILETIME
+    Field FILETIME.dLowDateTime     as DWORD
+    Field FILETIME.dHighDateTime    as DWORD
+END_TYPE
+
+
+TYPE BY_HANDLE_FILE_INFORMATION
+    Field BY_HANDLE_FILE_INFORMATION.dwFileAttributes        as DWORD
+    Field BY_HANDLE_FILE_INFORMATION.ftCreationTime          as Char 8
+    Field BY_HANDLE_FILE_INFORMATION.ftLastAccessTime        as Char 8
+    Field BY_HANDLE_FILE_INFORMATION.ftLastWriteTime         as Char 8
+    Field BY_HANDLE_FILE_INFORMATION.dwVolumeSerialNumber    as DWORD
+    Field BY_HANDLE_FILE_INFORMATION.nFileSizeHigh           as DWORD
+    Field BY_HANDLE_FILE_INFORMATION.nFileSizeLow            as DWORD
+    Field BY_HANDLE_FILE_INFORMATION.nNumberOfLinks          as DWORD
+    Field BY_HANDLE_FILE_INFORMATION.nFileIndexHigh          as DWORD
+    Field BY_HANDLE_FILE_INFORMATION.nFileIndexLow           as DWORD
+END_TYPE
+
+TYPE SYSTEMTIME
+    Field SYSTEMTIME.wYear          as WORD
+    Field SYSTEMTIME.wMonth         as WORD
+    Field SYSTEMTIME.wDayOfWeek     as WORD
+    Field SYSTEMTIME.wDay           as WORD
+    Field SYSTEMTIME.wHour          as WORD
+    Field SYSTEMTIME.wMinute        as WORD
+    Field SYSTEMTIME.wSecond        as WORD
+    Field SYSTEMTIME.wMilliseconds  as WORD
+END_TYPE
+
+Procedure ListString String sBuff
+    Integer iC
+    String sChar
+    Showln
+    For iC From 1 To (Length(sBuff))
+        Move (Mid(sBuff,1,iC))  To sChar
+        show " " (Ascii(sChar))
+    End
+    Showln
+End_Procedure
+
+Function OpenFile_Read For Desktop String sName Returns Integer
+    String  sName2
+    Pointer pName
+    Integer iRet
+    Move (ToAnsi(sName))    To sName
+    Move sName              To sName2
+    Append sName2 (Character(0))
+    GetAddress Of sName2    To pName
+    Move (CreateFile(pName,GENERIC_READ,FILE_SHARE_READ, 0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL Ior FILE_FLAG_SEQUENTIAL_SCAN,0)) To iRet
+    Function_Return iRet
+End_Function
+
+Function GetFileSize For Desktop String sName Returns Integer
+    Handle  hFile
+    Integer iSize iRet
+//    move (OemToAnsiStr(sName))              to sName
+    Get OpenFile_Read Of Desktop sName      To hFile
+    If hFile Gt 0 Begin
+        Move (GetFileSizeInt(hFile,0))      To iSize
+        Move (CloseHandle(hFile))           To iRet
+    End
+    Function_Return iSize
+End_Function
+
+
+Function FileTimeToSystemTime Global String sFileTime Returns String
+    String  sTime sSysTime
+    Pointer pTime pSysTime
+    Integer iRet
+    Move sFileTime                                      To sTime
+    GetAddress Of sTime                                 To pTime
+    Zerotype SYSTEMTIME                                 To sSysTime
+    GetAddress Of sSysTime                              To pSysTime
+    Move (FileTimeToSystemTimeInt(pTime,pSysTime))      To iRet
+    Function_Return sSysTime
+End_Function
+
+
+    // Die Properties eine Klasse hîher damit man sie mit Procedure Set... Åberschreiben kann
+Class cFileInformationBase Is a Mixin
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        Property Integer piFileAttributes       Public 0
+
+        Property String  psCreationTime         Public ""   // Erzeugt am.. um..      (Systemtime!)
+        Property String  psLastAccessTime       Public ""   // Letzter Zugriff        (Systemtime!)
+        Property String  psLastWriteTime        Public ""   // Letzter Schreibzugriff (Systemtime!)
+        Property Integer piVolumeSerialNumber   Public 0    // Seriennummer der Platte
+        Property Integer piFileSize             Public 0    // nehme nur das die Low 4 Byte! (4 Giga!)
+    End_Procedure
+End_Class
+
+Class cFileInformation Is a cFileInformationBase
+
+    Procedure Set psCreationTime String sBuff
+        Move (Replaces(Character(0),sBuff,"@@"))    To sBuff
+        Forward Set psCreationTime                  To sBuff
+    End_Procedure
+    Procedure Set psLastAccessTime String sBuff
+        Move (Replaces(Character(0),sBuff,"@@"))    To sBuff
+        Forward Set psLastAccessTime                To sBuff
+    End_Procedure
+    Procedure Set psLastWriteTime String sBuff
+        Move (Replaces(Character(0),sBuff,"@@"))    To sBuff
+        Forward Set psLastWriteTime                 To sBuff
+    End_Procedure
+
+
+        // Liefert einen DatumsString aus einem SystemTimeString...
+    Function SystemTime_Date String sBuff Returns String
+        String sDat
+        String sYear sMon sDay
+        Move (Replaces("@@",sBuff,Character(0)))    To sBuff
+
+        GetBuff From sBuff at SYSTEMTIME.wYear      To sYear
+        GetBuff From sBuff at SYSTEMTIME.wMonth     To sMon
+        GetBuff From sBuff at SYSTEMTIME.wDay       To sDay
+        Move (Right(Append("00",sMon),2))           To sMon
+        Move (Right(Append("00",sDay),2))           To sDay
+        Append sDat sDay "." sMon "." sYear
+        Function_Return sDat
+    End_Function
+
+        // Liefert einen TimeString aus einem SystemTimeString...
+    Function SystemTime_Time String sBuff Returns String
+        String sTime
+        String sStd sMin sSek
+        Move (Replaces("@@",sBuff,Character(0)))    To sBuff
+
+        GetBuff From sBuff at SYSTEMTIME.wHour      To sStd
+        GetBuff From sBuff at SYSTEMTIME.wMinute    To sMin
+        GetBuff From sBuff at SYSTEMTIME.wSecond    To sSek
+        Move (Right(Append("00",sStd),2))           To sStd
+        Move (Right(Append("00",sMin),2))           To sMin
+        Move (Right(Append("00",sSek),2))           To sSek
+        Append sTime sStd ":" sMin ":" sSek
+        Function_Return sTime
+    End_Function
+
+
+        // Befuellt sich selbst aus einer BY_HANDLE_FILE_INFORMATION Struct.
+    Procedure Fill String sInfo
+        String  sTime
+        Integer iTmp
+
+        GetBuff        From sInfo at BY_HANDLE_FILE_INFORMATION.dwFileAttributes        To iTmp  // File-Attributes..
+        Set piFileAttributes                                                            To iTmp
+        GetBuff_String From sInfo at BY_HANDLE_FILE_INFORMATION.ftCreationTime          To sTime // Erzeugt_am
+        Move (FileTimeToSystemTime(sTime))                                              To sTime
+        Set  psCreationTime                                                             To sTime
+        GetBuff_String From sInfo at BY_HANDLE_FILE_INFORMATION.ftLastAccessTime        To sTime // Letzter_Zugriff_am
+        Move (FileTimeToSystemTime(sTime))                                              To sTime
+        Set  psLastAccessTime                                                           To sTime
+        GetBuff_String From sInfo at BY_HANDLE_FILE_INFORMATION.ftLastWriteTime         To sTime // Letzter_SchreibZugriff_am
+        Move (FileTimeToSystemTime(sTime))                                              To sTime
+        Set  psLastWriteTime                                                            To sTime
+        GetBuff        From sInfo at BY_HANDLE_FILE_INFORMATION.dwVolumeSerialNumber    To iTmp  // SerienNummer der Platte...
+        Set piVolumeSerialNumber                                                        To iTmp
+        GetBuff        From sInfo at BY_HANDLE_FILE_INFORMATION.nFileSizeLow            To iTmp  // FileSize (nur bis 4 GigaByte!)
+        Set piFileSize                                                                  To iTmp
+    End_Procedure
+
+
+    Procedure FillForFile String sName
+        String  sInfo
+        Pointer pInfo
+        Handle  hFile
+        Integer iRet iOID
+        Get OpenFile_Read Of Desktop sName                      To hFile
+        If hFile Gt 0 Begin
+            Zerotype BY_HANDLE_FILE_INFORMATION                 To sInfo
+            GetAddress Of sInfo                                 To pInfo
+            Move (GetFileInformationByHandle(hFile,pInfo))      To iRet
+            Send Fill sInfo
+            Move (CloseHandle(hFile))                           To iRet
+        End
+        Else indicate ERR True
+    End_Procedure
+
+
+    Procedure ShowInfo
+        Integer iOID
+        Move Self   To iOID
+        Showln "Attr.: " (piFileAttributes(iOID))
+        Showln "Creation: "
+        Showln (SystemTime_Date(iOID,psCreationTime(iOID)))
+        Showln (SystemTime_Time(iOID,(psCreationTime(iOID))))
+        Showln ""
+
+        Showln "LastAccess: "
+        Showln (SystemTime_Date(iOID,(psLastAccessTime(iOID))))
+        Showln (SystemTime_Time(iOID,(psLastAccessTime(iOID))))
+        Showln ""
+
+        Showln "LastWrite: "
+        Showln (SystemTime_Date(iOID,(psLastWriteTime(iOID))))
+        Showln (SystemTime_Time(iOID,(psLastWriteTime(iOID))))
+        Showln ""
+
+        Showln "Serial: " (piVolumeSerialNumber(iOID))
+        Showln "FileSize: " (piFileSize(iOID))
+    End_Procedure
+End_Class
+
+Function GetFileInfo For Desktop String sName Returns Integer
+    Integer iOID
+    indicate ERR False
+//    move (OemToAnsiStr(sName))                          to sName
+    Object oFileInformation Is a cFileInformation
+        Move Self                                       To iOID
+    End_Object
+    Send FillForFile                                    To iOID sName
+    [Err] Begin
+        Send Destroy_Object                             To iOID
+        Move 0                                          To iOID
+    End
+    Function_Return iOID
+End_Function
+
+

@@ -1,0 +1,1934 @@
+Use cWinFunc.pkg
+Use cCodeMax.h
+
+Class cCodeMaxImages Is a cImageList32
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set piImageHeight   To 16
+        Set piImageWidth    To 16
+        Set piMaxImages     To 8
+    End_Procedure
+    Procedure OnCreate
+        Integer iVoid
+        Get AddTransparentImage "cm_bookmark.bmp"   clFuchsia To iVoid // 0
+        Get AddTransparentImage "cm_changed.bmp"    clFuchsia To iVoid // 1
+        Get AddTransparentImage "cm_saved.bmp"      clFuchsia To iVoid // 2
+    End_Procedure
+End_Class
+
+Class cCodeMaxEdit Is a DFControl
+
+    Register_Procedure OnWmSetFocus
+    Register_Procedure OnWmKillFocus
+    Register_Procedure OnWmPaint
+    Register_Procedure DoKeyReturn
+    Register_Procedure DoFileDropping
+    Procedure Construct_Object
+        Integer iRet
+        Move (CMRegisterControl(CM_VERSION))        To iRet
+        Set External_Class_Name "cCodeMaxEditor"    To CODEMAXWNDCLASS
+        Set External_Message WM_SETFOCUS            To msg_OnWmSetFocus
+        Set External_Message WM_KILLFOCUS           To msg_OnWmKillFocus
+        Set External_Message WM_PAINT               To msg_OnWmPaint
+        Set External_Message WM_DROPFILES           To msg_DoFileDropping
+
+        Forward Send Construct_Object
+        Property Integer piWindowHandle Public 0
+        Property Integer phoIniHandler  Public Self
+        Property Integer phFont         Public 0
+
+        Property Integer piDragAcceptFilesState Public True
+
+        Property Integer pbSaveAndLoadAsOEM     Public True
+
+            // These Properties are filled by CM_GetSel
+        Property Integer piSelStartLine Public 0
+        Property Integer piSelStartCol  Public 0
+        Property Integer piSelEndLine   Public 0
+        Property Integer piSelEndCol    Public 0
+            // These Properties are filled by CM_PosFromChar.
+        Property Integer piPosStartX    Public 0
+        Property Integer piPosStartY    Public 0
+        Property Integer piPosEndX      Public 0
+        Property Integer piPosEndY      Public 0
+            // Thes Properties are filled by FillCurrentPosition
+        Property Integer piAbsPosXStart Public 0
+        Property Integer piAbsPosYStart Public 0
+        Property Integer piAbsPosXEnd   Public 0
+        Property Integer piAbsPosYEnd   Public 0
+            // Is used to do some actions when the find is done.
+        Property Integer piFindWrapMode Public FindWrapMode_NoWrapMsg
+            // Is ised to Block keys.
+        Property String  psBlockedKeysNo            Public (Repeat("0",255))
+        Property String  psBlockedKeysAlt           Public (Repeat("0",255))
+        Property String  psBlockedKeysShift         Public (Repeat("0",255))
+        Property String  psBlockedKeysCtrl          Public (Repeat("0",255))
+            // Is used to Block keys but only once.
+        Property String  psBlockedKeysNoOnce        Public (Repeat("0",255))
+        Property String  psBlockedKeysAltOnce       Public (Repeat("0",255))
+        Property String  psBlockedKeysShiftOnce     Public (Repeat("0",255))
+        Property String  psBlockedKeysCtrlOnce      Public (Repeat("0",255))
+            // Used with CMM_GetAllBookMarks.
+        Property Integer piBookMarkCnt  Public 0
+            // Used to insert a self defined popup menu.
+        Property Integer Floating_Menu_Object   Public 0
+            // To use with Absolute_GUIOrigin -> Overwrite it to force SelectionLists
+            // to popup relative to the cursor position.
+        Property Integer piDontOverwriteGUIOrigin   Public False
+        Property Integer piGUIOriginOffsetY         Public 0
+        Property Integer piGUIOriginOffsetX         Public 0
+            // These colors are stored in seperate properties for an easy access.
+        Property Integer piWindowColor				Public 0	// Set during CM_GetColor / CM_SetColor
+        Property Integer piTextColor				Public 0	// ...
+            //
+            //
+            // These properties used with CodeTip (SVN)
+        Property Integer phoCodeTipHandler           0
+        Property Integer pbCodetipRequest           False
+        Property Integer piCodeTipStyle             CM_TIPSTYLE_FUNCHIGHLIGHT // CM_TIPSTYLE_MULTIFUNC // CM_TIPSTYLE_FUNCHIGHLIGHT //CM_TIPSTYLE_HIGHLIGHT
+        Property Integer piCodeTipHandle             0
+        //Property Integer piCodeTipStructure          0
+        //Property Integer piCodeTipUpdated           False
+        Property Integer piCodeTipHighlightedStart  -1
+        Property Integer piCodeTipHighlightedEnd    -1
+        Property Integer piCodeTipArgument          -1
+        Property Integer piCodeTipFuncCount          0
+        Property Integer piCodeTipCurrFunc           0
+        Property Integer piCodeTipCurrLine          -1
+        //Property Integer piCodeTipCurrCol           -1
+        Property String  psCodeTipCurrent           ""
+        //Property String  psCodeTipWord              ""
+        Property Integer piCodeTipType              C_TIPTYPE_UNDEFINED
+            //
+            // These properties used with CodeList (SVN)
+        Property Integer phoCodeListHandler         Public  0
+        Property Boolean pbIsCodelistActive         False
+            //
+        Property Handle  phoImageList               Public  0
+            //
+        Object oCodeMaxImages Is a cCodeMaxImages
+            Set phoImageList To (Self)
+        End_Object
+            // I want to have a client border as default
+        Set Border_Style         To Border_ClientEdge
+            // Simulate this keys becouse they are overwritten by the DFControl.
+        On_Key key_Tab           Send DoKeyTab          // Need to be done extra, becouse
+        On_Key Key_Shift+key_Tab Send DoKeyShiftTab     // the DFControl class
+        On_Key kEnter            Send DoKeyReturn       // captures these keyevents itseld and doesnt pass them to CodeMax edit.
+        Property Integer piRedrawState   Public True
+
+    End_Procedure
+        // Allows dropping files from Windows.
+    Procedure DoFileDropping Integer lParam Integer wParam
+        Handle  hDrop
+        Integer iCount iSize iC iRet
+        Local_Buffer  sFile pFile
+        Move lParam             To hDrop
+        Move (DragQueryFile(hDrop,|CI$FFFFFFFF,0,0))    To iCount
+        For iC From 0 To (iCount-1)
+            Move (DragQueryFile(hDrop,iC,0,0))          To iSize
+            Move (Repeat(Character(0),iSize+1))         To sFile
+            GetAddress Of sFile                             To pFile
+            Move (DragQueryFile(hDrop,iC,pFile,iSize+1))    To iRet
+            If iRet Begin
+                Move (CString(sFile))                   To sFile
+                Send onFileDropped sFile
+            End
+        End
+        Move (DragFinish(hDrop))                        To iRet
+    End_Procedure
+    Procedure OnFileDropped String sFile
+    End_Procedure
+
+        // This popups the SelectionList reltive to the cursor position
+    Function Absolute_GUIOrigin Returns Integer
+        Integer iX iY iRet
+        Forward Get Absolute_GUIOrigin  To iRet
+        If (piDontOverwriteGUIOrigin(Self)) Function_Return iRet
+        Move (Hi(iRet))                                                 To iY
+        Move (Low(iRet))                                                To iX
+        Get  CM_GetSel False                                            To iRet
+        Get  CM_PosFromChar (piSelEndLine(Self)) (piSelEndCol(Self))    To iRet
+        Move (iY+piPosEndY(Self))                                       To iY
+        Move (iX+piPosEndX(Self))                                       To iX
+        Move (iY+piGUIOriginOffsetY(Self))                              To iY
+        Move (iX+piGUIOriginOffsetX(Self))                              To iX
+        Function_Return (MAKEWPARAM(iX,iY))
+    End_Function
+
+        // So the real GUIOrigin is always available too.
+    Function Absolute_GUIOriginEx Returns Integer
+        Integer iRet iOld
+        Get piDontOverwriteGUIOrigin    To iOld
+        Set piDontOverwriteGUIOrigin    To True
+        Get Absolute_GUIOrigin          To iRet
+        Set piDontOverwriteGUIOrigin    To iOld
+        Function_Return iRet
+    End_Function
+
+        // Implementing Dyn.Update.State with using WM_SETREDRAW
+    Procedure Set Dynamic_Update_State1 Integer iFlag
+        Integer iRet
+        If (window_handle(Self)) Eq 0 Procedure_Return
+        Set piRedrawState   To iFlag
+        Move (SendMessage(Window_Handle(Self),WM_SETREDRAW,iFlag,0))            To iRet
+        If iFlag Move (RedrawWindow(Window_Handle(Self),0,0,RDW_INVALIDATE))    To iRet
+    End_Procedure
+    Function Dynamic_Update_State1 Returns Integer
+        Function_Return (piRedrawState(Self))
+    End_Function
+
+    Procedure OnWmPaint
+    End_Procedure
+
+        // Simulate this keys becouse they are overwritten by the DFControl.
+    Procedure DoKeyTab
+        Send Windows_Message WM_CHAR    VK_TAB 0
+    End_Procedure
+    Procedure DoKeyShiftTab
+        Send Windows_Message WM_CHAR    VK_TAB 0
+    End_Procedure
+    Procedure DoKeyReturn
+        Send Windows_Message WM_CHAR    VK_RETURN 0
+    End_Procedure
+        // To ensure that the Object with the WinFocus also owns the DF focus.
+    Procedure OnWmSetFocus
+        Send Activate
+    End_Procedure
+    Procedure OnWmKillFocus
+    End_Procedure
+
+        // Destroys the font object if created.
+    Procedure Request_DestroyFontObject
+        Integer iRet
+        If (phFont(Self)) Gt 0 Begin
+            Move (DeleteObject(phFont(Self)))   To iRet
+            Set phFont                          To 0
+        End
+
+    End_Procedure
+        // Should try to destroy the font object.
+    Procedure Destroy_Object
+        Integer iRet hFont
+        Get phFont To hFont
+        //Send Request_DestroyFontObject
+        Forward Send Destroy_Object
+        Move (CMUnregisterControl()) To iRet
+        If hFont Ne 0 Begin
+            Move (DeleteObject(hFont)) To iRet
+        End
+    End_Procedure
+
+
+        // Overwritten becouse it doesnt work ok, if the window is created
+        // with by the object itseld (External_Class_Name) so I Create
+        // The Window with CreateWindowEx API and overwrite the Window_Handle
+        // function (Window Creation is done in Page_Object)
+//    Function Window_Handle returns Integer
+        //Local Handle hwnd
+        //if (piWindowHandle(Self)) Function_Return (piWindowHandle(Self))
+        //Else Forward get Window_Handle to hwnd
+        //Function_Return hwnd
+    //End_Function
+
+        // Used to create the window...
+    Procedure Page_Object Integer iFlag
+        Integer iRet
+        Forward Send Page_Object iFlag
+        If iFlag If (piDragAcceptFilesState(Self)) Begin // Allow Dragging files into it.
+            Move (DragAcceptFiles(Window_Handle(Self),True)) To iRet
+        End
+        Send Windows_Message CMM_ENABLEOEMCODE (pbSaveAndLoadAsOEM(Self)) 0
+        Send SetAdjustments
+        Send onPaged
+    End_Procedure
+
+        // Procedures for overwriting. (sent by page after Object is paged.)
+    Procedure SetAdjustments
+    End_Procedure
+    Procedure onPaged
+    End_Procedure
+
+        // Procedures for overwriting. (sent by copy and cut functions)
+        // 28.1.2003 BP
+    Procedure onBeforePaste
+    End_Procedure
+    Procedure onAfterPaste
+    End_Procedure
+    Procedure onBeforeCut
+    End_Procedure
+    Procedure onAfterCut
+    End_Procedure
+
+
+    //____CODEMAX_NATIVE_METHODs...___________________________________________________
+
+
+    Function CM_SetLanguage String szName Returns Integer
+        Local_BUFFER szName pszName
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETLANGUAGE, 0, pszName))
+    End_Function
+    Function CM_GetLanguage Returns String
+        Integer iRet
+        Local_BUFFER szName pszName CM_MAX_LANGUAGE_NAME
+        Move (SendMessage(Window_Handle(Self), CMM_GETLANGUAGE, 0, pszName))    To iRet
+        Function_Return szName
+    End_Function
+
+    Function CM_EnableColorSyntax Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLECOLORSYNTAX,  ( bEnable ), 0 ) )
+    End_Function
+
+    Function CM_IsColorSyntaxEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISCOLORSYNTAXENABLED, 0, 0 ) )
+    End_Function
+
+    Procedure onPreOpenFile String sFile
+    End_Procedure
+    Procedure onPostOpenFile String sFile
+    End_Procedure
+    Function CM_OpenFile String szFileName Returns Integer
+        Integer iRet
+        Local_BUFFER szFileName pszFileName
+        Send onPreOpenFile szFileName
+        Move (SendMessage(Window_Handle(Self), CMM_OPENFILE, 0, ( pszFileName ) ) ) To iRet
+        If iRet Send onPostOpenFile szFileName
+        Function_Return iRet
+    End_Function
+
+    Function CM_InsertFile String szFileName Integer pPos Returns Integer
+        Local_BUFFER szFileName pszFileName
+        Function_Return (SendMessage(Window_Handle(Self), CMM_INSERTFILE,  ( pPos ), ( pszFileName ) ) )
+    End_Function
+
+    Function CM_InsertText String szText Integer iLine Integer iCol Returns Integer
+        Local_BUFFER szText pszText
+        Local_CM_POSITION sPos pPos LINE= iLine COL= iCol
+        Function_Return (SendMessage(Window_Handle(Self), CMM_INSERTTEXT,  ( pPos ), ( pszText ) ) )
+    End_Function
+
+    // **WvA 23-07-2003 Modified to fix a crash
+    // Quickly changing workspaces caused the window_handle to
+    // be zero. Sending a message to a window with address 0 is fatal.
+    Function CM_SetText String szText Returns Integer
+        Local_BUFFER szText pszText
+        Integer hoWnd iRetVal
+        Get Window_Handle To hoWnd
+        If hoWnd Ne 0 Begin
+          Move (SendMessage(hoWnd, CMM_SETTEXT, 0, ( pszText ) ) ) To iRetVal
+        End
+        Else Begin
+          Send Info_Box "Windows handle is ZXRO"
+          Move 0 To iRetVal
+        End
+        Function_Return iRetVal
+    End_Function // CM_SetText
+
+        // Gets and Sets Colors with a string which is the in its ASCII values
+        // converted CM_Colors structure.
+    Function CM_SetColors String sColors Returns Integer
+    	Integer iColor
+        Move (ConvertAsciiToBuff(sColors)) To sColors
+        Local_BUFFER sColors pColors
+        GetBuff From sColors At CM_COLORS.crWindow	To iColor
+        Set piWindowColor							To iColor
+        GetBuff From sColors At CM_COLORS.crText	To iColor
+        Set piTextColor								To iColor
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETCOLORS, 0, ( pColors ) ) )
+    End_Function
+    Function CM_GetColors Returns String
+        Integer iRet iColor
+        Local_BUFFER sColors pColors CM_COLORS_SIZE
+        Move (SendMessage(Window_Handle(Self), CMM_GETCOLORS, 0, ( pColors ) ) )    To iRet
+        GetBuff From sColors At CM_COLORS.crWindow	To iColor
+        Set piWindowColor							To iColor
+        GetBuff From sColors At CM_COLORS.crText	To iColor
+        Set piTextColor								To iColor
+        Function_Return (ConvertBuffToAscii(sColors))
+    End_Function
+
+    Function CM_EnableWhitespaceDisplay Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEWHITESPACEDISPLAY,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsWhitespaceDisplayEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISWHITESPACEDISPLAYENABLED, 0, 0 ) )
+    End_Function
+
+    Function CM_EnableTabExpand Integer bEnable  Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLETABEXPAND,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsTabExpandEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISTABEXPANDENABLED, 0, 0 ) )
+    End_Function
+
+    Function CM_EnableSmoothScrolling Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLESMOOTHSCROLLING,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsSmoothScrollingEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISSMOOTHSCROLLINGENABLED, 0, 0 ) )
+    End_Function
+
+    Function CM_SetTabSize Integer nTabSize Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETTABSIZE,  ( nTabSize ), 0 ) )
+    End_Function
+    Function CM_GetTabSize Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETTABSIZE, 0, 0 ) )
+    End_Function
+
+    Function CM_SetReadOnly Integer bReadOnly Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETREADONLY,  ( bReadOnly ), 0 ) )
+    End_Function
+    Function CM_IsReadOnly Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISREADONLY, 0, 0 ) )
+    End_Function
+
+    Function CM_EnableLineToolTips Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLELINETOOLTIPS,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsLineToolTipsEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISLINETOOLTIPSENABLED, 0, 0 ) )
+    End_Function
+
+    Function CM_EnableLeftMargin Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLELEFTMARGIN,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsLeftMarginEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISLEFTMARGINENABLED, 0, 0 ) )
+    End_Function
+
+    Function CM_SaveFile String szFileName Integer bClearUndo  Returns Integer
+        Local_BUFFER szFileName pszFileName
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SAVEFILE,  ( bClearUndo ), ( pszFileName ) ) )
+    End_Function
+
+    Function CM_ReplaceText String szText Integer pRange Returns Integer
+        Local_BUFFER szText pszText
+        Function_Return (SendMessage(Window_Handle(Self), CMM_REPLACETEXT,  ( pRange ), ( pszText ) ) )
+    End_Function
+
+    Function CM_GetTextLength Integer pRange Integer bLogical Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETTEXTLENGTH,  ( pRange ), ( bLogical ) ) )
+    End_Function
+
+    Function CM_GetText Integer pRange Returns String
+        Integer iRet iSize
+        Move (CM_GetTextLength(Self,pRange,False)) To iSize
+        Local_BUFFER szText pszText (iSize+1)
+        Move (SendMessage(Window_Handle(Self), CMM_GETTEXT,  ( pRange ), ( pszText ) ) )    To iRet
+        Function_Return szText
+    End_Function
+
+    Function CM_GetLineCount Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETLINECOUNT, 0, 0 ) )
+    End_Function
+    Function CM_GetLineLength Integer nLine Integer bLogical Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETLINELENGTH,  ( nLine ), ( bLogical ) ) )
+    End_Function
+    Function CM_GetLine Integer nLine Returns String
+        Integer iRet iSize
+        Move (CM_GetLineLength(Self,nLine,False))                To iSize
+        Local_BUFFER szText pszText iSize
+        Move (SendMessage(Window_Handle(Self), CMM_GETLINE,  ( nLine ), ( pszText ) ) ) To iRet
+        Function_Return szText
+    End_Function
+
+    Function CM_GetWordLength Integer pPos Integer bLogical Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETWORDLENGTH,  ( pPos ), ( bLogical ) ) )
+    End_Function
+    Function CM_GetWord Integer iLine Integer iCol Returns String
+        Integer iRet iSize
+        Local_CM_POSITION sPos pPos LINE= iLine COL= iCol
+        Move (CM_GetWordLength(Self,pPos,False)) To iSize
+        Local_BUFFER szBuff pszBuff iSize
+        Move (SendMessage(Window_Handle(Self), CMM_GETWORD,  ( pPos ), ( pszBuff ) ) )  To iRet
+        Function_Return (CString(szBuff))
+    End_Function
+        // Gets the current word in a code max way.
+    Function CM_GetCurrentWord Returns String
+        String  sWord
+        Integer iRet
+        Get CM_GetSel False                                         To iRet
+        Get CM_GetWord (piSelEndLine(Self)) (piSelEndCol(Self))   To sWord
+        Function_Return sWord
+    End_Function
+
+        // Selfmade word getter, which doesnt stop the word on a "."
+        // So its easy to use it for getting a file under cursor.
+    Function CM_GetWordIncludingDot Integer iLine Integer iCol Returns String
+        Integer iStart iEnd iLen iC
+        String sLine
+        Get value Item iLine    To sLine
+        Move (Length(sLine))    To iLen
+        For iEnd From (iCol+1) To iLen
+            If (Mid(sLine,1,iEnd)) Eq " " Break
+        End
+        For iC From 1 To iCol
+            Move (iCol-iC+1)            To iStart
+            If (Mid(sLine,1,iStart)) Eq " " Break
+        End
+        Function_Return (Trim(Mid(sLine,iEnd-iStart+1,iStart)))
+    End_Function
+        // Gets the current word under the cursor, but does not stop at a dot (.)
+        // only a space character ends the word.
+    Function CM_GetCurrentWordIncludingDot Returns String
+        String  sWord
+        Integer iRet
+        Get CM_GetSel False                                         To iRet
+        Get CM_GetWordIncludingDot (piSelEndLine(Self)) (piSelEndCol(Self))   To sWord
+        Function_Return sWord
+    End_Function
+
+        //@RRS Selfmade word getter, which find the word from where the cursor is
+    Function CM_GetWord3 Integer iLine Integer iCol Returns String
+        Integer iStart iEnd iLen iC
+        String sLine
+
+        Get value Item iLine    To sLine
+        Move (Length(sLine))    To iLen
+
+        //For iEnd From (iCol+1) To iLen
+        //    If (Mid(sLine,1,iEnd)) Eq " " Break
+        //End
+        Move iCol To iEnd
+        For iC From 1 To iCol
+            Move (iCol-iC+1) To iStart
+            If (Mid(sLine,1,iStart)) Eq " " Break
+        End
+        Function_Return (Trim(Mid(sLine,iEnd-iStart+1,iStart)))
+    End_Function
+
+
+        //@RRS Gets the current word in selfmade way.
+    Function CM_GetCurrentWord3 Returns String
+        String  sWord
+        Integer iRet
+        Get CM_GetSel False                                        To iRet
+        Get CM_GetWord3 (piSelEndLine(Self)) (piSelEndCol(Self))   To sWord
+        Function_Return sWord
+    End_Function
+
+        //@ RRS New Procedure Used by isReasonForFieldList
+    Procedure ReplaceCurrentWord2 String sNew
+        String  sWord sTmp sLine
+        Integer iRet iLine iCol iColStart
+        Integer iStart iEnd iLen iC iPos iTmp
+
+        Move (piSelEndLine(Self))  To iLine
+        Move (piSelEndCol(Self))   To iCol
+
+        Get value Item iLine To sLine
+        Move (Length(sLine)) To iLen
+        //showln 'iLen=' iLen
+        //showln 'iCol=' iCol
+
+        //@For iEnd From (iCol+1) To iLen
+        For iEnd From iCol To iLen
+           If (Mid(sLine,1,iEnd)) Eq " " Break
+        End
+        For iC From 1 To iCol
+           Move (iCol-iC+1)            To iStart
+           If (Mid(sLine,1,iStart)) Eq " " Break
+        End
+        Move sLine To sTmp
+        Repeat
+           Move (Pos(Uppercase(sNew),Uppercase(sTmp))) To iTmp
+           If (iTmp) Begin
+             Move (Remove(sTmp,1,iTmp)) To sTmp
+             Move (iTmp+iPos) To iPos
+           End
+        Until ((iPos>=iStart) Or (iTmp=0))
+        //showln 'iPos=' iPos
+        //showln 'iSTart=' iStart
+        //showln 'iEnd=' iEnd
+        //@if (iPos>=iStart) Move iPos to iStart
+        If (iPos) Move iPos To iStart
+        Move (Overstrike(sNew,sLine,iStart)) To sLine
+        //showln 'sLine=' sLine
+        Get CM_DeleteLine iLine To iRet
+        Get CM_InsertLine iLine sLine To iRet
+        Set piSelEndCol To (Length(sLine))
+    End_Procedure
+        //@ RRS New Procedure
+    Procedure RemoveCurrentWord2 //@
+        String  sWord
+        Integer iRet iLine iCol iColStart
+        Integer iStart iEnd iLen iC
+        String  sLine
+
+        Move (piSelEndLine(Self))  To iLine
+        Move (piSelStartCol(Self)) To iColStart
+        Move (piSelEndCol(Self))   To iCol
+
+        Get value Item iLine    To sLine
+        Move (Length(sLine))    To iLen
+
+        For iEnd From (iCol+1) To iLen
+            If (Mid(sLine,1,iEnd)) Eq " " Break
+        End
+        For iC From 1 To iCol
+            Move (iCol-iC+1)            To iStart
+            If (Mid(sLine,1,iStart)) Eq " " Break
+        End
+        Move (Left(sLine,iStart)) To sLine
+
+        Get CM_DeleteLine iLine     To iRet
+        Get CM_InsertLine iLine sLine To iRet
+        Set piSelEndCol To (Length(sLine))
+    End_Procedure
+
+    Function CM_AddText String szText Returns Integer
+        Local_BUFFER szText pszText
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ADDTEXT, 0, ( pszText ) ) )
+    End_Function
+    Function CM_DeleteLine Integer nLine  Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_DELETELINE,  ( nLine ), 0 ) )
+    End_Function
+
+    Function CM_InsertLine Integer nLine String szText Returns Integer
+        Local_BUFFER szText pszText  // Creates the pointer and fills is with the Address of the string
+        Function_Return (SendMessage(Window_Handle(Self), CMM_INSERTLINE,  ( nLine ), ( pszText ) ) )
+    End_Function
+        // Gets the active selection and fills it into the properties.
+        // Normalized: True=StartPosition always before EndPosition
+    Function CM_GetSel Integer bNormalized Returns Integer
+        Integer iRet iColSel iLine iCol
+        String  sStart Send
+        Local_BUFFER sRange pRange CM_RANGE_SIZE
+        Move (SendMessage(Window_Handle(Self), CMM_GETSEL,  ( bNormalized ), ( pRange ) ) ) To iRet
+        If iRet Begin
+            GetBuff_String From sRange At CM_RANGE.posStart            To sStart
+            GetBuff_String From sRange At CM_RANGE.posEnd              To Send
+            GetBuff        From sRange At CM_RANGE.bColumnSel          To iColSel
+            GetBuff        From sStart At CM_POSITION.nLine            To iLine
+            GetBuff        From sStart At CM_POSITION.nCol             To iCol
+            Set piSelStartLine  To iLine
+            Set piSelStartCol   To iCol
+            GetBuff        From Send   At CM_POSITION.nLine            To iLine
+            GetBuff        From Send   At CM_POSITION.nCol             To iCol
+            Set piSelEndLine  To iLine
+            Set piSelEndCol   To iCol
+        End
+        Function_Return iRet
+    End_Function
+    Function CM_SetSel Integer iStartLine Integer iStartCol Integer iEndLine Integer iEndCol  Integer bMakeVisible Returns Integer
+        Local_CM_RANGE sRange pRange START= iStartLine iStartCol  End= iEndLine iEndCol
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETSEL,  ( bMakeVisible ), ( pRange ) ) )
+    End_Function
+    Function CM_DeleteSel Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_DELETESEL, 0, 0 ) )
+    End_Function
+    Function CM_ReplaceSel String szText  Returns Integer
+        Local_BUFFER szText pszText
+        Function_Return (SendMessage(Window_Handle(Self), CMM_REPLACESEL, 0, ( pszText ) ) )
+    End_Function
+
+    Function CM_ExecuteCmd Integer wCmd Integer dwCmdData Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_EXECUTECMD,  ( wCmd ), ( dwCmdData ) ) )
+    End_Function
+
+    Function CM_SetSplitterPos Integer bHorz  Integer nPos Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETSPLITTERPOS,  ( bHorz ), ( nPos ) ) )
+    End_Function
+    Function CM_GetSplitterPos Integer bHorz Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETSPLITTERPOS,  ( bHorz ), 0 ) )
+    End_Function
+    Function CM_SetAutoIndentMode Integer nMode Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETAUTOINDENTMODE,  ( nMode ), 0 ) )
+    End_Function
+    Function CM_GetAutoIndentMode Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETAUTOINDENTMODE, 0, 0 ) )
+    End_Function
+    Function CM_CanUndo Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_CANUNDO, 0, 0 ) )
+    End_Function
+    Function CM_CanRedo Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_CANREDO, 0, 0 ) )
+    End_Function
+    Function CM_Redo Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_REDO, 0, 0 ) )
+    End_Function
+    Function CM_Undo Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_UNDO, 0, 0 ) )
+    End_Function
+    Function CM_ClearUndoBuffer Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_CLEARUNDOBUFFER, 0, 0 ) )
+    End_Function
+    Function CM_CanCut Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_CANCUT, 0, 0 ) )
+    End_Function
+    Function CM_CanCopy Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_CANCOPY, 0, 0 ) )
+    End_Function
+    Function CM_CanPaste Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_CANPASTE, 0, 0 ) )
+    End_Function
+    Function CM_Cut Returns Integer
+        Integer iRet
+        Send OnBeforeCut
+        Move (SendMessage(Window_Handle(Self), CMM_CUT, 0, 0 ) ) To iRet
+        Send OnAfterCut
+        Function_Return iRet
+    End_Function
+    Function CM_Copy Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_COPY, 0, 0 ) )
+    End_Function
+    Function CM_Paste Returns Integer
+        Integer iRet
+        Send OnBeforePaste
+        Move (SendMessage(Window_Handle(Self), CMM_PASTE, 0, 0 ) ) To iRet
+        Send OnAfterPaste
+        Function_Return iRet
+    End_Function
+    Function CM_IsRecordingMacro Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISRECORDINGMACRO, 0, 0 ) )
+    End_Function
+    Function CM_IsPlayingMacro Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISPLAYINGMACRO, 0, 0 ) )
+    End_Function
+    Function CM_SetUndoLimit Integer nLimit Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETUNDOLIMIT,  ( nLimit ), 0 ) )
+    End_Function
+    Function CM_GetUndoLimit Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETUNDOLIMIT, 0, 0 ) )
+    End_Function
+
+    Procedure ToggleLineChanged
+        Integer iRet iLine iImg
+        Get CM_GetSel False To iRet
+        Get piSelEndLine    To iLine
+        Get CM_IsModified   To iRet
+        If (iRet) Get CM_SetMarginImages iLine $2 To iRet
+    End_Procedure
+
+    Function CM_IsModified Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISMODIFIED, 0, 0 ) )
+    End_Function
+    Function CM_SetModified Integer bModified Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETMODIFIED,  ( bModified ), 0 ) )
+    End_Function
+    Function CM_EnableOvertype Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEOVERTYPE,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsOvertypeEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISOVERTYPEENABLED, 0, 0 ) )
+    End_Function
+    Function CM_EnableCaseSensitive Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLECASESENSITIVE,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsCaseSensitiveEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISCASESENSITIVEENABLED, 0, 0 ) )
+    End_Function
+    Function CM_EnablePreserveCase Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEPRESERVECASE,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsPreserveCaseEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISPRESERVECASEENABLED, 0, 0 ) )
+    End_Function
+    Function CM_EnableWholeWord Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEWHOLEWORD,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsWholeWordEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISWHOLEWORDENABLED, 0, 0 ) )
+    End_Function
+    Function CM_EnableRegExp Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEREGEXP,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsRegExpEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISREGEXPENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetTopIndex Integer nView Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETTOPINDEX,  ( nView ), ( nLine ) ) )
+    End_Function
+    Function CM_GetTopIndex Integer nView Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETTOPINDEX,  ( nView ), 0 ) )
+    End_Function
+    Function CM_GetVisibleLineCount Integer nView Integer bFullyVisible Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETVISIBLELINECOUNT,  ( nView ), ( bFullyVisible ) ) )
+    End_Function
+    Function CM_EnableCRLF Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLECRLF,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsCRLFEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISCRLFENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetFontOwnership Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETFONTOWNERSHIP,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_GetFontOwnership Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETFONTOWNERSHIP, 0, 0 ) )
+    End_Function
+    Function CM_GetCurrentView Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETCURRENTVIEW, 0, 0 ) )
+    End_Function
+    // SVN
+    Function CM_SetCurrentView Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETCURRENTVIEW, nLine, 0 ) )
+    End_Function
+    // SVN
+    Function CM_GetViewCount Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETVIEWCOUNT, 0, 0 ) )
+    End_Function
+    Function CM_ShowScrollBar Integer bHorz  Integer bShow Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SHOWSCROLLBAR,  ( bHorz ), ( bShow ) ) )
+    End_Function
+    Function CM_HasScrollBar Integer bHorz Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_HASSCROLLBAR,  ( bHorz ), 0 ) )
+    End_Function
+    Function CM_GetSelFromPoint Integer xClient Integer yClient Returns Integer
+        Integer iRet iLine iCol
+        Local_BUFFER sPos pPos CM_POSITION_SIZE
+        Move (SendMessage(Window_Handle(Self), CMM_GETSELFROMPOINT, MAKEWPARAM(xClient,yClient),pPos ))  To iRet
+        If iRet Begin
+            GetBuff        From sPos At CM_POSITION.nLine   To iLine
+            GetBuff        From sPos At CM_POSITION.nCol    To iCol
+            Set piSelStartLine                              To iLine
+            Set piSelStartCol                               To iCol
+            Set piSelEndLine                                To iLine
+            Set piSelEndCol                                 To iCol
+        End
+        Function_Return iRet
+    End_Function
+    Function CM_SelectLine Integer nLine Integer bMakeVisible Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SELECTLINE,  ( nLine ), ( bMakeVisible ) ) )
+    End_Function
+    Function CM_HitTest Integer xClient Integer yClient Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_HITTEST, MAKEWPARAM( ( xClient ), ( yClient ) ), 0 ) )
+    End_Function
+    Function CM_EnableDragDrop Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEDRAGDROP,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsDragDropEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISDRAGDROPENABLED, 0, 0 ) )
+    End_Function
+    Function CM_EnableSplitter Integer bHorz Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLESPLITTER,  ( bHorz ), ( bEnable ) ) )
+    End_Function
+    Function CM_IsSplitterEnabled Integer bHorz Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISSPLITTERENABLED,  ( bHorz ), 0 ) )
+    End_Function
+    Function CM_EnableColumnSel Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLECOLUMNSEL,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsColumnSelEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISCOLUMNSELENABLED, 0, 0 ) )
+    End_Function
+    Function CM_EnableGlobalProps Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEGLOBALPROPS,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsGlobalPropsEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISGLOBALPROPSENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetDlgParent Integer hWndParent Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETDLGPARENT,  ( hWndParent ), 0 ) )
+    End_Function
+    Function CM_EnableSelBounds Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLESELBOUNDS,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsSelBoundsEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISSELBOUNDSENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetFontStyles String sFontStyles Returns Integer
+        If sFontStyles Eq "" Function_Return 0
+        Move (ConvertAsciiToBuff(sFontStyles)) To sFontStyles
+        Local_BUFFER sFontStyles pFontStyles
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETFONTSTYLES, 0, ( pFontStyles ) ) )
+    End_Function
+    Function CM_GetFontStyles Returns String
+        Integer iRet
+        Local_BUFFER sFontStyles pFontStyles CM_FONTSTYLES_SIZE
+        Move (SendMessage(Window_Handle(Self), CMM_GETFONTSTYLES, 0, ( pFontStyles ) ) )    To iRet
+        Function_Return (ConvertBuffToAscii(sFontStyles))
+    End_Function
+    Function CM_SetItemData Integer nLine Integer lParam Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETITEMDATA,  ( nLine ),lParam ) )
+    End_Function
+    Function CM_GetItemData Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETITEMDATA,  ( nLine ), 0 ) )
+    End_Function
+    Function CM_SetLineStyle Integer nLine Integer dwStyle Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETLINESTYLE,  ( nLine ), ( dwStyle ) ) )
+    End_Function
+    Function CM_GetLineStyle Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETLINESTYLE,  ( nLine ), 0 ) )
+    End_Function
+    Function CM_SetBookmark Integer nLine Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETBOOKMARK,  ( nLine ), ( bEnable ) ) )
+    End_Function
+    Function CM_GetBookmark Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETBOOKMARK,  ( nLine ), 0 ) )
+    End_Function
+    Function CM_SetAllBookmarks Integer iCount String sData Returns Integer
+        Move (ConvertAsciiToBuff(sData))    To sData
+        Local_Buffer sData pData
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETALLBOOKMARKS, iCount, pData))
+    End_Function
+    Function CM_GetAllBookmarks Returns String
+        Integer iSize iRet
+        Move (SendMessage(Window_Handle(Self), CMM_GETALLBOOKMARKS, 0,0 ))      To iSize
+        Set piBookMarkCnt   To iSize
+        Local_Buffer sData pData ((iSize*4)+0)
+        Move (SendMessage(Window_Handle(Self), CMM_GETALLBOOKMARKS, 0,pData))   To iRet
+        Move (ConvertBuffToAscii(sData))                                        To sData
+        If iRet Function_Return sData
+        Else    Function_Return ""
+    End_Function
+    Function CM_SetLineNumbering Integer bEnable Integer iStart Integer iMode Returns Integer
+        Local_CM_LINENUMBERING sNumbering pNumbering bEnable iStart iMode
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETLINENUMBERING, 0, ( pNumbering ) ) )
+    End_Function
+    Function CM_GetLineNumbering Returns Integer    // returnde ist Complesx: Low=Style Hi=StartAt
+        Integer iRet iStart
+        Local_CM_LINENUMBERING sNumbering pNumbering 0 0 0
+        Move (SendMessage(Window_Handle(Self), CMM_GETLINENUMBERING, 0, ( pNumbering ) ) )  To iRet
+        GetBuff From sNumbering At CM_LINENUMBERING.bEnabled            To iRet
+        If iRet GetBuff From sNumbering At CM_LINENUMBERING.dwStyle     To iRet
+        If iRet GetBuff From sNumbering At CM_LINENUMBERING.nStartAt    To iStart
+        Function_Return (iRet+(65536*iStart))
+    End_Function
+    Function CM_PosFromChar Integer iLine Integer iCol Returns Integer
+        Integer     iRet iX iY
+        Local_BUFFER      sRect pRect tRect_Size
+        Local_CM_POSITION sPos  pPos LINE= iLine COL= iCol
+        Move (SendMessage(Window_Handle(Self), CMM_POSFROMCHAR,  ( pPos ), ( pRect ) ) )    To iRet
+            // Only if the call succeded.
+        If iRet Begin
+                // Start Point.
+            GetBuff From sRect  At tRECT.Left   To iX
+            GetBuff From sRect  At tRECT.top    To iY
+            Set piPosStartX                     To iX
+            Set piPosStartY                     To iY
+                // End Point.
+            GetBuff From sRect  At tRECT.Right  To iX
+            GetBuff From sRect  At tRECT.bottom To iY
+            Set piPosEndX                       To iX
+            Set piPosEndY                       To iY
+        End
+
+        Function_Return iRet
+    End_Function
+    Function CM_EnableHideSel Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEHIDESEL,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsHideSelEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISHIDESELENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetHighlightedLine Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETHIGHLIGHTEDLINE,  ( nLine ), 0 ) )
+    End_Function
+    Function CM_GetHighlightedLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETHIGHLIGHTEDLINE, 0, 0 ) )
+    End_Function
+    Function CM_EnableNormalizeCase Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLENORMALIZECASE,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsNormalizeCaseEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISNORMALIZECASEENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetDivider Integer nLine Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETDIVIDER,  ( nLine ), ( bEnable ) ) )
+    End_Function
+    Function CM_GetDivider Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETDIVIDER,  ( nLine ), 0 ) )
+    End_Function
+    Function CM_EnableOvertypeCaret Integer bEnable Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEOVERTYPECARET,  ( bEnable ), 0 ) )
+    End_Function
+    Function CM_IsOvertypeCaretEnabled Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ISOVERTYPECARETENABLED, 0, 0 ) )
+    End_Function
+    Function CM_SetFindText String szText  Returns Integer
+        Local_Buffer szText pszText
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETFINDTEXT, 0, ( pszText ) ) )
+    End_Function
+    Function CM_GetFindText Returns String
+        Integer iRet
+        Local_Buffer szText pszText CM_MAX_FINDREPL_TEXT
+        Move (SendMessage(Window_Handle(Self), CMM_GETFINDTEXT, 0, ( pszText ) ) )  To iRet
+        Function_Return szText
+    End_Function
+    Function CM_SetReplaceText String szText Returns Integer
+        Local_Buffer szText pszText
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETREPLACETEXT, 0, ( pszText ) ) )
+    End_Function
+    Function CM_GetReplaceText String szText Returns String
+        Integer iRet
+        Local_Buffer szText pszText CM_MAX_FINDREPL_TEXT
+        Move (SendMessage(Window_Handle(Self), CMM_GETREPLACETEXT, 0, ( pszText ) ) )   To iRet
+        Function_Return szText
+    End_Function
+    Function CM_SetImageList Handle hImageList Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETIMAGELIST, 0, ( hImageList ) ) )
+    End_Function
+    Function CM_GetImageList Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETIMAGELIST, 0, 0 ) )
+    End_Function
+    Function CM_SetMarginImages Integer nLine  Integer byImages Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETMARGINIMAGES,  ( nLine ), ( byImages ) ) )
+    End_Function
+    Function CM_GetMarginImages Integer nLine Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETMARGINIMAGES,  ( nLine ), 0 ) )
+    End_Function
+    Function CM_AboutBox Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_ABOUTBOX, 0, 0 ) )
+    End_Function
+    Function CM_Print Handle hDC Integer dwFlags Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_PRINT,  ( hDC ), ( dwFlags ) ) )
+    End_Function
+    Function CM_SetCaretPos Integer nLine Integer nCol Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETCARETPOS,  ( nLine ), ( nCol ) ) )
+    End_Function
+    Function CM_ViewColToBufferCol Integer nLine Integer nViewCol  Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_VIEWCOLTOBUFFERCOL,  ( nLine ), ( nViewCol ) ) )
+    End_Function
+    Function CM_BufferColToViewCol Integer nLine Integer nBufferCol Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_BUFFERCOLTOVIEWCOL,  ( nLine ), ( nBufferCol ) ) )
+    End_Function
+    Function CM_SetBorderStyle Integer dwStyle Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_SETBORDERSTYLE,  ( dwStyle ), 0 ) )
+    End_Function
+    Function CM_GetBorderStyle Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETBORDERSTYLE, 0, 0 ) )
+    End_Function
+    // SVN
+    Function CM_GetCurrentToken Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_GETCURRENTTOKEN, 0, 0 ) )
+    End_Function
+    Function CM_UpdateControlPositions Returns Integer
+        Function_Return (SendMessage(Window_Handle(Self), CMM_UPDATECONTROLPOSITIONS, 0, 0 ) )
+    End_Function
+    // SVN
+
+        // Gets the font (Ascii Charactered string of the LOGFONT Structure!)
+    Function CM_GetFont Returns String
+        Integer iSize iRet
+        Handle  hFont
+        Move (SendMessage(Window_Handle(Self),WM_GETFONT, 0, 0 ))   To hFont
+        Move (GetObject(hFont,LOGFONT_SIZE,0))                      To iSize
+        Local_BUFFER  slf plf iSize
+        Move (GetObject(hFont, iSize, plf))                         To iRet
+        If iRet Function_Return (ConvertBuffToAscii(slf))
+        Else    Function_Return ""
+    End_Function
+        // Sets the font
+    Function CM_SetFont String slf Returns Integer
+        Integer iRet iErg
+        Handle  hFont
+        If slf Eq "" Function_Return 0
+        Move (ConvertAsciiToBuff(slf))                              To slf
+        Local_Buffer slf plf
+        Move (CreateFontIndirect( plf ))                            To hFont
+                Move (SendMessage(Window_Handle(Self),WM_SETFONT, hFont,0)) To iRet
+        Send Request_DestroyFontObject      // Destroy the old one if there.
+        Set phFont                                                  To hFont
+        Function_Return iRet
+    End_Function
+
+
+
+
+    //_ADDITION_METHODS_for_an_easier_use.._________________
+
+
+        // Tiling windows...
+    Procedure SplitWindowHorizontal
+        Integer iRet iPos
+        Move (CM_GetSplitterPos(Self,True))         To iPos
+        If iPos Eq 0 Move (Low(GuiSize(Self)))      To iPos
+        Else         Move 0                         To iPos
+        Move (iPos/2)                               To iPos
+        Move (CM_SetSplitterPos(Self,True,iPos))    To iRet
+    End_Procedure
+    Function isSplittedHorizonztal Returns Integer
+        Function_Return (CM_GetSplitterPos(Self,True) Ne 0)
+    End_Function
+    Procedure SplitWindowVertical
+        Integer iRet iPos
+        Move (CM_GetSplitterPos(Self,False))        To iPos
+        If iPos Eq 0 Move (Hi(GuiSize(Self)))       To iPos
+        Else         Move 0                         To iPos
+        Move (iPos/2)                               To iPos
+        Move (CM_SetSplitterPos(Self,False,iPos))   To iRet
+    End_Procedure
+    Function isSplittedVertical Returns Integer
+        Function_Return (CM_GetSplitterPos(Self,False) Ne 0)
+    End_Function
+        // Is a special usage for the splitter window.
+        // gröîen werden immer angepasst!
+    Procedure DuplicateWindow
+        If Not (isSplittedHorizonztal(Self))     Send SplitWindowHorizontal
+        Else If Not (isSplittedVertical(Self))   Send SplitWindowVertical
+    End_Procedure
+        // If all 4 sub windows are used. no more is possible.
+    Function isDuplicatePossible Returns Integer
+        If (isSplittedHorizonztal(Self)) If (isSplittedVertical(Self)) Function_Return 0
+        Function_Return 1
+    End_Function
+        // Check if some of the splitters are set.
+    Function isWindowDuplicated Returns Integer
+        If (isSplittedHorizonztal(Self)) Function_Return 1
+        If (isSplittedVertical(Self))    Function_Return 1
+        Function_Return 0
+    End_Function
+        // Removes all Splitter windows and
+    Procedure CloseWindow
+        If (isSplittedVertical(Self))           Send SplitWindowVertical
+        Else If (isSplittedHorizonztal(Self))   Send SplitWindowHorizontal
+    End_Procedure
+        // Select All
+    Procedure SelectAll
+        Integer iRet iLine iCol
+        Move (CM_GetLineCount(Self)-1)              To iLine // Last Line
+        Move (CM_GetLineLength(Self,iLine,True))    To iCol  // Last Col in last Line
+        Get CM_SetSel 0 0 (iLine) (iCol)  True To iRet
+    End_Procedure
+
+        // Deletes this line...
+    Procedure SelectLine
+        Integer iRet
+        Get CM_ExecuteCmd CMD_SELECTLINE 0 To iRet
+    End_Procedure
+        // Deletes this line...
+    Procedure DeleteLine
+        Integer iRet
+        Get CM_ExecuteCmd CMD_LINEDELETE 0 To iRet
+    End_Procedure
+
+
+    Procedure MoveLineUp
+        Integer iRet iStartLine iEndLine iLine iLastCol
+        String sNextLine sLine
+        Get CM_GetSel False to iRet
+        Get piSelStartLine  to iStartLine
+        Get piSelEndLine    to iEndLine
+        If (iStartLine>iEndLine) Begin
+            Move iStartLine      to iLine
+            Move iEndLine        to iStartLine
+            Move iLine           to iEndLine
+        End
+        If (iStartLine=0) Procedure_Return
+        Move (iStartLine-1) to iStartLine
+        //
+        For iLine from iStartLine to iEndLine
+            If (iLine<iEndLine) Begin
+                Get value item iLine        to sLine
+                Get value item (iLine+1)    to sNextLine
+                Set value item iLine        to sNextLine
+                Set value item (iLine+1)    to sLine
+                Move (Length(sNextLine))    to iLastCol
+            End
+        Loop
+        Get CM_SetSel iStartLine 0 (iEndLine-1) iLastCol True to iRet
+    End_Procedure
+
+    Procedure MoveLineDown
+        Showln "MoveLineDown"
+    End_Procedure
+
+    Procedure DuplicateSelection
+        Integer iStart iRet
+        String sLine
+        Get CM_GetSel False to iRet
+        Get piSelStartLine              to iStart
+        Get Value item iStart           to sLine
+        Get CM_InsertLine iStart sLine  to iRet
+    End_Procedure
+        // Find...
+    Procedure Find
+        Integer iRet
+        Get CM_ExecuteCmd CMD_Find 0 To iRet
+    End_Procedure
+        // Find next
+    Procedure FindNext
+        Integer iRet
+        Get CM_ExecuteCmd CMD_FindNext 0 To iRet
+    End_Procedure
+        // Find next
+    Procedure FindPrevious
+        Integer iRet
+        Get CM_ExecuteCmd CMD_FINDPREV 0 To iRet
+    End_Procedure
+        // Replace
+    Procedure Replace
+        Integer iRet
+        Get CM_ExecuteCmd CMD_FindReplace 0 To iRet
+    End_Procedure
+        // Goto line...
+    Procedure GotoLine Integer iNrEx
+        Integer iNr iRet
+        If NUM_Arguments Gt 0 Move iNrEx    To iNr
+        Else Move -1                        To iNr
+        Get CM_ExecuteCmd CMD_GOTOLINE iNr  To iRet
+    End_Procedure
+
+        // Fills the position of the cursor in pixels into Properties.
+        // - getting the curren postion in Line / Col
+        // - Retrieving this Position in Pixesl with CM_PosFromChar
+        // - Retrieving the absolute position of the Window
+        // =  ABSOLUTE CURSOR POSITION in the Edit.
+    Procedure FillCurrentPosition
+        Integer       iRet iX iY
+        Move (CM_GetSel(Self,False))                                        To iRet
+        Move (CM_PosFromChar(Self,piSelEndLine(Self),piSelEndCol(Self)))    To iRet
+        Set piAbsPosYEnd    To (Hi (Absolute_GuiOriginEx(Self))+piPosEndY(Self))
+        Set piAbsPosXEnd    To (Low(Absolute_GuiOriginEx(Self))+piPosEndX(Self))
+        Set piAbsPosYStart  To (Hi (Absolute_GuiOriginEx(Self))+piPosStartY(Self))
+        Set piAbsPosXStart  To (Low(Absolute_GuiOriginEx(Self))+piPosStartX(Self))
+    End_Procedure
+
+
+        // Delivers the current line.
+    Function Current_Item Returns Integer
+        Integer iRet
+        Get CM_GetSel False                 To iRet
+        Function_Return (piSelEndLine(Self))
+    End_Function
+        // For VDF closer access.    - number of lines.
+    Function Item_Count Returns Integer
+        Function_Return (CM_GetLineCount(Self))
+    End_Function
+        // Value of the line with the given LineNr.
+    Function Value Integer iItem Returns String
+        If iItem Eq -99  Move (Current_Item(Self)) To iItem
+        Function_Return (CM_GetLine(Self,iItem))
+    End_Function
+        // Sets the value of a given line. (For compatibility with VDF)
+    Procedure Set Value Integer iItem String sValue
+        Integer iRet iPos iC iCol iLine
+        String  sValOld
+        Get CM_GetSel False To iRet
+        Get piSelEndCol                             To iCol
+        Get piSelEndLine                            To iLine
+        If iItem Eq -99  Move (Current_Item(Self))  To iItem
+        Get  Value Item iItem                       To sValOld
+        Move (CM_SelectLine(Self,iItem,False))      To iRet
+        Move (CM_DeleteSel(Self))                   To iRet
+        Move (CM_InsertText(Self,sValue,iItem,0))   To iRet
+        If iLine Eq iItem Begin
+            Move (CM_SetSel(Self,iItem,iCol,iItem,iCol,False))  To iRet
+        End
+    End_Procedure
+
+
+        // Inserts the Sting into the current Position.
+    Procedure Insert String sValue
+        Integer iRet
+        Get CM_GetSel False To iRet
+        Move (CM_InsertText(Self,sValue,piSelEndLine(Self),piSelEndCol(Self))) To iRet
+    End_Procedure
+        // This is en advanced set value which automatically indents the new
+        // value text as far as the text in the line was, or if empty the text of the line before.
+    Procedure Set ValueSmart Integer iLine String sVal
+        Integer iPos
+        String sValOld
+        Get value Item iLine    To sValOld
+        If (Trim(sValOld)) Eq "" If iLine Gt 0 Get Value Item (iLine-1) To sValOld
+        If (Trim(sValOld)) Ne "" Begin
+            For iPos From 1 To (Length(sValOld))
+
+                If (Mid(sValOld,1,iPos)) Ne " " Break
+            End
+
+            Move (LTrim(sVal))      To sVal
+            Move (Append(Repeat(" ",iPos-1),sVal))  To sVal
+        End
+
+        Set value Item iLine                        To sVal
+    End_Procedure
+        // Sets the FindText.
+    Procedure Set FindText String sText
+        Integer iRet
+        Local_Buffer sText pText
+        Move (CM_ExecuteCmd(Self,CMD_SETFINDTEXT,pText)) To iRet
+    End_Procedure
+
+        // Does a first Find.
+    Procedure FindFirst String sText
+        Integer iRet
+        Indicate found True
+        Set FindText        To sText
+        Move (CM_ExecuteCmd(Self,CMD_FINDNEXT,0)) To iRet
+    End_Function
+        // Finds the next occurence of the text.
+    Function FindNext Returns Integer
+        Integer iRet
+        Integer iOld
+        Set piFindWrapMode  To FindWrapMode_NoWrap
+        Move (CM_ExecuteCmd(Self,CMD_FINDNEXT,0)) To iRet
+    End_Function
+
+        // To determine if an object is a cCodeMaxEdit
+    Function iscWinMaxEdit Returns Integer
+        Function_Return 1
+    End_Function
+
+    //____NOTIFICATION_TRAPPING..._____________________________________________
+    // all of the followinf procedures and functions are sent by the
+    // procedure Notify - which is caused by WM_Notify message.
+
+        // Key capturing...
+
+        // Blocks iKeyCode
+    Procedure BlockKey Integer iKeyCode Integer iExtKey Integer iFlag
+        If iExtKey Eq CM_KEY_NOEXT Set psBlockedKeysNo    To (Overstrike(String(iFlag),psBlockedKeysNo   (Self),iKeyCode))
+        If iExtKey Eq CM_KEY_SHIFT Set psBlockedKeysShift To (Overstrike(String(iFlag),psBlockedKeysShift(Self),iKeyCode))
+        If iExtKey Eq CM_KEY_ALT   Set psBlockedKeysAlt   To (Overstrike(String(iFlag),psBlockedKeysAlt  (Self),iKeyCode))
+        If iExtKey Eq CM_KEY_CTRL  Set psBlockedKeysCtrl  To (Overstrike(String(iFlag),psBlockedKeysCtrl (Self),iKeyCode))
+    End_Procedure
+    Function isKeyBlocked Integer iKeyCode Integer iExtKey Returns Integer
+        If iExtKey Eq CM_KEY_NOEXT  Function_Return (Mid(psBlockedKeysNo   (Self),1,iKeyCode))
+        If iExtKey Eq CM_KEY_SHIFT  Function_Return (Mid(psBlockedKeysShift(Self),1,iKeyCode))
+        If iExtKey Eq CM_KEY_ALT    Function_Return (Mid(psBlockedKeysAlt  (Self),1,iKeyCode))
+        If iExtKey Eq CM_KEY_CTRL   Function_Return (Mid(psBlockedKeysCtrl (Self),1,iKeyCode))
+        Function_Return 0
+    End_Function
+
+
+        // Like Block Key but the Blocked key is reset with onKeyUp.
+    Procedure BlockKeyOnce Integer iKeyCode Integer iExtKey Integer iFlag
+        If iExtKey Eq CM_KEY_NOEXT Set psBlockedKeysNoOnce    To (Overstrike(String(iFlag),psBlockedKeysNoOnce   (Self),iKeyCode))
+        If iExtKey Eq CM_KEY_SHIFT Set psBlockedKeysShiftOnce To (Overstrike(String(iFlag),psBlockedKeysShiftOnce(Self),iKeyCode))
+        If iExtKey Eq CM_KEY_ALT   Set psBlockedKeysAltOnce   To (Overstrike(String(iFlag),psBlockedKeysAltOnce  (Self),iKeyCode))
+        If iExtKey Eq CM_KEY_CTRL  Set psBlockedKeysCtrlOnce  To (Overstrike(String(iFlag),psBlockedKeysCtrlOnce (Self),iKeyCode))
+    End_Procedure
+    Function isKeyBlockedOnce Integer iKeyCode Integer iExtKey Returns Integer
+        If iExtKey Eq CM_KEY_NOEXT  Function_Return (Mid(psBlockedKeysNoOnce   (Self),1,iKeyCode))
+        If iExtKey Eq CM_KEY_SHIFT  Function_Return (Mid(psBlockedKeysShiftOnce(Self),1,iKeyCode))
+        If iExtKey Eq CM_KEY_ALT    Function_Return (Mid(psBlockedKeysAltOnce  (Self),1,iKeyCode))
+        If iExtKey Eq CM_KEY_CTRL   Function_Return (Mid(psBlockedKeysCtrlOnce (Self),1,iKeyCode))
+        Function_Return 0
+    End_Function
+
+    Procedure onCMKeyUp Integer iKeyCode Integer iKeyExt
+    End_Procedure
+    Procedure onCMKeyDown Integer iKeyCode Integer iKeyExt
+    End_Procedure
+    Procedure onCMKeyPress Integer iKeyCode Integer iKeyExt
+    End_Procedure
+    Procedure DoKeyAction Integer iMode Pointer pCM_KeyData
+        Integer iKeyCode iKeyExt iRet iBlocked
+        Local_BUFFER_CPY sKeyData pKeyData CM_KEYDATA pCM_KeyData
+        GetBuff From sKeyData At CM_KeyData.nKeyCode        To iKeyCode
+        GetBuff From sKeyData At CM_KeyData.nKeyModifier    To iKeyExt
+        If (iMode=CMN_KEYUP   ) Get Msg_onCMKeyUp      iKeyCode iKeyExt  To iRet
+        If (iMode=CMN_KEYDOWN ) Get Msg_onCMKeyDown    iKeyCode iKeyExt  To iRet
+        If (iMode=CMN_KEYPRESS) Get Msg_onCMKeyPress   iKeyCode iKeyExt  To iRet
+            // Blocks keystrokes. (only with every ExtKey, dont need this at the moment)
+        If (isKeyBlocked(Self,iKeyCode,iKeyExt)) Begin
+            Procedure_Return 1
+        End
+            // Same as above but the Key blocking is released with KeyUp -> Block Key only once!
+        If (isKeyBlockedOnce(Self,iKeyCode,iKeyExt)) Begin
+            If (iMode=CMN_KEYUP) Send BlockKeyOnce iKeyCode iKeyExt False   // Reset Key.
+            Procedure_Return 1
+        End
+        Procedure_Return iRet
+    End_Procedure
+
+
+    Procedure Key Integer iKey
+        If iKey Eq 2166 Send OnBeforePaste // Paste Ctrl+V
+        If iKey Eq 2168 Send OnBeforeCut   // Cut Ctrl+X
+        Forward Send Key iKey
+        If iKey Eq 2166 Send OnAfterPaste  // Paste Ctrl+V
+        If iKey Eq 2168 Send OnAfterCut    // Cut Ctrl+X
+    End_Procedure
+
+    Procedure onDrawLine Handle hDC Integer iTop Integer iLeft Integer iBottom Integer iRight Integer iColLeft Integer iColRight Integer iLine Pointer pItemData Integer iStyle
+        Integer iRet
+        Local_Buffer sTxt pTxt 20
+        Move "Michis TestText"  To sTxt
+        GetAddress Of sTxt      To pTxt
+        Move (TextOut(hDC,iLeft,iTop,pTxt,15)) To iRet
+        Showln "iRet: " iRet
+
+        Procedure_Return
+        Showln "hDC "   hDC
+        Showln "iTop "  iTop
+        Showln "iLeft " iLeft
+        Showln "iBottom " iBottom
+        Showln "iRight " iRight
+        Showln "iColLeft " iColLeft
+        Showln "iColRight " iColRight
+        Showln "iLine " iLine
+        Showln "pItemData " pItemData
+        Showln "iStyle " iStyle
+    End_Procedure
+    Procedure DoDrawline Pointer pCM_DrawLineData
+        Local_BUFFER_CPY sDrawData pDrawData CM_DRAWLINEDATA pCM_DrawLineData
+        Integer iTop iBottom iLeft iRight iColLeft iColRight iLine iStyle
+        Pointer pItemData
+        Handle  hDC
+        GetBuff From sDrawData At CM_DRAWLINEDATA.rcLine.top    To iTop
+        GetBuff From sDrawData At CM_DRAWLINEDATA.rcLine.bottom To iBottom
+        GetBuff From sDrawData At CM_DRAWLINEDATA.rcLine.Left   To iLeft
+        GetBuff From sDrawData At CM_DRAWLINEDATA.rcLine.Right  To iRight
+
+        GetBuff From sDrawData At CM_DRAWLINEDATA.hDC           To hDC
+        GetBuff From sDrawData At CM_DRAWLINEDATA.nLeftCol      To iColLeft
+        GetBuff From sDrawData At CM_DRAWLINEDATA.nRightCol     To iColRight
+
+        GetBuff From sDrawData At CM_DRAWLINEDATA.nLine         To iLine
+        GetBuff From sDrawData At CM_DRAWLINEDATA.lParam        To pItemData
+
+        GetBuff From sDrawData At CM_DRAWLINEDATA.dwStyle       To iStyle
+        Send onDrawLine hDC iTop iLeft iBottom iRight iColLeft iColRight iLine pItemData iStyle
+    End_Procedure
+
+
+        // Trap buffer modification...
+    Procedure DoModifiedChange
+        Send onModifiedChange (CM_IsModified(Self))
+    End_Procedure
+    Procedure onModifiedChange Integer bModified
+    End_Procedure
+        // Property change notification...
+    Procedure onPropsChange
+    End_Procedure
+
+        // Selection has changed. (Position is included!)
+    Procedure onSelChange
+    End_Procedure
+        // Insert mode / Overwrite mode
+    Procedure onOvertypeChange
+    End_Procedure
+        // Registered Commands handling
+    Procedure DoRegisteredCmd Pointer pCM_RegisteredCmdData
+        Local_BUFFER_CPY sData pData CM_REGISTEREDCMDDATA pCM_RegisteredCmdData
+        Integer iCmd
+        GetBuff From sData At CM_REGISTEREDCMDDATA.wCmd To iCmd
+        Send onRegisteredCmd iCmd
+    End_Procedure
+        // Need to be overwritten to implement the code for the command (Procedure calls)
+    Procedure onRegisteredCmd Integer iCmd
+    End_Procedure
+        // Is sent when the end of the files was reached.
+    Procedure onFindWrapping
+    End_Procedure
+    Procedure DoFindWrapping
+        Integer iRet
+        Indicate found False     // Sets the std. Found Indicator.
+        Get Msg_onFindWrapping    To iRet
+        If iRet Procedure_Return iRet
+        If (piFindWrapMode(Self)) Eq FindWrapMode_NoWrap Begin
+            Procedure_Return 1
+        End
+        If (piFindWrapMode(Self)) Eq FindWrapMode_NoWrapMsg Begin
+            If (Window_Handle(Self)) Eq (GetFocus()) Send Info_Box "Not Found!"                  // Not so pretty but prevents object from loosing the focus.
+            Procedure_Return 1
+        End
+        If (piFindWrapMode(Self)) Eq FindWrapMode_WrapSilent Procedure_Return 0
+        If (piFindWrapMode(Self)) Eq FindWrapMode_WrapAsk Begin
+            Get YesNo_Box "End of file reached restart from the beginning?"     To iRet
+            If iRet Eq MBR_Yes Procedure_Return 0
+            Else               Procedure_Return 1
+        End
+    End_Procedure
+
+    // Should be overwrited, returns True if Ok or false if failed
+    Function CM_InitCodeList Handle hCodeList Returns Integer
+        Function_Return 0
+    End_Function
+    // This procedure should Set codetip text etc...
+    Procedure OnCodeTip
+    End_Procedure
+    Procedure OnCodeTipInitialize
+    End_Procedure
+    Procedure OnCodeTipUpdate
+    End_Procedure
+    Procedure OnCodeTipCancel
+    End_Procedure
+    Function DoCodeListInit Handle hCodeList Returns Integer
+        Function_Return 0
+    End_Function
+    Procedure CM_CodeListItemSelected String sItem Integer iRefVal
+    End_Procedure
+
+    Function SetCodeTipText Global Handle hwnd String sText Returns Integer
+        String  sTxt
+        Integer iRet
+        Move (" "+sText+" ")  To sTxt
+        Append sTxt (Character(0))
+        Move (SetWindowText(hwnd,sTxt)) To iRet
+        Function_Return iRet
+    End_Function
+
+    // Set's the CodetipData Structure to the property values
+    // 12.2.2003 BP
+    Procedure GetCodetipProperties Pointer pCM_CodeTipData
+        Integer iRet
+        // Structure data
+        Integer lnToolTip
+        Handle  lhToolTip
+        Integer lnHighlightStartPos
+        Integer lnHighlightEndPos
+        Integer lnArgument
+        Integer lnFuncCount
+        Integer lnCurrFunc
+        Integer lnTipType
+        //
+        Pointer pCodeTipData
+        Pointer lpCodeTipData  lpCodeTipHighlightData  lpCodeTipFuncHighlightData  lpCodeTipMultiFuncData
+        String  sCodeTipData   sCodeTipHighlightData   sCodeTipFuncHighlightData   sCodeTipMultiFuncData
+        //
+        ZeroType CM_CODETIPDATA To sCodeTipData                                                                 // Initialize the Structure
+        GetAddress Of sCodeTipData To pCodeTipData                                                              // Get the pointer
+        Move (CopyMemory(pCodeTipData,pCM_CodeTipData,CM_CODETIPDATA_SIZE)) To iRet                             // Copy the delivered Structure to my own Structure
+
+        GetBuff From sCodeTipData At CM_CODETIPDATA.hToolTip To lhToolTip
+        GetBuff From sCodeTipData At CM_CODETIPDATA.nTipType To lnTipType
+        //
+        If (lhToolTip) Begin
+            //
+            If (psCodeTipCurrent(Self)) Get SetCodeTipText lhToolTip (psCodeTipCurrent(Self)) To iRet
+            If (lnTipType=CM_TIPSTYLE_HIGHLIGHT) Begin
+                Get piCodeTipHighlightedStart  To lnHighlightStartPos
+                Get piCodeTipHighlightedEnd    To lnHighlightEndPos
+                //
+                ZeroType CM_CODETIPHIGHLIGHTDATA To sCodeTipHighlightData
+                GetAddress Of sCodeTipHighlightData To lpCodeTipHighlightData
+                Move (CopyMemory(lpCodeTipHighlightData,pCM_CodetipData,CM_CODETIPHIGHLIGHTDATA_SIZE)) To iRet
+                //
+                Put lnHighlightStartPos To sCodeTipHighLightData At CM_CODETIPHIGHLIGHTDATA.nHighlightStartPos                   // Startpos of Highlight
+                Put lnHighlightEndPos   To sCodeTipHighLightData At CM_CODETIPHIGHLIGHTDATA.nHighlightEndPos                     // Endpos of Highlight
+                Move (CopyMemory(pCM_CodeTipData,lpCodeTipHighLightData,CM_CODETIPHIGHLIGHTDATA_SIZE))  To iRet  // Copy the changed Structure back to the delivered
+            End
+            //
+            If (lnTipType=CM_TIPSTYLE_FUNCHIGHLIGHT) Begin
+                Get piCodeTipArgument          To lnArgument
+                //
+                ZeroType CM_CODETIPFUNCHIGHLIGHTDATA To sCodeTipFuncHighlightData                               // Initialize the Structure
+                GetAddress Of sCodeTipFuncHighlightData To lpCodeTipFuncHighlightData                            // get the Pointer
+                Move (CopyMemory(lpCodeTipFuncHighlightData,pCM_CodeTipData,CM_CODETIPFUNCHIGHLIGHTDATA_SIZE)) To iRet // Copy delivered to local Structure
+                //
+                Put lnArgument To sCodeTipFuncHighlightData At CM_CODETIPFUNCHIGHLIGHTDATA.nArgument                     // zero based index of the argument to highlight
+                Move (CopyMemory(pCM_CodeTipData,lpCodeTipFuncHighLightData,CM_CODETIPFUNCHIGHLIGHTDATA_SIZE))  To iRet  // Copy the changed Structure back to the delivered
+            End
+            //
+            If (lnTipType=CM_TIPSTYLE_MULTIFUNC) Begin
+                Get piCodeTipArgument          To lnArgument
+                Get piCodeTipFuncCount         To lnFuncCount
+                Get piCodeTipCurrFunc          To lnCurrFunc
+                //
+                ZeroType CM_CODETIPMULTIFUNCDATA To sCodeTipMultiFuncData                                       // Initialize the Structure
+                GetAddress Of sCodeTipMultiFuncData To lpCodeTipMultiFuncData                                    // get the Pointer
+                Move (CopyMemory(lpCodeTipMultiFuncData,pCM_CodeTipData,CM_CODETIPMULTIFUNCDATA_SIZE)) To iRet   // Copy delivered to local Structure
+                //
+                Put lnArgument  To sCodeTipMultiFuncData At CM_CODETIPMULTIFUNCDATA.ctfdata.nArgument
+                Put lnFuncCount To sCodeTipMultiFuncData At CM_CODETIPMULTIFUNCDATA.nFuncCount
+                Put lnCurrFunc  To sCodeTipMultiFuncData At CM_CODETIPMULTIFUNCDATA.nCurrFunc
+                Move (CopyMemory(pCM_CodeTipData,lpCodeTipMultiFuncData,CM_CODETIPMULTIFUNCDATA_SIZE)) To iRet  // Copy the changed Structure back to the delivered
+                //
+            End
+            //
+        End
+    End_Procedure
+
+    // Get the Codetipdata Structure and set the according properties.
+    // 12.2.2003 BP
+    Procedure SetCodetipProperties Pointer pCM_CodeTipData
+        Integer iRet
+        String sCodeTipData sCodeTipHighLightData sCodeTipFuncHighLightData sCodeTipMultiFuncData
+        Pointer pCodeTipData pCodeTipHighLightData pCodeTipFuncHighLightData pCodeTipMultiFuncData
+        //
+
+        Handle  lhToolTip
+        Integer lnTipType
+        Integer lnHighlightStartPos
+        Integer lnHighlightEndPos
+        Integer lnArgument
+        Integer lnFuncCount
+        Integer lnCurrFunc
+
+        String sVal
+        Integer iCou
+        //
+        ZeroType CM_CODETIPDATA To sCodeTipData                                                                 // Initialize the Structure
+        GetAddress Of sCodeTipData To pCodeTipData                                                              // Get the pointer
+        Move (CopyMemory(pCodeTipData,pCM_CodeTipData,CM_CODETIPDATA_SIZE)) To iRet                             // Copy the delivered Structure to my own Structure
+
+        GetBuff From sCodeTipData At CM_CODETIPDATA.hToolTip To lhToolTip
+        GetBuff From sCodeTipData At CM_CODETIPDATA.nTipType To lnTipType
+
+        If (lhToolTip) Begin
+            Set piCodeTipHandle To lhToolTip
+            //
+            If (lnTipType=CM_TIPSTYLE_NORMAL) Begin
+            End
+            //
+            If (lnTipType=CM_TIPSTYLE_HIGHLIGHT) Begin
+                ZeroType CM_CODETIPHIGHLIGHTDATA To sCodeTipHighlightData                                       // Initialize the Structure
+                GetAddress Of sCodeTipHighlightData To pCodeTipHighlightData                                    // get the Pointer
+                Move (CopyMemory(pCodeTipHighlightData,pCM_CodeTipData,CM_CODETIPHIGHLIGHTDATA_SIZE)) To iRet   // Copy delivered to local Structure
+                GetBuff From sCodeTipHighLightData At CM_CODETIPHIGHLIGHTDATA.nHighlightStartPos To lnHighlightStartPos
+                GetBuff From sCodeTipHighLightData At CM_CODETIPHIGHLIGHTDATA.nHighlightEndPos   To lnHighlightEndPos
+                Set piCodeTipHighlightedStart  To lnHighlightStartPos
+                Set piCodeTipHighlightedEnd    To lnHighlightEndPos
+            End
+            //
+            If (lnTipType=CM_TIPSTYLE_FUNCHIGHLIGHT) Begin
+                ZeroType CM_CODETIPFUNCHIGHLIGHTDATA To sCodeTipFuncHighlightData                               // Initialize the Structure
+                GetAddress Of sCodeTipFuncHighlightData To pCodeTipFuncHighlightData                            // get the Pointer
+                Move (CopyMemory(pCodeTipFuncHighlightData,pCM_CodeTipData,CM_CODETIPFUNCHIGHLIGHTDATA_SIZE)) To iRet // Copy delivered to local Structure
+                GetBuff From sCodeTipFuncHighLightData At CM_CODETIPFUNCHIGHLIGHTDATA.nArgument To lnArgument
+                Set piCodeTipArgument To lnArgument
+            End
+            //
+            If (lnTipType=CM_TIPSTYLE_MULTIFUNC) Begin
+                ZeroType CM_CODETIPMULTIFUNCDATA To sCodeTipMultiFuncData                                       // Initialize the Structure
+                GetAddress Of sCodeTipMultiFuncData To pCodeTipMultiFuncData                                    // get the Pointer
+                Move (CopyMemory(pCodeTipMultiFuncData,pCM_CodeTipData,CM_CODETIPMULTIFUNCDATA_SIZE)) To iRet   // Copy delivered to local Structure
+                GetBuff From sCodeTipMultiFuncData At CM_CODETIPMULTIFUNCDATA.nFuncCount To lnFuncCount
+                GetBuff From sCodeTipMultiFuncData At CM_CODETIPMULTIFUNCDATA.nCurrFunc  To lnCurrFunc
+                Set piCodeTipFuncCount         To lnFuncCount
+                Set piCodeTipCurrFunc          To lnCurrFunc
+                GetBuff From sCodeTipMultiFuncData At CM_CODETIPMULTIFUNCDATA.ctfdata.nArgument To lnArgument
+                Set piCodeTipArgument To lnArgument
+            End
+        End
+        //
+    End_Procedure
+
+    // Codetip requested: return the type of Codetip to display or CM_TIPSTYLE_NONE to not displaying a codetip
+    // 12.2.2003 BP
+    Procedure DoCodeTip             Integer lParam
+        Integer iOk
+
+        Get msg_OnCodeTip To iOk
+        If (iOk) Procedure_Return (piCodeTipStyle(Self))
+        Procedure_Return CM_TIPSTYLE_NONE
+    End_Procedure
+    // Codetip is to be displayed: return TRUE if changes applied to the codetip structure or FALSE if not
+    // 12.2.2003 BP
+    Procedure DoCodeTipInitialize   Integer lParam
+        Integer iOk
+        Send SetCodetipProperties lParam
+        Get msg_OnCodeTipInitialize To iOk
+        If (iOk) Begin
+            Send GetCodetipProperties lParam
+            Procedure_Return 1
+        End
+        Procedure_Return 0
+    End_Procedure
+    // Codetip is to be removed: return FALSE if the codetip should be removed or TRUE if to codetip should remain visible
+    // 12.2.2003 BP
+    Procedure DoCodeTipCancel       Integer lParam
+        Integer iOk
+        // Reset CodeTip Properties
+        Set piCodeTipHandle            To  0
+        //Set piCodeTipStructure         To  0
+        Set piCodeTipHighlightedStart  To -1
+        Set piCodeTipHighlightedEnd    To -1
+        Set piCodeTipArgument          To -1
+        Set piCodeTipFuncCount         To  0
+        Set piCodeTipCurrFunc          To  0
+        //Set piCodeTipUpdated           To  False
+        //
+        Set psCodeTipCurrent           To ""
+        //Set psCodeTipWord              To ""
+        Set piCodeTipCurrLine          To -1
+        //Set piCodeTipCurrCol           To -1
+        Get msg_OnCodeTipCancel To iOk
+        Procedure_Return iOk
+    End_Procedure
+    // Codetip is to be updated (position, values...): return TRUE if changes applied to the codetip structure or FALSE if not
+    // 12.2.2003 BP
+    Procedure DoCodeTipUpdate       Integer lParam
+        Integer iOk
+        Send SetCodetipProperties lParam
+        Get msg_OnCodeTipUpdate To iOk
+        If (iOk) Begin
+            Send GetCodetipProperties lParam
+            Procedure_Return 1
+        End
+        Procedure_Return 0
+    End_Procedure
+    
+    //
+    // Doesn't do anything by default, is here as the scintilla control does use it.
+    //
+    Procedure Request_Cancel
+    End_Procedure
+
+    // BP CodeList Support
+    // DoCodeList: Notification that a Codelist is requested
+    // Connect the VDF-Codelist Object to the delivered codelist handle, adjust some features
+    // and fill in the requested lines.
+    Procedure DoCodeList            Integer lParam
+        String sCodelistData
+        Pointer pCodelistData
+        Integer iRet iCou
+        Handle hCodeList hFont
+
+        If (Not(phoCodeListHandler(Self))) Procedure_Return False
+
+        ZeroType CM_CODELISTDATA To sCodelistData
+        GetAddress Of sCodelistData To pCodelistData
+        Move (CopyMemory(pCodelistData,lParam,CM_CODELISTDATA_SIZE)) To iRet
+        GetBuff From sCodelistData At CM_CODELISTDATA.hListCtrl To hCodelist
+
+        Get DoCodeListInit hCodeList To iRet
+        If (iRet) Procedure_Return True
+        Procedure_Return False
+    End_Procedure
+
+    Procedure OnCodelistCancel
+    End_Procedure
+
+    // DoCodelistCancel
+    // Notification that the listview was canceled without selecting a value
+    Procedure DoCodeListCancel      Integer lParam
+        String sCodelistdata
+        Pointer pCodelistdata
+        Integer iRet
+        Handle hCodelist
+
+        If (Not(phoCodeListHandler(Self))) Procedure_Return False
+
+        Send OnCodelistCancel
+
+        ZeroType CM_CODELISTDATA To sCodelistData
+        GetAddress Of sCodelistData To pCodelistData
+        Move (CopyMemory(pCodelistData,lParam,CM_CODELISTDATA_SIZE)) To iRet
+        GetBuff From sCodelistData At CM_CODELISTDATA.hListCtrl To hCodelist
+
+        Send Codelist_disconnect To (phoCodelistHandler(Self)) // disconnect the vdf-object
+
+        Procedure_Return False // return FALSE to remove the listview from screen
+    End_Procedure
+
+    // DoCodeListChar
+    // Notification that a key was pressed within the listview control.
+    Procedure DoCodeListChar        Integer lParam
+        String sCodelistKeyData
+        Pointer pCodelistKeyData
+        Integer iRet iChar
+        Handle hCodelist
+
+        ZeroType CM_CODELISTKEYDATA To sCodeListKeydata
+        GetAddress Of sCodelistKeydata To pCodeListKeyData
+        Move (CopyMemory(pCodeListKeyData,lParam,CM_CODELISTKEYDATA_SIZE)) To iRet
+        GetBuff From sCodelistkeydata At CM_CODELISTKEYDATA.clData.hListCtrl To hCodelist
+        GetBuff From sCodelistkeydata At CM_CODELISTKEYDATA.wChar To iChar
+
+        Procedure_Return False // return FALSE if the listview should do the default action, otherwise true (default action will be canceled)
+    End_Procedure
+
+    // DoCodelistSelMade
+    // Notification that a item was selected within the listview
+    Procedure DoCodelistSelMade     Integer lParam
+        String sCodelistdata sItem
+        Pointer pCodelistdata
+        Integer iRet iItem iRefVal iRetVal
+        Handle hCodelist
+
+        If (Not(phoCodeListHandler(Self))) Procedure_Return False
+
+        Get Codelist_current_item Of (phoCodelistHandler(Self)) To iItem  // get the selected item
+        If iItem Ne -1 Begin
+            Get Codelist_value Of (phoCodelistHandler(Self)) iItem To sItem  // get the item text of the selected item
+            Get piRefValue Of (phoCodelistHandler(Self)) To iRefVal
+            Get msg_CM_CodeListItemSelected sItem iRefVal To iRetVal
+            If iRetVal Procedure_Return True
+        End
+
+        Send Codelist_disconnect To (phoCodelistHandler(Self)) // disconnect the vdf-object
+        Procedure_Return False
+    End_Procedure
+
+    // BP
+
+    Procedure onBeforeFloatingMenu
+    End_Procedure
+    Procedure onAfterFloatingMenu
+    End_Procedure
+
+        // Is sent when a WM_Notify with NM_RCLICK occusrs.
+        // I use it to implement the Popup of the floating_poup_menu.
+    Procedure DoRightClick Integer lParam
+        If (Floating_Menu_Object(Self)) Ne 0 Begin
+            Set phoServedObject Of (Floating_menu_object(Self)) To Self
+            Send OnBeforeFloatingMenu
+            Send Popup  To (Floating_Menu_Object(Self))
+            Send OnAfterFloatingMenu
+            Procedure_Return 1
+        End
+    End_Procedure
+
+    Procedure onSetFocus
+    End_Procedure
+    Procedure onKillFocus
+    End_Procedure
+    Procedure onChange
+    End_Procedure
+
+    Procedure Notify Integer wParam Integer lParam
+        Integer iRet iCode
+        Local_BUFFER sNMHDR pNMHDR NMHDR_SIZE       // Creates an empty NMHDR String/Pointer combination
+        Move (CopyMemory(pNMHDR,lParam,NMHDR_SIZE)) To iRet
+        GetBuff From sNMHDR At NMHDR.Code           To iCode
+
+        // Trap Events...________________________
+        Move 0 To iRet
+
+        // SVN CodeTip Support
+        If iCode Eq CMN_CODETIP             Get Msg_DoCodeTip           lParam To iRet
+        If iCode Eq CMN_CODETIPINITIALIZE   Get Msg_DoCodeTipInitialize lParam To iRet
+        If iCode Eq CMN_CODETIPCANCEL       Get Msg_DoCodeTipCancel     lParam To iRet
+        If iCode Eq CMN_CODETIPUPDATE       Get Msg_DoCodeTipUpdate     lParam To iRet
+        // SVN
+
+        // BP CodeList Support
+        If iCode Eq CMN_CODELIST            Get Msg_DoCodeList          lParam To iRet
+        If iCode Eq CMN_CODELISTCANCEL      Get Msg_DoCodeListCancel    lParam To iRet
+        If iCode Eq CMN_CODELISTCHAR        Get Msg_DoCodeListChar      lParam To iRet
+        If iCode Eq CMN_CODELISTSELMADE     Get Msg_DoCodeListSelMade   lParam To iRet
+        // BP
+
+        If iCode Eq CMN_KEYDOWN             Get Msg_DoKeyAction iCode lParam    To iRet
+        If iCode Eq CMN_KEYUP               Get Msg_DoKeyAction iCode lParam    To iRet
+        If iCode Eq CMN_KEYPRESS            Get Msg_DoKeyAction iCode lParam    To iRet
+        If iCode Eq CMN_MODIFIEDCHANGE      Get Msg_DoModifiedChange            To iRet
+        If iCode Eq CMN_PROPSCHANGE         Get Msg_onPropsChange               To iRet
+        If iCode Eq CMN_SELCHANGE           Get Msg_onSelChange                 To iRet
+        If iCode Eq CMN_OVERTYPECHANGE      Get Msg_onOvertypeChange            To iRet
+        If iCode Eq CMN_REGISTEREDCMD       Get Msg_DoRegisteredCmd   lParam    To iRet
+        If iCode Eq CMN_FINDWRAPPED         Get Msg_DoFindWrapping              To iRet
+        If iCode Eq CMN_DRAWLINE            Get Msg_DoDrawLine        lParam    To iRet
+        If iCode Eq CMN_CHANGE              Get Msg_onChange                    To iRet
+        If iCode Eq  NM_RClick              Get Msg_DoRightClick      lParam    To iRet
+        If iCode Eq  NM_SETFOCUS            Get Msg_onSetFocus                  To iRet
+        If iCode Eq  NM_KILLFOCUS           Get Msg_onKillFocus                 To iRet
+        Procedure_Return iRet
+    End_Procedure
+
+        // Delivers line and row (complex) from the given position
+        // -> Position local to the Edit!
+    Function LineRowFromRelativePosition Integer iY Integer iX  Returns Integer
+        Integer iLine iCol iRet
+        If (Hi(CM_HitTest(Self,iX,iY))) Eq CM_EDITSPACE Begin
+            Get CM_GetSelFromPoint iX iY        To iRet
+            Move (piSelStartLine(Self))         To iLine
+            Move (piSelStartCol (Self))         To iCol
+            Function_Return (MAKEWPARAM(iCol,iLine))
+        End
+        Else Function_Return -1
+    End_Function
+
+        // Same as above but uses absolute Screen coordinates.
+    Function LineRowFromAbsolutePosition Integer iY Integer iX  Returns Integer
+        Integer iPY iPX
+        Move (Absolute_GUIOriginEx(Self))   To iPy // Get the absolute Position of the Window.
+        Move (Low(iPy))                     To iPx
+        Move (Hi(iPy))                      To iPy
+        Move (iY-iPy)                       To iY
+        Move (iX-iPx)                       To iX
+        Function_Return (LineRowFromRelativePosition(Self,iY,iX))
+    End_Function
+
+        // Delivers the Line and Col under the Mouse Cursor.
+    Function LineRowUnderMouseCursor Returns Integer
+        Integer iX iY iRet
+        Local_Buffer  sPoint pPoint tPoint_Size
+        Move (GetCursorPos(pPoint))     To iRet
+        GetBuff From sPoint At tPoint.x To iX
+        GetBuff From sPoint At tPoint.y To iY
+        Function_Return (LineRowFromAbsolutePosition(Self,iY,iX))
+    End_Function
+
+
+        // To find the Scope for Inserting a Text.
+    Function GetScopeAboveFromLine Integer iLine Returns Integer
+        Integer iEnde
+        String  sLine sRet
+        Repeat
+            If (Trim(sLine)) Ne "" Move 1               To iEnde
+            If iLine Lt 0          Move 1               To iEnde
+            If Not iEnde Get value Item iLine           To sLine
+            Decrement iLine
+        Until (iEnde)
+        Function_Return (Pos(Trim(sLine),sLine)-1)
+        Function_Return 0
+    End_Function
+
+
+        // Inserts a Text at this Position.
+        // Understands commands like:
+        //  \n  ... New Line
+        //  \t  ... Keep ScopeLevel
+        //  \s  ... New Line and InsertColumn
+    Procedure InsertTextAtPosition Integer iLine Integer iCol String sTxt
+        Integer iRet iScopeCol
+        String  sCR
+        Append sCR (Character(13)) (Character(10))
+        If (Left(sTxt,2)) Eq "\s" Move iCol              To iScopeCol
+        Else Get GetScopeAboveFromLine iLine             To iScopeCol
+        Move (Replaces("\n",sTxt,sCR))                   To sTxt               // TO insert a new Line.
+        Move (Replaces("\t",sTxt,Repeat(" ",iScopeCol))) To sTxt               // To keep the scope level.
+        If (Left(sTxt,2)) Eq "\s" Begin                                        // Insert in new line.
+            Move (Replace("\s",sTxt,Append("",Repeat(" ",iCol))))   To sTxt    // TO insert a new Line.
+            Move 0                                                  To iCol
+        End
+        Move (CM_InsertText(Self,sTxt,iLine,iCol))                  To iRet
+    End_Procedure
+
+        // Tries to insert a text after the character with the given relativ
+        // position (USed fro Drag and Drop)
+    Procedure Request_InsertTextAfterPosRel Integer iY Integer iX String sTxt
+        Integer iRet iLine iCol
+        String  sCR
+        If (Hi(CM_HitTest(Self,iX,iY))) Eq CM_EDITSPACE Begin // Only if the Koord. are over the editspace.
+            Get CM_GetSelFromPoint iX iY    To iRet
+            If iRet Begin
+                Move (piSelStartLine(Self))         To iLine
+                Move (piSelStartCol (Self))         To iCol
+                Send InsertTextAtPosition iLine iCol sTxt
+            End
+        End
+    End_Procedure
+
+
+
+
+        // Tries to insert a text after the character with the given absolut
+        // position (USed fro Drag and Drop)
+    Procedure Request_InsertTextAfterPosAbs Integer iY Integer iX String sTxt
+        Integer iPY iPX
+        Move (Absolute_GUIOriginEx(Self))   To iPy // Get the absolute Position of the Window.
+        Move (Low(iPy))                     To iPx
+        Move (Hi(iPy))                      To iPy
+        Move (iY-iPy)                       To iY
+        Move (iX-iPx)                       To iX
+        Send Request_InsertTextAfterPosRel iY iX sTxt
+    End_Procedure
+        // Inserts text under the mous cursor position.
+    Procedure Request_InserTextUnderMouseCursor String sTxt
+        Integer iRet iX iY
+        Local_Buffer sPoint pPoint tPoint_Size
+        Move (GetCursorPos(pPoint))     To iRet
+        GetBuff From sPoint At tPoint.x To iX
+        GetBuff From sPoint At tPoint.y To iY
+        Send Request_InsertTextAfterPosAbs iY iX sTxt
+    End_Procedure
+
+    Function HitTestCurrentMouse Returns Integer
+        Integer iRet iX iY iPy iPx
+        Local_Buffer sPoint pPoint tPoint_Size
+        Move (GetCursorPos(pPoint))     To iRet
+        GetBuff From sPoint At tPoint.x To iX
+        GetBuff From sPoint At tPoint.y To iY
+        Move (Absolute_GUIOriginEx(Self))   To iPy // Get the absolute Position of the Window.
+        Move (Low(iPy))                     To iPx
+        Move (Hi(iPy))                      To iPy
+        Move (iY-iPy)                       To iY
+        Move (iX-iPx)                       To iX
+        Function_Return (Hi(CM_HitTest(Self,iX,iY)))
+    End_Function
+
+        // Should Start the Properties.
+    Procedure Properties
+        Integer iRet
+        Move (CM_ExecuteCmd(Self,CMD_PROPERTIES,0)) To iRet
+    End_Procedure
+End_Class
+
+Define CM_NewFileName   For "Untitled"  // sometimes ver useful.

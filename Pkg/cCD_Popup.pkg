@@ -1,0 +1,66 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : cCD_Popup.pkg
+// $ProjectName : Shared Classes
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 01-25-2001 @ 19:00
+//
+// Contents:
+//  Adds some general Properties to the CD_Client class which can be used before the
+//  Object is created.
+//
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+Class cCD_PopupDummy is a Message
+Procedure END_Construct_Object for CD_Client
+    Property String  StringP1 Public ""
+    Property String  StringP2 Public ""
+    Property String  StringP3 Public ""
+
+    Property Integer IntegerP1 Public ""
+    Property Integer IntegerP2 Public ""
+    Property Integer IntegerP3 Public ""
+
+    Property Number  NumberP1 Public ""
+    Property Number  NumberP2 Public ""
+    Property Number  NumberP3 Public ""
+
+    Forward send END_Construct_Object
+End_Procedure
+
+Function StringP1 for dbModalPanel returns String
+    Function_Return (StringP1(Parent(SELF)))
+End_Function
+Function StringP2 for dbModalPanel returns String
+    Function_Return (StringP2(Parent(SELF)))
+End_Function
+Function StringP3 for dbModalPanel returns String
+    Function_Return (StringP3(Parent(SELF)))
+End_Function
+
+Function NumberP1 for dbModalPanel returns Number
+    Function_Return (NumberP1(Parent(SELF)))
+End_Function
+Function NumberP2 for dbModalPanel returns Number
+    Function_Return (NumberP2(Parent(SELF)))
+End_Function
+Function NumberP3 for dbModalPanel returns Number
+    Function_Return (NumberP3(Parent(SELF)))
+End_Function
+
+Function IntegerP1 for dbModalPanel returns Integer
+    Function_Return (IntegerP1(Parent(SELF)))
+End_Function
+Function IntegerP2 for dbModalPanel returns Integer
+    Function_Return (IntegerP2(Parent(SELF)))
+End_Function
+Function IntegerP3 for dbModalPanel returns Integer
+    Function_Return (IntegerP3(Parent(SELF)))
+End_Function
+End_Class

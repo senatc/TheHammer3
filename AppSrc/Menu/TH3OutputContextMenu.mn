@@ -1,0 +1,93 @@
+Use Windows.pkg
+Use cCJStandardMenuItemClasses.pkg
+Use cCJDeoMenuItemClasses.pkg
+
+Object oOutputContextMenu is a cCJContextMenu
+    Property Handle phInvokingObject
+    Property Handle phInvokingItem
+
+    Object oOpenItem is a cCJMenuItem
+        Set psCaption   to "Open"
+        Set psToolTip to "Open in Editor"
+        Set psDescription to "Open in Editor"
+        Set psImage to "ActionOpenInEditor16.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hObject hItem
+            Get phInvokingObject to hObject
+            Get phInvokingItem   to hItem
+            Send OnItemDblClick to hObject hItem
+        End_Procedure
+    End_Object
+    
+    Object oSaveItem is a cCJMenuItem
+        Set psCaption   to "Save Messages"
+        Set psToolTip to "Save Messaget"
+        Set psDescription to "Open Containing Folder"
+        Set psImage to "ActionSave.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hObject
+            Get phInvokingObject to hObject
+            If (hObject) Send OutputMessageSave to hObject
+        End_Procedure
+    End_Object
+    
+    Object oCopyItem is a cCJMenuItem
+        Set psCaption   to "Copy Messages"
+        Set psToolTip to "Copy Messages"
+        Set psDescription to "Copy Messages"
+        Set psImage to "ActionCopy.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hObject
+            Get phInvokingObject to hObject
+            If (hObject) Send OutputMessageCopy to hObject
+        End_Procedure
+    End_Object
+    
+    Object oCancelItem is a cCJMenuItem
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Cancel"
+        Set psToolTip to "Cancel Process"
+        Set psDescription to "Cancel Process"
+        Set psImage to ""
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+        End_Procedure
+    End_Object
+
+    Object oCloseItem is a cCJMenuItem
+        Set psImage to "Close16.ico"
+        Set psCaption   to "Remove Tab"
+        Set psToolTip to "Remove Tab"
+        Set psDescription to "Remove current tab"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hObject
+            Get phInvokingObject to hObject
+            If (hObject) Send OutputMessageRemoveTab to hObject
+        End_Procedure
+    End_Object
+
+    Object oClosePanelItem is a cCJMenuItem
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Close Panel"
+        Set psToolTip to "Close Panel"
+        Set psDescription to "Close Panel"
+        Procedure OnExecute Variant vCommandBarControl
+            Boolean bVisible
+            Set ComVisible of ghoOutputPane to False
+        End_Procedure
+    End_Object
+
+    Procedure OnPopupInit Variant vCommandBarControl Handle hoCommandBarControls
+        Forward Send OnPopupInit vCommandBarControl hoCommandBarControls
+        Handle hItem hObject
+        Integer iData
+        Get phInvokingObject to hObject
+        Get phInvokingItem to hItem
+        Get ItemData of hObject hItem to iData
+        Set ComVisible of oOpenItem     to iData
+    End_Procedure
+    
+End_Object

@@ -1,0 +1,73 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2005 KURANT Project
+// All rights reserved.
+//
+// $FileName    : cSortArray.pkg
+// $ProjectName : The Hammer v 2.0
+// $Author      : Wil van Antwerpen
+// $Created     : 03.12.2005  10:18
+// $Type        : OptionWare
+//
+// Contents:
+// For whatever stupid reason sorting the array using item_sort doesn't work
+// This was supposed to be fixed in VDF7 SP3, since this is just
+// for a little bit of data, implementing a sorting algorithm is
+// our quickest catch-it-all workaround that will work for ALL
+// vdf versions.
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+
+Class cSortArray Is a Array 
+  
+  // Private
+  // Used by bubblesort algo
+  //
+  Procedure DoSwapValues Integer iFirst Integer iSecond
+    String sFirst
+    String sSecond
+    Get Value Item iFirst  To sFirst
+    Get Value Item iSecond To sSecond
+    Set Value Item iFirst  To sSecond
+    Set Value Item iSecond To sFirst
+  End_Procedure // DoSwapValues
+  
+  // Private
+  // Use by bubblesort algo, fixed to sort on integer values
+  //
+  Function SortRequired Integer iFirst Integer iSecond Returns Boolean
+    Integer iLeft
+    Integer iRight
+    Boolean bSort
+    Get Value Item iFirst  To iLeft
+    Get Value Item iSecond To iRight
+    Move (iLeft>iRight) To bSort
+    Function_Return bSort
+  End_Function // SortRequired
+           
+  Procedure BubbleSort
+    Integer j
+    Integer iCount
+    Integer iLoop
+    Boolean bSorted
+    Boolean bSortRequired
+    Move (false) To bSorted
+    Move (Item_Count(Self)) To iCount
+    Move iCount To iLoop
+    While ((iLoop > 0) And (Not(bSorted)))
+      Move (true) To bSorted
+      For j From 0 To (iLoop-2)
+        Get SortRequired j (j+1) To bSortRequired
+        If (bSortRequired) Begin
+          Send DoSwapValues j (j+1)
+          Move (False) To bSorted
+        End
+      Loop
+      Decrement iLoop
+    Loop
+  End_Procedure // BubbleSort
+  
+End_Class // cSortArray

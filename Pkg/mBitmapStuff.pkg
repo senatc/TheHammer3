@@ -1,0 +1,100 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : mBitmapStuff.pkg
+// $ProjectName : Shared Methods.
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 04-25-2001 @ 16:00
+//
+// Contents:
+//      Some useful functions when working with Bitmaps.
+//
+//      -APIBitmapSize string sBmp returns complex
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+Use mPointer.pkg
+
+    // Constants for loading a BMP
+Define IMAGE_BITMAP        For 0
+Define IMAGE_ICON          For 1
+Define LR_DEFAULTCOLOR	   For |CI$0000
+Define LR_COLOR     	   For |CI$0002
+Define LR_LOADFROMFILE     For |CI$0010
+Define LR_CREATEDIBSECTION For |CI$2000
+Define LR_LOADTRANSPARANT  For |CI$0020
+Define LR_LOADMAP3DCOLORS  For |CI$1000
+Define LR_VGACOLOR         For |CI$0080
+    // Information of a Bitmap
+Type BITMAPt
+    Field BITMAPt.bmType               as Integer   //TYPE: LONG
+    Field BITMAPt.bmWidth              as Integer   //TYPE: LONG
+    Field BITMAPt.bmHeight             as Integer   //TYPE: LONG
+    Field BITMAPt.bmWidthBytes         as Integer   //TYPE: LONG
+    Field BITMAPt.bmPlanes             as WORD      //TYPE: WORD
+    Field BITMAPt.bmBitsPixel          as WORD      //TYPE: WORD
+    Field BITMAPt.bmBits               as Pointer   //TYPE: LPVOID
+End_Type
+#IFDEF Get_GetObject
+#ELSE
+External_function GetObject "GetObjectA" Gdi32.dll Handle hObj Integer cbBuffer Pointer pObj Returns Pointer
+#ENDIF
+External_function BmpStuffLoadImage "LoadImageA" user32.dll Handle hInst Pointer pPic Integer iTyp Integer iX Integer iY Integer iFlag Returns Integer
+
+#IFDEF Get_LoadBitmap
+#ELSE
+//     Load Bitmap.
+Function LoadBitmap Global String sBMPe Integer iX Integer iY Integer iTransparent Returns Handle
+    String  sBMP
+    Pointer pBMP
+    Handle  hBMP
+    Move sBMPe              To sBMP
+    GetAddress Of sBMP      To pBMP
+    If iTransparent Move (BmpStuffLoadImage(0,pBMP,IMAGE_BITMAP,iX,iY,(LR_LOADFROMFILE+LR_CREATEDIBSECTION+LR_LOADTRANSPARANT+LR_LOADMAP3DCOLORS)))  To hBMP
+    Else            Move (BmpStuffLoadImage(0,pBMP,IMAGE_BITMAP,iX,iY,(LR_LOADFROMFILE+LR_CREATEDIBSECTION)))                     To hBMP
+    Function_Return hBMP
+End_Function
+#ENDIF
+
+#IFDEF Get_LoadIcon
+#ELSE
+    // Load Bitmap.
+Function LoadIcon Global String sBMPe Integer iX Integer iY Integer iTransparent Returns Handle
+    String  sBMP
+    Pointer pBMP
+    Handle  hBMP
+    Move sBMPe              To sBMP
+    GetAddress Of sBMP      To pBMP
+    If iTransparent Move (BmpStuffLoadImage(0,pBMP,IMAGE_ICON,iX,iY,(LR_LOADFROMFILE+LR_CREATEDIBSECTION+LR_LOADTRANSPARANT)))  To hBMP
+    Else            Move (BmpStuffLoadImage(0,pBMP,IMAGE_ICON,iX,iY,(LR_LOADFROMFILE+LR_CREATEDIBSECTION)))                     To hBMP
+    Function_Return hBMP
+End_Function
+#ENDIF
+
+
+#IFDEF Get_APIBitmapSize
+#ELSE
+    // Size of the Bitmap.
+Function APIBitmapSize Global String sBitmap Returns Integer
+    Local_Buffer  sBmpInfo pBmpInfo BITMAPt_Size
+    Handle  hBitmap
+    Integer iRet iHeight iWidth
+
+    Move (LoadImage(GetModuleHandle(0), sBitmap, IMAGE_BITMAP, 0, 0, 0)) To hBitmap
+    If (hBitmap=0) Begin // the bitmap was not in the EXE resource
+      Move (LoadBitmap(sBitmap,0,0,0))                To hBitmap
+    End
+    If (hBitmap<>0) Begin
+      Move (GetObject(hBitmap,BITMAPt_Size,pBmpInfo)) To iRet
+      GetBuff From sBmpInfo at BITMAPt.bmWidth        To iWidth
+      GetBuff From sBmpInfo at BITMAPt.bmHeight       To iHeight
+      Move (DeleteObject(hBitmap))                    To iRet
+      Function_Return (iWidth+(iHeight*65536))
+    End
+    Function_Return 0
+End_Function
+#ENDIF

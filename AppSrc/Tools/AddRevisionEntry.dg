@@ -1,0 +1,57 @@
+// AddRevisionEntry.dg
+
+Object oTextGetter is a dbModalPanel
+
+    Set pbSizeToClientArea to False
+    Property String StringP1 Public ""
+    Property String StringP2 Public "" //@
+    Set label to "Enter text for the Revision entry"
+    Set Size to 200 250                                 //@
+    Set piMinSize to 200 250
+    On_Key Key_F2 Send Done
+
+    Object frmIssue is a Form                           //@
+        Set Label to "Issue# (optional)" 
+        Set Size to 13 110
+        Set Location to 10 125
+        Set Label_Col_Offset to 2                       //@
+        Set Label_Justification_Mode to jMode_Right     //@
+        Set peAnchors to anTopRight
+    End_Object    // frmUser
+
+    Object oEdit is a Edit
+        Set Location to 26 5
+        Set Size to 130 230
+        Set peAnchors to anAll
+        On_Key key_f2   Send Done
+        On_Key KCANCEL  Send Close_Panel
+    End_Object
+
+    Object oSaveBtn is a Button
+        Set Location to 160 185
+        Set Size     to 14  50
+        Set Label to "F2 Ok"
+        Set peAnchors to anBottomRight
+        Procedure OnClick
+            Send Done
+        End_Procedure
+    End_Object
+
+    Procedure popup_group
+        Set StringP1 to "#CANCEL"
+        Set StringP2 to "xxxx" //@                                         //@
+        Send Delete_Data to (oEdit(Self))
+        Forward Send popup_group
+    End_Procedure
+
+    Procedure Done Returns Integer
+        String sCR sRet
+        Append sCR (Character(13)) (Character(10))
+        Move (EditWindowText(Desktop,(oEdit(Self))))    to sRet
+        Move (Replaces(sCR,sRet,"\n"))                  to sRet
+        Set StringP1                                    to sRet
+        Set StringP2                                    to (Value(frmIssue(Self),0)) //@
+        Send Close_Panel
+    End_Procedure
+End_Object
+

@@ -1,0 +1,28 @@
+
+Class cHammerPanel is a Panel
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        //
+        Property Boolean pbShuttingDown         False  // Set to true when the hammer is closed
+        Property Boolean pbWorkspaceChanging    False  // Set to true when the hammer changes workspaces
+        Property Integer piRedrawState          True
+        Property Integer phoDependencyScanner   0
+        //
+        Set pbSizeToClientArea      to False
+        //
+    End_Procedure // Construct_Object
+
+    // Alt-F4, X-button
+    Procedure Exit_Application
+        Set pbShuttingDown to True
+        Forward Send Exit_Application
+    End_Procedure // Exit_Application
+
+    // A close_panel request has been sent.
+    // This will quit the application, but the exit_application message is never
+    // sent.
+    Procedure Close_Panel
+        Set pbShuttingDown to True
+        Forward Send Close_Panel
+    End_Procedure // Close_Panel
+End_Class // cHammerPanel

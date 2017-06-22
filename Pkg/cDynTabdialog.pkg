@@ -1,0 +1,498 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2003 Bernhard Ponemayr
+// All rights reserved.
+//
+// $FileName    : C:\VDF7\Projects\hammer\pkg\cDynTabdialog.pkg
+// $ProjectName : The Hammer Entwicklung
+// $Author      : Bernhard Ponemayr
+// $Created     : 04.03.2003  10:06
+//
+// Contents: Contains classes cDynTabPage and cDynTabDialog for building dynamic
+//           tab-dialogs (adding/removing tab pages)
+//
+//*****************************************************************************************
+//TH-RevisionStart
+// 04.03.2003 10:07  Initial revision                      BP     APBP
+//TH-RevisionEnd
+
+
+Define TCM_FIRST               For |CI$1300
+Define TCM_SETCURSEL           For (TCM_FIRST + 12)
+
+External_Function32 SetBkColor "SetBkColor" GDI32.dll ;
+   Handle hDC ;
+   DWORD  crColor ;
+   Returns DWord
+
+
+Class cTabPageButtonPopupMenu Is a cPopupMenu
+    Register_Procedure mCloseTabPage
+    Procedure end_Construct_Object
+        Forward Send end_Construct_Object
+        Send add_item msg_mCloseTabPage   " Close"
+        Set Bitmap To "PMClose.Bmp"
+    End_Procedure
+//    Procedure popUp
+//        Local Integer iCanRemove hoP iCnt iCanCancel
+//        Move (Parent(Self)) To hoP
+//        Get Item_Count Of hoP To iCnt
+//        Set Aux_Value Item 0 To hoP
+//        Set shadow_state Item 0 To (Not(iCnt))
+//        Forward Send popUp
+//    End_Procedure
+End_Class // cTabPageButtonPopupMenu
+
+
+Class cDynTabPage Is a TabPage
+    Procedure construct_object
+        Property Integer phoClientObject Public 0
+        Forward Send construct_object
+
+        // **ToDo CODE BELOW DOESNT WORK
+        // **WvA: 13-11-2004 Added popup to allow closing
+        // a tabpage with the mouse.
+        //Object oTabPageButtonPopupMenu Is a cTabPageButtonPopupMenu
+        //    Set piNoDestroyState To True
+        //End_Object
+    End_Procedure
+
+    // **WvA: 13-11-2004
+    //Procedure mouse_down2 Integer iPara0 Integer iPara1
+    //    Send Popup To (oTabPageButtonPopupMenu(Self))
+    //End_Procedure
+
+    // **WvA: 13-11-2004
+    //Procedure mCloseTabPage
+    //  Integer iPageID
+    //  Get Tab_Button_Item To iPageID
+    //  Send DeleteTabPage iPageID
+    //End_Procedure // mCloseTabPage
+
+End_Class
+
+Enum_List // Tab Styles (peTabStyle)
+    Define TS_TABS
+    Define TS_BUTTONS
+    Define TS_FLATBUTTONS
+End_Enum_List
+
+Class cDynTabDialog Is a TabDialog
+    Procedure Construct_Object
+        Property Integer piButtonStateEx Public button_bottom
+        Property Integer piTabStyleEx    Public TS_TABS
+        Forward Send Construct_Object
+
+    End_Procedure
+
+    Procedure Set piTabStyle Integer iStyle
+        Set piTabStyleEx To iStyle
+        #IF (!@>69) // VDF7 and Higher, there this is already defined and need to be set.
+        Set peTabStyle To iStyle
+        #ENDIF
+    End_Procedure
+    Function piTabStyle Returns Integer
+        Function_Return (piTabStyleEx(Self))
+    End_Function
+    Procedure Set piButtonState Integer iState
+        Set piButtonStateEx To iState
+        #IF (!@>69) // VDF7 and Higher, there this is already defined and need to be set.
+        Set peTabPosition To iState
+        #ENDIF
+    End_Procedure
+    Function piButtonState Returns Integer
+        Function_Return (piButtonStateEx(Self))
+    End_Function
+    Procedure Page Integer iFlag
+        Integer iState iRet
+        Handle hDC
+        Move (piButtonState(Self))    To iState
+        If (iState Eq Button_Bottom)  Set Window_Style            To TCS_BOTTOM True
+        If (iState Eq Button_Right)   Set Window_Style            To TCS_RIGHT  True
+        If ((iState Eq Button_Right) Or (iState Eq Button_Left)) ;
+        Set Window_Style            To TCS_Vertical True
+        Forward Send Page iFlag
+    End_Procedure
+
+    Procedure Set GuiSize Integer iY Integer iX
+        Integer iCou hoObj hoChild
+        Integer iItm hTabPg iItems
+        Forward Set guiSize To iY iX
+        If (Not(window_handle(Self))) Procedure_Return
+        Get Button_Count To iItems
+        Decrement iItems
+        For iItm From 0 To iItems
+            Get tab_page_id Item iItm To hTabPg
+            Get phoClientObject Of hTabPg To hoChild
+            If (hoChild) Set GuiSIze Of hoChild To ((Hi(Client_Size(hTabPg)))-10) ((low(Client_Size(hTabPg)))-3)
+        Loop
+    End_Procedure
+
+    Procedure DeleteTabPage Integer iTab
+        Integer hTabObj iIc
+        Get Item_Count To iIC
+        Decrement iIC
+        If (iIC Gt 0) Begin // don't delete last Tab
+            Get tab_page_id Item iTab To hTabObj
+            Send windows_Message TCM_DELETEITEM iTab 0
+            Send Deactivate To hTabObj 0
+            Send delete_item iTab
+            Send RebuildItems
+            If (active_state(Self)) Begin
+                If iTab Eq iIC Send Request_switch_to_tab (iTab -1) 2
+                Else Send Request_switch_to_tab iTab 2
+                Set current_item To (current_item(Self))
+            End
+            Send Request_destroy_object To hTabObj
+        End
+    End_Procedure
+
+    Procedure RebuildItems
+        Integer iItm hTabPg iItems
+        Get Button_Count To iItems
+        For iItm From 0 To (iItems-1)
+            Get tab_page_id Item iItm To hTabPg
+            Set Tab_Button_item Of hTabPg To iItm
+        Loop
+    End_Procedure
+
+    Procedure DeleteByObjectID Integer hoObj
+        Integer iItm hTabPg iItems
+        Get Button_Count To iItems
+        Decrement iItems
+        For iItm From 0 To iItems
+            Get tab_page_id Item iItm To hTabPg
+            If (hTabPg Eq hoObj) Begin
+                Send DeleteTabPage iItm
+                Procedure_Return
+            End
+        Loop
+    End_Procedure
+
+    Procedure DisplayButton Integer iItem
+        Integer iRet
+        Move (sendMessage(window_handle(Self),TCM_SETCURSEL,iItem,0)) To iRet
+    End_Procedure
+
+    Function Tab_Change Integer iPara0 Integer iMode Returns Integer
+        Integer iRet hoObj
+        Forward Get Tab_Change iPara0 iMode  To iRet
+        Get tab_page_id Item iPara0 To hoObj
+        Send OnTabIDSelected hoObj
+        Function_Return iRet
+    End_Function
+
+    Procedure OnTabIDSelected Integer hoObj
+    End_Procedure
+End_Class
+
+//Class cMessageGridPopupMenu Is a cPopupMenu
+//    Register_Procedure msave
+//    Register_Procedure mCopyClipboard
+//    Register_Procedure mclear
+//    Register_Procedure mremove
+//    Register_Procedure mCancel
+//    Register_Procedure mopen
+//    Register_Procedure mclose
+//    Procedure end_Construct_Object
+//        Forward Send end_Construct_Object
+//        Send add_item msg_mopen     " Open"
+//        Set Bitmap To "PMOpen.Bmp"
+//        Send add_item msg_msave     " Save"
+//        Set Bitmap To "PMSave.Bmp"
+//        Send add_item msg_mCopyClipboard " Copy"
+//        Set Bitmap To "PMcopy.Bmp"
+//        Send add_item msg_mclear    " Clear"
+//        Set Bitmap To "PMNew.Bmp"
+//        Send add_item msg_none      ""
+//        Send add_item msg_mCancel   " Cancel"
+//        Send add_item msg_mremove   " Remove"
+//        Send add_item msg_none      ""
+//        Send add_item msg_mclose    " Close"
+//        Set Bitmap To "PMClose.Bmp"
+//    End_Procedure
+//    Procedure popUp
+//        Integer iCanRemove hoP iCnt iCanCancel
+//        Move (Parent(Self)) To hoP
+//        Get Item_Count Of hoP To iCnt
+//        Delegate Get piCanRemove To iCanRemove
+//        Delegate Get piCanCancel To iCanCancel
+//        Set Aux_Value Item 0 To hoP
+//        Set Aux_Value Item 1 To hoP
+//        Set Aux_Value Item 2 To hoP
+//        Set Aux_Value Item 3 To hoP
+//        Set Aux_Value Item 5 To hoP
+//        Set Aux_Value Item 6 To hoP
+//        Set Aux_Value Item 8 To hoP
+//        Set shadow_state Item 0 To (Not(iCnt))
+//        Set shadow_state Item 1 To (Not(iCnt))
+//        Set shadow_state Item 2 To (Not(iCnt))
+//        Set shadow_state Item 3 To (Not(iCnt))
+//        Set shadow_state Item 5 To (Not(iCanCancel))
+//        Set shadow_state Item 6 To (Not(iCanRemove))
+//        Forward Send popUp
+//    End_Procedure
+//End_Class
+
+//Class cMessageGrid Is a Grid // **WvA: 31-07-2004 was a List, but we want a horz scrollbar so we need to use a grid instead.
+//    Procedure Construct_Object
+//        Forward Send Construct_Object
+//        Property Integer piCanRemove    Public False
+//        Property Integer piCanCancel    Public FALSE
+//        Property Integer piMouseClicked Public 0
+//        Set size To 50 1000
+//        Set Border_Style To Border_StaticEdge
+//
+//        Set Highlight_Row_State To True // WvA
+//        Set Line_Width To 1 0           // WvA
+//        Set CurrentCellColor     To clNavy
+//        Set CurrentCellTextColor To clWhite
+//        Set CurrentRowColor      To clNavy
+//        Set CurrentRowTextColor  To clWhite
+//        //Set TextColor            To clWhite
+//        Set GridLine_Mode        To Grid_Visible_Both
+//        Set Form_Width Item 0 To 1000
+//
+//
+//        On_Key kEnter           Send ShowError
+//        On_Key kCancel          Send mClose
+//
+//        Object oMessageGridPopupMenu Is a cMessageGridPopupMenu
+//            Set piNoDestroyState To True
+//        End_Object
+//
+//    End_Procedure
+//
+//    Register_Procedure PAWindowErrorListONOFF
+//    Procedure mClose
+//        Send PAWindowErrorListONOFF False
+//        Send next
+//    End_Procedure
+//
+//    Procedure mClear
+//        Send Delete_Data
+//    End_Procedure
+//
+//    Procedure mSave
+//        Integer iItem iCount hoFile bSave
+//        String sVal sFile
+//        Get Item_Count To iCount
+//        If (iCount) Begin
+//            //
+//            Object oSaveAsDialog1 Is a SaveAsDialog
+//                Set Dialog_Caption To "Please select the file"
+//                Set FileMustExist_State To False
+//                Set NoChangeDir_State To False
+//                Move Self To hoFile
+//            End_Object  // oSaveAsDialog1
+//            //
+//            Get Show_Dialog Of hoFile To bSave
+//            If bSave Get File_Name  Of hoFile To sFile
+//            //
+//            If (sFile="") Begin
+//                Send Destroy    To hoFile
+//                Procedure_Return
+//            End
+//            //
+//            Direct_Output Channel 9 sFile
+//            For iItem From 0 To (iCount-1)
+//                Get Value Item iItem To sVal
+//                Writeln Channel 9 sVal
+//            Loop
+//            Close_Output Channel 9
+//            Send Destroy    To hoFile
+//            Send CAOpenFile To (oClientArea(Self)) sFile
+//        End
+//    End_Procedure
+//
+//    Procedure mCopyClipboard
+//        Integer iItem iCount
+//        String sVal sText
+//        
+//        Move "" To sText
+//        Get Item_Count To iCount
+//        If (iCount) Begin
+//            //
+//            //
+//            Direct_Output Channel 9 "Clipboard:"
+//            For iItem From 0 To (iCount-1)
+//                Get Value Item iItem To sVal
+//                Writeln Channel 9 sVal
+//            Loop
+//            Close_Output Channel 9
+//        End
+//        
+//    End_Procedure
+//
+//    Procedure mRemove
+//        Integer hoId
+//        Move (Parent(Self)) To hoId
+//        Send RemovePage hoId
+//    End_Procedure
+//
+//    Procedure mCancel
+//    End_Procedure
+//
+//    Procedure mOpen
+//        If (Item_Count(Self)) Send ShowError
+//    End_Procedure
+//
+//    Procedure mouse_down2 Integer iPara0 Integer iPara1
+//        Send Popup To (oMessageGridPopupMenu(Self))
+//    End_Procedure
+//
+//    Procedure Mouse_Click Integer iWind Integer iCharPos
+//        Set piMouseClicked  To True
+//        Forward Send Mouse_click iWind iCharPos
+//    End_Procedure
+//    Procedure Mouse_Up Integer iWind Integer iCharPos
+//        Forward Send Mouse_Up iWind iCharPos
+//        If (piMouseClicked(Self)) Begin
+//            Set piMouseClicked To False
+//            Send ShowError
+//        End
+//    End_Procedure
+//
+//    Procedure addLine String sVal
+//Showln "cMessageGrid::addLine=" sVal
+//        Integer iDyn iCur iTop iRet
+//        Get dynamic_update_state To iDyn
+//        Set dynamic_update_state To FALSE
+//        Move (SendMessage(window_handle(Self),WM_SETREDRAW,FALSE,0)) To iRet
+//        Get current_item To iCur
+//        Move (SendMessage(window_handle(Self),LB_GETTOPINDEX,0,0)) To iTop
+//        Send add_item msg_none sVal
+//        Set Entry_State Item (item_count(Self)-1) To True // **WvA
+//        If (focus(desktop)) Ne (Self) Set current_item To (item_count(Self)-1)
+//        Else Begin
+//            Set current_item To iCur
+//            Move (SendMessage(window_handle(Self),LB_SETTOPINDEX,iTop,0)) To iRet
+//        End
+//        Move (SendMessage(window_handle(Self),WM_SETREDRAW,TRUE,0)) To iRet
+//        Set dynamic_update_state To iDyn
+//    End_Procedure
+//
+//    Function SubString String sStr String sStart String Send Returns String
+//Showln "SubString=" sStr "; " sStart
+//        String  sTmp
+//        Integer iPos iL
+//        Move (Length(sStr))                             To iL
+//        Move (Pos(sStart,sStr))                         To iPos
+//        Move (Right(sStr,iL-iPos-Length(sStart)+1))     To sTmp
+//        // This fixes ShowError open file...
+//        If (sStart="FILE: ") Function_Return (Trim(sTmp))
+//        Move (Pos(Send,sTmp))                           To iPos
+//        If iPos Eq 0 Move (Length(sTmp))                To iPos
+//        Move (Left(sTmp,iPos))                          To sTmp
+//        Function_Return sTmp
+//    End_Function
+//
+//    Procedure ShowError
+//        String  sL sFile sLineNr
+//        String  sCmd
+//        If (current_item(Self)) Gt (item_count(Self)-1) Procedure_Return
+//        Get value Item (Current_Item(Self)) To sL
+//        If (uppercase(Left(Trim(sL),6))) Ne "ERROR:" Procedure_Return
+//        Move (SubString(Self,sL,"ON LINE: "," "))           To sLineNr
+//        Move (SubString(Self,sL,"FILE: "," "))              To sFile
+//        // Move ('"'+sFile+'"') To sFile
+//        Send CAOpenFile To (oClientArea(Self)) sFile
+//        Send CAGotoLine To (oClientArea(Self)) (Integer(sLineNr)-1)
+//    End_Procedure
+//
+//End_Class
+
+//Class cErrorList Is A cMessageGrid
+//
+//    Procedure Construct_Object
+//        Forward Send Construct_Object
+//        Set piCanRemove         To   False
+//        On_Key key_shift+key_f2 Send Request_Delete
+//        On_Key key_delete       Send Request_Delete
+//        Set size To 10 1000
+//    End_Procedure
+//
+//    Procedure Request_Delete
+//        Integer iD
+//        Get Dynamic_Update_State    To iD
+//        Set Dynamic_Update_State    To False
+//        Send Delete_Item (Current_Item(Self))
+//        Set Dynamic_Update_State    To iD
+//    End_Procedure
+//
+//
+//    Procedure Fill String sFile
+//        Integer iDyn
+//        String sLine
+//        If ghoCompilerMessages Delegate Send Request_Switch_To_Tab 1 2
+//        Else Send Request_Switch_To_Tab 0 2
+//        Get Dynamic_Update_State    To iDyn
+//        Set Dynamic_Update_State    To False
+//        Send Delete_Data
+//        Direct_Input sFile
+//        Repeat
+//            Readln sLine
+//            [Not seqeof] Begin
+//                Send Add_Item msg_None sLine
+//            End
+//        Until [seqeof]
+//        Close_Input
+//        If (item_count(Self)) Gt 0 Set current_item To 0
+//        Set Dynamic_Update_State    To iDyn
+//    End_Procedure
+//
+//End_Class
+//
+//Class cFindResults Is a cMessageGrid
+//
+//    Procedure Construct_Object
+//        Forward Send Construct_Object
+//        Set piCanRemove To True
+//    End_Procedure
+//
+//    Procedure ShowFound
+//        String  sL sFile sLineNr
+//        String  sCmd
+//        Get value Item (Current_Item(Self)) To sL
+//        If (uppercase(Left(sL,13))) Eq "SEARCHING FOR" Procedure_Return // not first line
+//        If (Pos("OCCURRENCE(S)",(uppercase(sl)))) Ne 0 Procedure_Return // not last line
+//        Move (Left(sL,(Pos("(",sL)))) To sFile
+//        Move (Replace(sFile,sL,"")) To sL
+//        Move (Replace("(",sFile,"")) To sFile
+//        Move (Left(sL,(Pos(")",sL)))) To sLineNr
+//        Move (Replace(")",sLineNr,"")) To sLineNr
+//        Send CAOpenFile To (oClientArea(Self)) sFile
+//        Send CAGotoLine To (oClientArea(Self)) (Integer(sLineNr)-1)
+//    End_Procedure
+//
+//    // Overide the ShowError to ShowFound
+//    Procedure ShowError
+//            Send ShowFound
+//    End_Procedure
+//    Procedure mCancel
+//        If (piCanCancel(Self)) Send mCancelFileFind
+//    End_Procedure
+//End_Class
+//
+//Class cCompilerMessages Is a cMessageGrid
+//    Procedure Construct_Object
+//        Forward Send Construct_Object
+//        Set piCanRemove To False
+//        On_Key kCancel Send mCancel
+//    End_Procedure
+//    Procedure mRemove
+//    End_Procedure
+//
+//    Procedure ShowError
+//        String  sL sFile
+//        String  sCmd
+//        If (current_item(Self)) Gt (item_count(Self)-1) Procedure_Return
+//        Get value Item (Current_Item(Self)) To sL
+//        If (Left(Trim(sL),15)) Eq "INCLUDING FILE:" Begin
+//            Move (SubString(Self,sL,"FILE: "," "))              To sFile
+//            Get_File_Path sFile     To sFile
+//            Send CAOpenFile To (oClientArea(Self)) sFile
+//        End
+//        Else Forward Send ShowError
+//    End_Procedure
+//End_Class

@@ -1,0 +1,92 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : mUserAndComputerName.pkg
+// $ProjectName : General shared classes
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 12-31-2000 @ 09:00
+//
+// Contents:
+//
+// $Rev History
+//
+//*****************************************************************************************
+Use mPointer.pkg
+
+#IFDEF Get_ComputerName
+#ELSE
+
+#IFNDEF gsComputerName
+String gsComputerName
+#ENDIF
+#IFNDEF gsUserName 
+String gsUserName
+#ENDIF
+
+external_function GetComputerName "GetComputerNameA" kernel32.dll Pointer lpszName Pointer lpdwcBuffer Returns Integer
+external_function WNetGetUser1 "WNetGetUserA" MPR.DLL Pointer lpName Pointer lpUserName Pointer lpLength Returns Dword
+Function ComputerName For desktop Returns String
+    String  sName sLength sEnv
+    Pointer lpName_Addr lpLength_Addr
+    Integer iRetval
+    Movestr (Repeat (Character (0), 25))                    To sName
+    GetAddress Of sName                                     To lpName_Addr
+    Movestr (DwordToBytes (25))                             To sLength
+    GetAddress Of sLength                                   To lpLength_Addr
+    Moveint (GetComputerName(lpName_Addr, lpLength_Addr))   To iRetval
+    Move (cstring(sName))                                   To sName
+    If sName Eq "" Move "DEFAULT"                           To sName
+    Move (cstring(sname))                                   To gsComputerName
+    Function_Return gsComputerName
+End_Function
+
+Function NetzwerkBenutzer For desktop Returns String
+    String sName sLength sRegName sKey sComp
+    Pointer lpName_Addr lpLength_Addr
+    Integer iRetval
+
+    Movestr (Repeat (Character (0), 255))                   To sName
+    GetAddress Of sName                                     To lpName_Addr
+    Movestr (DwordToBytes (255))                            To sLength
+    GetAddress Of sLength                                   To lpLength_Addr
+    Moveint (WNetGetUser1 (0, lpName_Addr, lpLength_Addr))   To iRetval
+    If iRetval Eq 0 Move (cstring(sname))                   To sName
+    Else Move "DEFAULT"                                     To sName
+    If sName Eq "" Move "DEFAULT"                           To sName
+    Move sName  To gsUserName
+    Function_Return sName
+End_Function
+
+
+#ENDIF
+
+Move (NetzwerkBenutzer(Desktop))    To gsUserName
+Move (ComputerName(Desktop))        To gsComputerName
+
+
+// Only for testing purposes...
+
+external_function GetUserNameEx "GetUserNameExA" Secur32.DLL dword iFormat Pointer pName Integer iSize Returns Integer
+Function DFGetUserNameEx Global Integer iFormat Returns String
+    Local_Buffer  sName pName 1024
+    Local_Buffer  sDW   pDW
+    Integer iRet
+    Move (DWordToBytes(1024))                   To sDW
+    GetAddress Of sDW                           To pDW
+    GetAddress Of sName                         To pName
+    Move (GetUserNameEx(iFormat,pName,pDW))     To iRet
+    Function_Return (CString(sName))
+End_Function
+
+external_function GetUserName "GetUserNameA" AdvApi32.DLL Pointer pName Integer iSize Returns Integer
+Function DFGetUserName Global Returns String
+    Local_Buffer  sName pName 1024
+    Local_Buffer  sDW   pDW
+    Integer iRet
+    Move (DWordToBytes(1024))                   To sDW
+    GetAddress Of sDW                           To pDW
+    Move (GetUserName(pName,pDW))               To iRet
+    Function_Return (CString(sName))
+End_Function

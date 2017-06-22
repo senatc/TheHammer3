@@ -1,0 +1,140 @@
+Use DfAllEnt.pkg
+
+String gsProjectName
+String gsProgrammname
+String gsVerionsNr
+Move "KURANT Project"   To gsProjectName
+Move "The Hammer"       To gsProgrammname
+Move "2.0"              To gsVerionsNr
+
+
+#IF (FMAC_VERSION < 8)
+// 2001-01-09 -RvdW
+Define CURRENT$WORKSPACE  For "Hammer"
+
+Use cWorkspaceEx.pkg
+
+//  Set date attributes as needed
+Set_Date_Attribute sysdate4_State To (True)
+Set_Date_Attribute Date4_State    To (True)
+Set_Date_Attribute epoch_value    To 30
+
+    // Modified WorkSpace, to allow variable WrkSpc name.
+Object ProgramWorkspace Is A cWorkspaceEx
+    Set piCmdLineSupport    To True                 // Use it for CommandLine Parameters.
+    Set WorkspaceName       To CURRENT$WORKSPACE
+
+        // Propeties to store some global flags.
+    Property String  psWrkSpcOpenFileName           Public ""
+    Property Integer piWrkSpcNewFile                Public False
+    Property Integer piWrkSpcSetVersion             Public False
+    Property Integer piWrkSpcRegister               Public False
+
+        // Procedure which are called when the CommandLineParameters are received.
+    Procedure WrkSpcRegister
+        Set piWrkSpcRegister    To True
+    End_Procedure
+
+    Procedure WrkSpcOpenFile String sFile
+        Integer iArg
+        String  sArg
+        Set psWrkSpcOpenFileName    To sFile
+        Send Delete_Data            To (oWrkSpcOpenFileNames(Self))
+        For iArg From 1 To NUM_Arguments
+            Movestr iArg&   To sArg
+            If (Trim(sArg)) Ne "" Begin
+                Set value Of (oWrkSpcOpenFileNames(Self)) Item (Item_Count(oWrkSpcOpenFileNames(Self))) To sArg
+            End
+        End
+    End_Procedure
+
+    Procedure WrkSpcNewFile
+        Set piWrkSpcNewFile         To True
+    End_Procedure
+
+    Procedure WrkSpcSetVersion
+        Set piWrkSpcSetVersion      To True
+    End_Procedure
+
+//        // Commands which should been handled from the CmdLine:
+//    Send RegisterCommand "-REGISTER"    Msg_WrkSpcRegister      0 "Associates all VDF Filetypes to the Hammer."
+//    Send RegisterCommand "-OPEN"        Msg_WrkSpcOpenFile      0 "Opens the given file."
+//    Send SetDefaultCommand              // -OPEN is the default Command.
+//    Send RegisterCommand "-NEW"         Msg_WrkSpcNewFile       0 "Opens a empty file view."
+//    Send RegisterCommand "-SETVERSION"  Msg_WrkSpcSetVersion    0 "Opens the Version/ Workspace dialog on startup"
+End_Object
+
+#ELSE
+// 2001-01-09 -RvdW
+#Replace CURRENT$WORKSPACE   "Hammer"
+
+// 2001-01-09 -RvdW
+// *** Add Appication Object for vdf8, The hole workspace stuff need clean up...
+Use cApplicationEx.pkg
+
+Object oApplication Is A cApplicationEx
+    Set piCmdLineSupport    To True                 // Use it for CommandLine Parameters.
+    Set psCompany To gsProjectName
+    Set psProduct To gsProgrammname
+    Set psVersion To gsVerionsNr
+
+    Procedure OnCreate
+        Send DoOpenWorkspace (CURRENT$WORKSPACE)
+    End_Procedure
+
+End_Object // oApplication
+
+#ENDIF
+
+Register_Object oClientArea
+
+
+Use Help_Ids.inc // Developer should provide this file of help context links.
+Use Std_Help.pkg
+
+
+Object oMain Is a Panel
+    Set Label To "VDF Class Reference"
+
+    DFCreate_Menu Main_Menu
+        #Include File_PM.inc    // file pulldown menu
+
+        DFCreate_Menu "&View" ViewPopupMenu Is a ViewPopupMenu
+            On_Item "&Classes and properties\aCtrl+1" Send Activate_Classes_and_properties
+            On_Item "&Edit Class List\aCtrl+2" Send Activate_Edit_Class_List
+            On_Item "&Class Explorer\aCtrl+3" Send Activate_Class_Explorer
+        End_Pull_down
+        Set Status_Help To "Available Views"
+
+        #Include Navi_pm.inc    // Naviation pulldown menu
+//        #Include win_PM.inc     // Window of available views
+        #Include Helpa_PM.inc   // help pulldown menu w/ About
+    End_Menu
+
+//    Use DFStdBtn.pkg //  Tool-Bar object.
+
+    Object oClientArea Is a AppClientArea
+        //  Include all views
+        Use Classes_and_properties.vw
+        Use Edit_Class_List.vw
+        Use Class_Explorer.vw
+
+    End_Object  // oClientArea
+
+    On_Key Key_Ctrl+Key_1 Send Activate_Classes_and_properties To oClientArea
+    On_Key Key_Ctrl+Key_2 Send Activate_Edit_Class_List To oClientArea
+    On_Key Key_Ctrl+Key_3 Send Activate_Class_Explorer To oClientArea
+
+//    Use DFStdSbr.pkg //  Status-Bar object.
+
+    Use StdAbout.pkg // Standard "About" package.
+
+
+End_Object
+
+
+
+
+Start_UI
+
+

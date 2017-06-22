@@ -1,0 +1,101 @@
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : D:\Entwicklung\SharedClasses\cWorkSpaceEx.pkg
+// $ProjectName :
+// $Author      : Mk on SERVER
+// $Created     : 27.04.2001  19:25
+//
+// Contents:
+//      Is a WorkSpace class with some additional features as:
+//
+//          -Dynamic WorkSpaceName
+//           if in the StartUpDirectory a file named "WorkSpace.Inf" exists the 1st line
+//           is read and the WorkSpace name is set to this value.
+//
+//          -CmdLine Support. (if piCmdLineSupport=true)
+//            Function CmdLine_Count returns integer            // Number of CmdLine Parameters
+//            Function CmdLine_Value integer iNr returns string // Value of the CmdLineParameter
+//
+//            Extended CommandLine abilities: (Register commandline commands)
+//              send RegisterCommand "NAME1" Msg_XX1 iDestObject1 sDescription1
+//              send RegisterCommand "NAME2" Msg_XX2 iDestObject2 sDescription2
+//                         ...
+//              send RegisterCommand "NAMEX" Msg_XXX iDestObjectX sDescriptionX
+//
+//              -? is also supported.
+//
+//
+// $Rev History
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+#IFNDEF GET_GETMODULEFILENAME
+ External_Function GetModuleFileName "GetModuleFileNameA" KERNEL32.DLL Handle hModule Pointer pFile Integer iSize Returns Integer
+#ENDIF
+
+Use WorkSpc.Pkg         // The Std DF WorkSpace Class.
+Use cCmdLine_Mixin.Pkg  // Some additional abilities with uding CommandLine parameters.
+Use mPointer.Pkg        // For an easier Buffer Handling.
+
+// Gets the startuppath from the VDF program.
+Function VDFStartUpPath Global Returns String
+    Handle hModule
+    Integer iRet
+    Local_Buffer sFile pFile 255
+    Move (GetModuleHandle(0))                   To hModule
+    Move (GetModuleFileName(hModule,pFile,255)) To iRet
+    Move (CString(sFile))                       To sFile
+    Move (Lowercase(sFile))                     To sFile
+    Move (Left(sFile,Length(sFile)-10))         To sFile
+    Function_Return sFile
+End_Function
+
+Class cWorkSpaceEx Is a Workspace
+    Import_Class_Protocol cCmdLine_Mixin
+    Procedure Construct_Object
+        Forward Send Construct_Object
+            // Controls if the CmdLine should be checked.
+        Property Integer piCmdLineSupport    Public False
+            // The Path where the DFRUN is located.
+        Property String  psVDFStartUpPath    Public (VDFStartUpPath())
+
+            // The Bitmap- and Programpath of TH itself
+            // needed for Registering the File-Types with Windows Explorer
+            // 2.1.2003 BP
+        Property String  psStartupProgramPath PUBLIC ""
+        Property String  psStartupBitmapPath PUBLIC ""
+
+            // Create the cCmdLine_mixin memebers.
+        Send Define_cCmdLine_Mixin
+    End_Procedure
+
+        // Looks in the current directory if a file "WorkSpace.Inf" exists and if so
+        // reads the WorkSpaceName out of it.
+    Procedure TryRenameWorkSpace
+        String sWrkSpc
+        Direct_Input (psVDFStartUpPath(Self)+"\Workspace.Inf")
+        [Seqeof] Direct_Input ".\Workspace.Inf"
+        ReadLn sWrkSpc
+        [Not Seqeof] Begin
+            Set WorkSpaceName   To sWrkSpc
+        End
+        Close_Input
+    End_Procedure
+
+        // -Declares the standard commandline commands
+        // -Runs the whole commandline
+    Procedure End_Construct_Object
+        Send TryRenameWorkSpace
+        If (piCmdLineSupport(Self)) Begin
+            Send RegisterStandardCommands
+            Send RunCmdLine
+        End
+        Forward Send End_Construct_Object
+        Set psStartupProgramPath to (CurrentProgramPath(self))
+        Set psStartupBitmapPath to (CurrentBitmapPath(self))
+    End_Procedure
+End_Class

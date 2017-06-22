@@ -1,0 +1,73 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz 
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at> 
+//
+// $FileName    : DosBox.src
+// $ProjectName : CODEMAX EDITOR
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 01-25-2001 @ 19:00
+//
+// Contents:
+//      A little Program which opens a dos box which has always the AppSrc directory of
+//      the current workspace as StartUp Directory.
+//
+// $Rev History
+//
+//*****************************************************************************************
+//Use MsgBox.pkg
+//Use DFAllent.pkg
+Use cIniManager.pkg         // Class cIniManager
+Use cSystemInfo             // To check which System: WinNT or Win9X
+
+Class cEditorProperties Is a cIniProperties
+    INI_Begin_Properties "CODEMAXEDIT.INI" INI_GLOBAL
+        INI_Property        String  psVDFRegistryVersion        Public ""
+        INI_Property        String  psStartUpPath               Public ""        
+    INI_End_Properties            
+End_Class 
+
+
+External_Function WinExecInt "WinExec" KERNEL32.DLL Pointer pCmdL Integer iShow Returns Integer
+Function WinExec Global String sPrg Integer iMode Returns Integer
+    Local Integer iRet
+    Local String  sP
+    Local Pointer pP
+    Move sPrg           To sP
+    GetAddress Of sP                        To pP
+    Move (WinExecInt(pP,iMode))  To iRet
+    Function_Return iRet
+End_Function
+
+Integer ghoEditorProperties
+Object oEditorProperties Is a cEditorProperties
+    Move Self To ghoEditorProperties
+End_Object
+Send LoadIni To (oEditorProperties(Self))
+
+    // Is a kind of WorkSpace Class which inserts things like, AppSrc directory etc.
+    // into the open path.
+Use cWorkSpaceHandlerEx.Pkg
+//Integer ghoWorkSpaceHandlerEx
+Object oWorkSpaceHandlerEx Is a cWorkSpaceHandlerEx
+    Move Self           To ghoWorkSpaceHandlerEx
+    Set psVDFVersion    To (psVDFRegistryVersion(ghoEditorProperties))
+    Send InitWithCurrentWrkSpc
+End_Object
+
+Procedure StartDosBox
+    Local String  sFile sDir sStartUpDir sTmp
+    Local Integer hoID iRet
+    If (isWindowsNTor2000(Desktop)) Move "CMD.EXE"  To sFile
+    Else Move "COMMAND.COM"                         To sFile
+    Move (CurrentAppSrcPath(ghoWorkSpaceHandlerEx)) To sTmp
+    If ";" In sTmp Move (Left(sTmp,Pos(";",sTmp)-1))  To sTmp
+    If (Trim(sTmp)<>"") Begin  // **WvA: 07-05-2002 Added a check to avoid rawfile
+      Set_Directory sTmp       // errors popping up. This only seems to appear when
+    End                        // you call the program from another folder.
+    Move (WinExec(sFile,SW_NORMAL)) To hoID
+End_Procedure
+
+Send StartDosBox
+                      
+

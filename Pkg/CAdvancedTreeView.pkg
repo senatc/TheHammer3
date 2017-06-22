@@ -1,0 +1,227 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications contact: <MichaelKurz@gmx.at>
+//
+// $FileName    : CAdvancedTreeView.pkg
+// $ProjectName : Shared Classes
+// $Author      : Michael Kurz
+// $Created     : 29.11.2001  19:57
+//
+// Contents:
+//  A treevie which uses customdraw to allow individual setting of item colors.
+//*****************************************************************************************
+// How to use:
+//
+//    Object oAdvancedTreeView is a CAdvancedTreeview
+//        set size to 100 200
+//        set location to 35 0
+//        Procedure onCreateTree
+//            Local Handle hItem
+//                get AddTreeItem  "Item0" 0 0 0 0    to hItem
+//                Send SetitemColors hItem clRed clBlack          // Set TextColor and TextBackgroundcolor
+//                get AddTreeItem  "Item1" 0 0 0 0    to hItem
+//                Set ItemBkColor hItem to clYellow               // Only set the backgroundcolor
+//                get AddTreeItem  "Item2" 0 0 0 0    to hItem
+//                Set ItemTextColor hItem to clGreen              // Only change the textcolor
+//        End_Procedure
+//    End_Object
+//TH-RevisionStart
+//TH-RevisionEnd
+
+Use mPointer.pkg
+
+
+TYPE tNMTVCUSTOMDRAW
+    Field tNMTVCUSTOMDRAW.hdr           as Char 12         // (NMHDR)
+    Field tNMTVCUSTOMDRAW.dwDrawStage   as DWORD           // (DWORD)
+    Field tNMTVCUSTOMDRAW.hdc           as Handle          // (HDC)
+    Field tNMTVCUSTOMDRAW.rc            as Char tRECT_SIZE // (RECT)
+    Field tNMTVCUSTOMDRAW.dwItemSpec    as Pointer         // (DWORD_PTR)
+    Field tNMTVCUSTOMDRAW.uItemState    as Integer         // (UINT)
+    Field tNMTVCUSTOMDRAW.lItemlParam   as DWORD           // (LPARAM)
+    Field tNMTVCUSTOMDRAW.clrText       as DWORD           // (COLORREF)
+    Field tNMTVCUSTOMDRAW.clrTextBk     as DWORD           // (COLORREF)
+    Field tNMTVCUSTOMDRAW.iLelel        as Integer         // (INT)
+END_TYPE
+
+Define NM_FIRST           For 0 // generic to all controls
+
+Define NM_OUTOFMEMORY     For (NM_FIRST-1)
+Define NM_CLICK           For (NM_FIRST-2)    // uses NMCLICK struct
+Define NM_DBLCLK          For (NM_FIRST-3)
+Define NM_RETURN          For (NM_FIRST-4)
+Define NM_RCLICK          For (NM_FIRST-5)    // uses NMCLICK struct
+Define NM_RDBLCLK         For (NM_FIRST-6)
+Define NM_SETFOCUS        For (NM_FIRST-7)
+Define NM_KILLFOCUS       For (NM_FIRST-8)
+Define NM_CUSTOMDRAW      For (NM_FIRST-12)
+Define NM_HOVER           For (NM_FIRST-13)
+Define NM_NCHITTEST       For (NM_FIRST-14)   // uses NMMOUSE struct
+Define NM_KEYDOWN         For (NM_FIRST-15)   // uses NMKEY struct
+Define NM_RELEASEDCAPTURE For (NM_FIRST-16)
+Define NM_SETCURSOR       For (NM_FIRST-17)   // uses NMMOUSE struct
+Define NM_CHAR            For (NM_FIRST-18)   // uses NMCHAR struct
+
+
+define CDDS_PREPAINT           for |CI$00000001
+define CDDS_POSTPAINT          for |CI$00000002
+define CDDS_PREERASE           for |CI$00000003
+define CDDS_POSTERASE          for |CI$00000004
+
+define CDDS_ITEM               For |CI$00010000
+define CDDS_ITEMPREPAINT       For (CDDS_ITEM + CDDS_PREPAINT)
+define CDDS_ITEMPOSTPAINT      For (CDDS_ITEM + CDDS_POSTPAINT)
+define CDDS_ITEMPREERASE       For (CDDS_ITEM + CDDS_PREERASE)
+define CDDS_ITEMPOSTERASE      For (CDDS_ITEM + CDDS_POSTERASE)
+
+define CDRF_DODEFAULT          For |CI$00000000
+define CDRF_NEWFONT            For |CI$00000002
+define CDRF_SKIPDEFAULT        For |CI$00000004
+define CDRF_NOTIFYPOSTPAINT    For |CI$00000010
+define CDRF_NOTIFYITEMDRAW     For |CI$00000020
+
+define CDIS_SELECTED            For |CI$0001
+define CDIS_GRAYED              For |CI$0002
+define CDIS_DISABLED            For |CI$0004
+define CDIS_CHECKED             For |CI$0008
+define CDIS_FOCUS               For |CI$0010
+define CDIS_DEFAULT             For |CI$0020
+define CDIS_HOT                 For |CI$0040
+define CDIS_MARKED              For |CI$0080
+define CDIS_INDETERMINATE       For |CI$0100
+
+Define CLR_NONE                For |CI$FFFFFFFF
+Define CLR_DEFAULT             For |CI$FF000000
+
+Class CTreeViewItemDataHandler is a message
+        //Insert your Properties here.
+    Procedure Construct_Object
+        Forward send Construct_Object
+        Object oTreeviewItems is a Set
+        End_Object
+        Object oTreeviewItems_TextColor is a Array
+        End_Object
+        Object oTreeviewItems_TextBkColor is a Array
+        End_Object
+
+        Property Integer piTextColor    Public 0
+        Property Integer piTextbkColor  Public 0
+    End_Procedure
+        // Clears all Items.
+    Procedure DoDeleteAll
+        Send Delete_Data to (oTreeviewItems(Self))
+        Send Delete_Data to (oTreeviewItems_TextColor(Self))
+        Send Delete_Data to (oTreeviewItems_TextBkColor(Self))
+    End_Procedure
+
+    Procedure SetItemColors handle hItem integer iTextColor integer iTextBkColor
+        integer iItem
+        get Find_Element of (oTreeviewItems(Self)) hItem to iItem
+        If iItem lt 0 Begin
+            get Item_Count of (oTreeviewItems(Self))    to iItem
+            Set value of (oTreeviewItems(Self)) item iItem   to hItem
+            Showln "Bitte ne" hItem
+        End
+        Set value of (oTreeviewItems_TextColor(Self)) item iItem        to iTextColor
+        Set value of (oTreeviewItems_TextBkColor(Self)) item iItem      to iTextBkColor
+    End_Procedure
+        // Set TextColor
+    Procedure Set ItemTextColor handle hItem integer iColor
+        integer iItem
+        get Find_Element of (oTreeviewItems(Self)) hItem to iItem
+        If iItem lt 0 Begin
+            get Item_Count of (oTreeviewItems(Self))                    to iItem
+            Set value of (oTreeviewItems(Self)) item iItem              to hItem
+            Set value of (oTreeviewItems_TextBkColor(Self)) item iItem  to CLR_DEFAULT
+        End
+        Set value of (oTreeviewItems_TextColor(Self)) item iItem    to iColor
+    End_Procedure
+        // Set Backgroundcolor
+    Procedure Set ItemBkColor handle hItem integer iColor
+        integer iItem
+        get Find_Element of (oTreeviewItems(Self)) hItem to iItem
+        If iItem lt 0 Begin
+            get Item_Count of (oTreeviewItems(Self))                    to iItem
+            Set value of (oTreeviewItems(Self)) item iItem              to hItem
+            Set value of (oTreeviewItems_TextColor(Self)) item iItem    to CLR_DEFAULT
+        End
+        Set value of (oTreeviewItems_TextBkColor(Self)) item iItem  to iColor
+    End_Procedure
+
+        // Delivers information for an Item.
+    Procedure ReadItemData handle hItem
+        integer iItem
+        get Find_Element of (oTreeviewItems(Self)) hItem to iItem
+        set piTextColor         to CLR_DEFAULT
+        set piTextBkColor       to CLR_DEFAULT
+        If iItem ge 0 Begin
+            set piTextColor     to (Value(oTreeviewItems_TextColor(Self),iItem))
+            set piTextBkColor   to (Value(oTreeviewItems_TextBkColor(Self),iItem))
+        End
+    End_Procedure
+End_Class
+
+#IFDEF U_CTREEVIEW
+    define U_cAdvancedTreeviewBase    for U_cTreeView
+#ELSE
+    define U_cAdvancedTreeviewBase    for U_TreeView
+#ENDIF
+
+
+Class cAdvancedTreeview is a cAdvancedTreeviewBase
+        //Insert your Properties here.
+    Procedure Construct_Object
+        Forward send Construct_Object
+
+        Object oTreeViewItemDataHandler is a CTreeViewItemDataHandler
+        End_Object
+    End_Procedure
+        // Set color of a Item.
+    Procedure SetItemColors handle hItem integer iTxt integer iBk
+        send SetItemColors to (oTreeViewItemDataHandler(Self)) hItem iTxt iBk
+    End_Procedure
+    Procedure Set ItemBkColor handle hItem integer iColor
+        Set ItemBkColor of (oTreeViewItemDataHandler(Self)) hItem to iColor
+    End_Procedure
+    Procedure Set ItemTextColor handle hItem integer iColor
+        Set ItemTextColor of (oTreeViewItemDataHandler(Self)) hItem to iColor
+    End_Procedure
+
+        // To implement customdraw.
+    Procedure Notify integer wParam integer lParam
+        integer iCode iRet iLeft iTop iRight iBottom iItemState iTextColor iTmp
+        Handle  hDC hBrush hBitmap hFont
+        Handle  hItem
+        integer hoID iDrawStage
+        string  sBmp
+        Local_BUFFER sNMHDR pNMHDR tNMHDR_SIZE                                  // Creates an empty NMHDR String/Pointer combination
+        Local_BUFFER sNMCUSTOMDRAWINFO pNMCUSTOMDRAWINFO tNMTVCUSTOMDRAW_SIZE   // Creates an empty NMHDR String/Pointer combination
+
+        move (CopyMemory(pNMHDR,lParam,tNMHDR_SIZE)) to iRet
+        GetBuff from sNMHDR at tNMHDR.Code           to iCode
+
+        // Customdraw..._______________
+        If (iCode=NM_CUSTOMDRAW) Begin
+            move (CopyMemory(pNMCUSTOMDRAWINFO,lParam,tNMTVCUSTOMDRAW_SIZE))    to iRet
+            GetBuff from sNMCUSTOMDRAWINFO at tNMTVCUSTOMDRAW.dwDrawStage       to iDrawStage
+            GetBuff from sNMCUSTOMDRAWINFO at tNMTVCUSTOMDRAW.uItemState        To iItemState
+            If (iDrawStage=CDDS_PREPAINT) Procedure_Return (CDRF_NOTIFYITEMDRAW)
+            If (iDrawStage=CDDS_ITEMPREPAINT) Begin // Here we can change the colors and fonts and whatever.
+                If (Not(iItemState IAND CDIS_FOCUS)) Begin
+                    move (oTreeViewItemDataHandler(Self))                           to hoID
+                    GetBuff from sNMCUSTOMDRAWINFO at tNMTVCUSTOMDRAW.dwItemSpec    to hItem
+                    Send ReadItemData to hoID hItem
+                    if (piTextColor(hoID))   ne CLR_Default Put (piTextColor(hoID))   to sNMCUSTOMDRAWINFO at tNMTVCUSTOMDRAW.clrText
+                    if (piTextBkColor(hoID)) ne CLR_Default Put (piTextBkColor(hoID)) to sNMCUSTOMDRAWINFO at tNMTVCUSTOMDRAW.clrTextBk
+                    GetAddress of sNMCUSTOMDRAWINFO to pNMCUSTOMDRAWINFO
+                    Move (CopyMemory(lParam,pNMCUSTOMDRAWINFO,tNMTVCUSTOMDRAW_SIZE))    to iRet
+                End
+            End
+        End
+        Forward send Notify wParam lParam
+    End_Procedure
+End_Class
+
+

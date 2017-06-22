@@ -1,0 +1,144 @@
+// TH3SourceMenu.mn
+
+Object oSourceMenu is a cCJCustomMenu
+    Set psCaption to "&Source"
+    Set psDescription to "Source"
+    Set psCategory to "Source"
+
+    Object oStudioItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Run Studio / IDE..."
+        Set psToolTip to "Run Studio / IDE"
+        Set psDescription to "Run Studio/IDE specified in the system options"
+        Set psImage to "Studio16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send LaunchIDEUtility of hoClient
+        End_Procedure
+    End_Object
+
+    Object oCodeMergeItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Run Code Merge Utility..."
+        Set psToolTip to "Run Code Merge Utility"
+        Set psDescription to "Run Code Merge Utility specified in the system options"
+        Set psImage to "Merge16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send LaunchMergeUtility of hoClient
+        End_Procedure
+    End_Object
+
+    Object oVersionControlItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Run Version Control System..."
+        Set psToolTip to "Run Version Control System"
+        Set psDescription to "Run VCS/CVS system specified in the system options"
+        Set psImage to "vcs16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send LaunchVCSUtility of hoClient
+        End_Procedure
+    End_Object
+
+    Object oCodeArtItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Code Art Utility..."
+        Set psToolTip to "Code Art Utility"
+        Set psDescription to "Run Code Art Utility specified in the system options"
+        Set psImage to "CodeArt16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send LaunchCodeArt of hoClient
+        End_Procedure
+    End_Object
+
+    Object oCodeSpyItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Code Spy Utility..."
+        Set psToolTip to "Code Spy Utility"
+        Set psDescription to "Run Code Spy Utility specified in the system options"
+        Set psImage to "CodeSpy16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send LaunchCodeSpy of hoClient
+        End_Procedure
+    End_Object
+
+    Object oCodePublishingItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Code Publishing Utility..."
+        Set psToolTip to "Code Publishing Utility"
+        Set psDescription to "Run Code Publishing Utility specified in the system options"
+        Set psImage to "CodePublish16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send LaunchCodePub of hoClient
+        End_Procedure
+    End_Object
+
+    Object oDependencyMenuItem is a cCJMenuItem
+        Set peControlType   to xtpControlPopup          
+        Set psCaption       to "Dependency Scanner"
+        Set psToolTip       to "Dependency Scanner"
+        Set psDescription   to "Run and configure dependency scanner"
+        Set psImage         to "DepScan16.ico"
+        
+        Object oScanDepItem is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Start scan..."
+            Set psToolTip to "Start Dependency Scan"
+            Set psDescription to "Start Dependency Scan"
+            Set psImage to "Dependency16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Handle hoClient
+                Get Client_Id to hoClient
+                Send PADependencyScan of hoClient
+            End_Procedure
+        End_Object
+        
+        Object oDepConfigItem is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Configure..."
+            Set psToolTip to "Configure Dependency Scanner"
+            Set psDescription to "Configure Dependency Scanner"
+            Set psImage to "DepConfig16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Handle hoClient
+                Integer iRetVal
+                Get Client_Id to hoClient
+                Send PADependencyConfig of hoClient
+            End_Procedure
+        End_Object
+        
+    End_Object // oSourceDependencyMenuItem
+
+    Procedure OnPopupInit Variant vCommandBarControl Handle hCommandBarControls
+        Forward Send OnPopupInit vCommandBarControl hCommandBarControls
+        //
+        Send Create_CustomItems hCommandBarControls "SOURCE" Msg_Activate_oSourceMenuView
+        //
+        Set pbEnabled of oStudioItem            to (psIdePath(ghoEditorProperties)<>"")   // IDE
+        Set pbEnabled of oCodeMergeItem         to (psMergePath(ghoEditorProperties)<>"") // Merge
+        Set pbEnabled of oVersionControlItem    to (psVcsPath(ghoEditorProperties)<>"")   // VCS
+        Set pbEnabled of oCodeArtItem           to (psCodeArtPath(ghoEditorProperties)<>"")  // Art
+        Set pbEnabled of oCodeSpyItem           to (psCodeSpyPath(ghoEditorProperties)<>"")  // Spy
+        //
+        If (psCodePubPath(ghoEditorProperties)<>"") Begin
+            Set psDescription of oCodePublishingItem to "Run Code Publishing Utility specified in the system options"
+            Set psToolTip of oCodePublishingItem to "Code Publishing Utility"
+        End
+        Else Begin
+            Set psDescription of oCodePublishingItem to "Built-In Code Publishing Tool on current file"
+            Set psToolTip of oCodePublishingItem to "Code Publishing Tool"
+        End
+        //
+    End_Procedure
+
+End_Object

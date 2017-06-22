@@ -1,0 +1,188 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : cArray2D.pkg
+// $ProjectName : Shared Classes
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 04-01-2001 @ 12:00
+//
+// Contents:
+//      -An Array which can have multi Items per line.
+//      -You can sort the item for every column you like.
+//      -You can also access the whole date like a standard Array
+//       if you like to save it to disk or whatever.
+//      -With the Property piNoOverWrite, you can control if the srd. value proc/func
+//       works like a Value2D item iItem 0 or not. If false (default) this happens.
+//
+// Remarks:
+//      It isnt implemented with multiple Object. I only use start and EndTags in the item
+//      to seperate subitems. Thats probably a problem when using this in TimeCritical
+//      sections of your program but for a typical use with some 10 Items.
+//      If not used in a loop which goes thousands of times. Should do a good job.
+//
+//      You have also a limit in the max items, becouse as I remember the max. len of an
+//      Array is limitated.
+//      Tested in:
+//          VDF 6: max Data per Items 16000 Characters (can be enlarged with SET_Argument_Size)
+//          VDF 7: max Data per Items 65000 Character  (...                                   )
+//
+// $Rev History
+//  MK 03.04.2000 23:00 -Added Flag for soring casesensitive or not
+//                      -Adde DuplicatArry() for creating a copy of an existing array.
+//*****************************************************************************************
+
+    // Constants for Function CreateSubItemTag
+Define SUBITEM_START        For True
+Define SUBITEM_END          For False
+
+Class cArray2D Is an Array
+    Procedure Construct_Object
+        Forward Send Construct_Object
+
+        Property Integer piSortColumn           Public 0
+        Property Integer piSortCaseSensitive    Public True
+        Property Integer piNoOverWrite  Public False
+
+        Object oSortArray Is an Array
+        End_Object
+    End_Procedure
+
+        // So this Array can be used instead of a std. Array without changes.
+    Function Value Integer iItem Returns String
+        String sRet
+        If (piNoOverWrite(Self)) Forward Get Value   Item iItem   To sRet
+        Else                             Get Value2d Item iItem 0 To sRet
+        Function_Return sRet
+    End_Function
+        // ...
+    Procedure Set Value Integer iItem String sValue
+        If (piNoOverWrite(Self)) Forward Set Value Item iItem   To sValue
+        Else Set Value2D Item iItem 0                           To sValue
+    End_Procedure
+
+        // Acts like a native Value in a std. Array.
+    Function ValueOld Integer iItem Returns String
+        String sRet
+        Integer iOld
+        Get piNoOverWrite       To iOld
+        Set piNoOverWrite       To True
+        Get Value   Item iItem  To sRet
+        Set piNoOverWrite       To iOld
+        Function_Return sRet
+    End_Function
+        // ...
+    Procedure Set ValueOld Integer iItem String sValue
+        Integer iOld
+        Get piNoOverWrite       To iOld
+        Set piNoOverWrite       To True
+        Set Value Item iItem    To sValue
+        Set piNoOverWrite       To iOld
+    End_Procedure
+
+        // Sorts the Items by piSortColumn
+    Procedure Sort_Items Integer iMode
+        Integer iC hoID iSortCol
+        String  sVal
+        Move (oSortArray(Self)) To hoID
+        Get piSortColumn        To iSortCol
+        For iC From 0 To (Item_Count(Self)-1)
+            Get Value2DUnsorted Item iC iSortCol    To sVal
+            If Not (piSortCaseSensitive(Self)) ;
+                Move (LowerCase(sVal))              To sVal
+            Append sVal (Right(Append("0000",iC),4))
+            Set value Of hoID Item iC    To sVal
+        End
+        Send Sort_Items To hoID iMode
+    End_Procedure
+
+        // Creates the SearchTag for a SubItem.
+        // e.g Item 1: <@SUB1> .... </@SUB1>
+    Function CreateSubItemTag Integer iNr Integer iStart Returns String
+        String sRet
+        If iStart Move "<"  To sRet
+        Else      Move "</" To sRet
+        Append sRet "@SUB" iNr ">"
+        Function_Return sRet
+    End_Function
+
+        // Creates the SubString...
+    Function InsertSubItemToStr String sStr Integer iNr String sVal Returns String
+        String sStartTag sEndTag sValTag
+        Integer iStartPos iEndPos
+        Get CreateSubItemTag iNr SUBITEM_START  To sStartTag
+        Get CreateSubItemTag iNr SUBITEM_END    To sEndTag
+        Move (Pos(sStartTag,sStr))              To iStartPos
+        Move (Pos(sEndTag  ,sStr))              To iEndPos
+        Move (iEndPos+Length(sEndTag)-1)        To iEndPos
+        Append sValTag sStartTag sVal sEndTag
+        If iStartPos Gt 0 ;
+            Move (Remove(sStr,iStartPos,iEndPos-iStartPos+1))   To sStr
+        Function_Return (Append(sStr,sValTag))
+    End_Function
+
+
+        // Sets the value of the 2D Array
+    Procedure Set Value2D Integer iItem Integer iItem2 String sValue
+        String  sValueOld
+        If (Item_Count(oSortArray(Self))) Gt 0 Send Delete_Data To (oSortArray(Self))
+        Get ValueOld Item iItem                                 To sValueOld
+        Move (InsertSubItemToStr(Self,sValueOld,iItem2,sValue)) To sValueOld
+        Set ValueOld Item iItem                                 To sValueOld
+    End_Procedure
+
+        // Delivers the value of such an 2D array.
+    Function Value2DUnsorted Integer iItem Integer iItem2 Returns String
+        String sStr sRet
+        String sStartTag sEndTag sValTag
+        Integer iStartPos iEndPos
+        Get ValueOld Item iItem                         To sStr
+        Get CreateSubItemTag iItem2 SUBITEM_START       To sStartTag
+        Get CreateSubItemTag iItem2 SUBITEM_END         To sEndTag
+        Move (Pos(sStartTag,sStr))                      To iStartPos
+        If iStartPos Eq 0 Function_Return ""
+        Move (iStartPos+Length(sStartTag))              To iStartPos
+        Move (Pos(sEndTag  ,sStr))                      To iEndPos
+        Move (Mid(sStr,iEndPos-iStartPos,iStartPos))    To sRet
+        Function_Return sRet
+    End_Function
+
+        // Takes the value in the direction of there are in the oSortArray.
+    Function Value2D Integer iItem Integer iItem2 Returns String
+        String  sVal
+        Integer iNr
+        If (Item_Count(oSortArray(Self))) Gt 0 Begin
+            Get value Of (oSortArray(Self)) Item iItem  To sVal
+            Move (Right(sVal,4))                        To iItem
+        End
+        Function_Return (Value2DUnsorted(Self,iItem,iItem2))
+    End_Function
+
+        // Only for testing purposes.
+    Procedure DebugShowData Integer iMode
+        Integer iC
+        For iC From 0 To (Item_Count(Self)-1)
+            If iMode Showln iC " " (Value(Self,iC))
+            Else     Showln iC " " (ValueOld(Self,iC))
+        End
+    End_Procedure
+
+        // Creates A copy of the 2DArray.
+    Function DuplicateArray Returns Integer
+        Integer hoID iC iLimit iOld
+        Get piNoOverWrite           To iOld
+        Set piNoOverWrite           To True
+        Object oArray2D Is a cArray2D
+            Move Self   To hoID
+        End_Object
+        Set piNoOverWrite Of hoID   To True
+        Move (Item_Count(Self)-1)   To iLimit
+        For iC From 0 To iLimit
+            Set value Of hoID Item iC To (Value(Self,iC))
+        End
+        Set piNoOverWrite           To iOld
+        Set piNoOverWrite Of hoID   To false
+        Function_Return hoID
+    End_Function
+End_Class

@@ -1,0 +1,8 @@
+[Properties]
+Version=18.1
+[WorkspacePaths]
+ConfigFile=.\Programs\Config.ws
+[Projects]
+Project0=Hammer3.src
+Project1=vdfcls.SRC
+Project2=asdbc.src

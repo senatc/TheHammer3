@@ -1,0 +1,60 @@
+//
+//  File cWorkspacePanel.pkg
+//  Author: Wil van Antwerpen
+//  Company: Antwise Solutions
+//  License: LGPL
+//  Date: March 2, 2003
+//
+// This class is used to support a workspace selector for all VDF versions and will
+// run under VDF 7.
+//
+
+Use cWorkSpaceHandlerEx.pkg
+Use Windows.pkg
+
+Enum_List
+    Define ctWSDisplayDescription    for 1
+    Define ctWSDisplayKey
+    Define ctWSDisplayBoth
+End_Enum_List
+
+Class cWorkspacePanel is a ModalPanel
+    Procedure Construct_Object
+        Integer iOffset
+        Forward Send Construct_Object
+        Property String  psCurrentWorkSpace    ""
+        Property Integer pcDisplayWSList       ctWSDisplayDescription
+        // **WvA: 10-26-2005
+        // Correct VDF's default faulty modal alt-tab behaviour
+        Set Extended_Window_Style to WS_EX_TOOLWINDOW False
+        Set Sysmenu_Icon to False
+        Set Locate_Mode to center_on_screen
+    End_Procedure // Construct_Object
+
+    // Selected VDF Version, string key taken from the registry
+    Procedure Set psVersion String sVersion
+        Set psBufferVdfVersion of ghoWorkspaceHandlerEx to sVersion
+    End_Procedure // Set psVersion
+
+    // Selected VDF Version, string key taken from the registry
+    Function psVersion Returns String
+        String sVersion
+        Get psBufferVdfVersion of ghoWorkspaceHandlerEx to sVersion
+        Function_Return sVersion
+    End_Function // psVersion
+
+    // Selected VDF Version VDF7=70, VDF8=80, VDF8.2=82 and so on
+    Function pnVersion Returns Number
+        Number nVersion
+        String sVersion
+        Get psBufferVdfVersion of ghoWorkspaceHandlerEx to sVersion
+        Get StringVdfVersionToNum of ghoWorkspaceHandlerEx sVersion to nVersion
+        Function_Return nVersion
+    End_Function // pnVersion
+    
+    Procedure Request_Cancel
+        Send Close_Panel
+    End_Procedure // Request_Cancel
+
+End_Class // cWorkspacePanel
+

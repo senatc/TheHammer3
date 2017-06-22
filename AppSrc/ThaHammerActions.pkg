@@ -1,0 +1,1594 @@
+// ThaHammerActions.pkg
+//
+
+
+// Tests if the current focus is an Edit...
+Function isFileWindow Integer hoID Returns Integer
+    Integer iDel iOK
+    If hoID Eq 0 Function_Return False
+    Get Delegation_Mode     of hoID to iDel
+    Set Delegation_Mode     of hoID to No_Delegate_or_Error
+    Get iscWinMaxEdit       of hoID to iOK
+    Set Delegation_Mode     of hoID to iDel
+    Function_Return iOK
+End_Function
+    // Tests if the current focuse is a Edit...
+Function isFileViewWindow Integer hoID Returns Integer
+    Integer iDel iOK
+    If hoID Eq 0 Function_Return False
+    Get Delegation_Mode     of hoID to iDel
+    Set Delegation_Mode     of hoID to No_Delegate_or_Error
+    Get isEditView          of hoID to iOK
+    Set Delegation_Mode     of hoID to iDel
+    Function_Return iOK
+End_Function
+
+// *WvA: Nov 6, 2005 Added checks to make sure the rest is only executed if the object exists,
+//       otherwise a crash can happen.
+//       This particular patch addresses a problem when trying to switch to the code explorer if the
+//       code explorer had been disabled.
+// Tries to get a function | message from the view or the edit
+Function RequestGetFromViewEx Integer iMsg Integer bEdit Integer iPara1 Integer iPara2 Returns Integer
+    Integer hoID iRet iOK
+    Move (Focus(Desktop))         to hoID
+    If (hoID<>0) Begin
+    Get GetEditViewID of hoID     to hoID
+      If (hoID<>0) Begin
+    If bEdit     If (isFileWindow(Self,oEdit(hoID))) Move 1 to iOK
+    If not bEdit If (isFileViewWindow(Self,hoID))    Move 1 to iOK
+    If iOK Begin
+        If bEdit Move (oEdit(hoID))                             to hoID
+        If NUM_Arguments Eq 2 Get iMsg  of hoID                 to iRet
+        If NUM_Arguments Eq 3 Get iMsg  of hoID iPara1          to iRet
+        If NUM_Arguments Ge 4 Get iMsg  of hoID iPara1 iPara2   to iRet
+        End
+      End
+    End
+    Function_Return iRet
+End_Function
+Function RequestGetFromView Integer iMsg Integer bEdit Returns Integer
+    Function_Return (RequestGetFromViewEx(Self,iMsg,bEdit,0,0))
+End_Function
+
+// Find View by FileName.
+// Tries to get a function | message from the view or the edit
+Function FindViewByFileName String sFile Returns Integer
+    Integer hoVw iRet
+    String  sFile2
+    Get Next_Mdi_Dialog True            to hoVw // find first view
+    While (hoVw)
+        If (oEdit(hoVw)) If (isFileWindow(Self,oEdit(hoVw)))  Begin
+            Indicate err False
+            Get GetFileName of hoVw to sFile2
+            If (Uppercase(sFile)) Eq (Uppercase(sFile2)) Function_Return hoVw
+            [err] Showln (Label(hoVw))
+        End
+        Get Next_Mdi_Dialog False  to hoVw // find next view
+    End
+    Function_Return 0
+End_Function
+// Tries to send a message to the view or the edit
+Procedure RequestSendToView Integer iMsg Integer bEdit Integer iPara1 Integer iPara2
+    Integer iRet
+    If NUM_Arguments Eq 2 Get RequestGetFromViewEx iMsg bEdit                 to iRet
+    If NUM_Arguments Eq 3 Get RequestGetFromViewEx iMsg bEdit iPara1          to iRet
+    If NUM_Arguments Ge 4 Get RequestGetFromViewEx iMsg bEdit iPara1 iPara2   to iRet
+    Function_Return iRet
+End_Procedure
+    // Tries to send a Msg to all open views.
+Procedure RequestSendToAllViews Integer iMsg
+    Integer hoVw iRet iDel
+    Get Next_Mdi_Dialog True            to hoVw // find first view
+    While (hoVw)
+        If (Active_State(hoVw)) Begin
+            //get Delegation_Mode of hoVw to iDel
+            //set Delegation_Mode of hoVw to no_delegate_or_error
+            Get iMsg of hoVw                to iRet
+            //set Delegation_Mode of hoVw to iDel
+            If iRet Procedure_Return 1
+        End
+        Get Next_Mdi_Dialog False        to hoVw // find next view
+    End
+    Function_Return 0
+End_Procedure
+
+Function FindNextViewFromCurrentView Returns Integer
+    Integer hoCur hoID iPos
+    Move (mdi_dialogs(Self)) to hoID
+    Move (current_scope(desktop)) to hoCur
+    Move (find_element(hoID,hoCur)) to iPos
+    If iPos Eq -1 Function_Return 0
+    If iPos Eq ( (item_count(hoID)) -1) Function_Return (value(hoID,0))
+    Function_Return (value(hoID,(iPos + 1) ))
+End_Function
+
+Function FindPreviousViewFromCurrentView Returns Integer
+    Integer hoCur hoID iPos
+    Move (mdi_dialogs(Self)) to hoID
+    Move (current_scope(desktop)) to hoCur
+    Move (find_element(hoID,hoCur)) to iPos
+    If iPos Eq -1 Function_Return 0
+    If iPos Eq 0 Function_Return (value(hoID,( (item_count(hoID))-1) ))
+    Function_Return (value(hoID,(iPos -1) ))
+End_Function
+
+Function CATestKey Integer iExt Integer iKey Integer iKeyDown Returns Integer
+    If iKey Ne iKeyDown                                               Function_Return 0
+    If (iExt iand CM_KEY_SHIFT    ) If (not(GetKeyState(VK_SHIFT  ))) Function_Return 0
+    If (iExt iand CM_KEY_ALT      ) If (not(GetKeyState(VK_MENU   ))) Function_Return 0
+    If (iExt iand CM_KEY_CTRL     ) If (not(GetKeyState(VK_CONTROL))) Function_Return 0
+    Function_Return 1
+End_Function
+// Delivers true if the Keys for the checked command are pressed.
+Function CAIsCodeMaxCommand Integer iCmd Integer iKeyUp Returns Integer
+    Integer iC iCount iKey
+    Get CMGetKeyForCommand iCmd -1      to iCount
+    For iC from 0 to (iCount-1)
+        Get CMGetKeyForCommand iCmd iC  to iKey
+        If (CATestKey(Self,Low(iKey),Hi(iKey),iKeyUp)) Function_Return 1
+    End
+    Function_Return 0
+End_Function
+// To assign the key for opening a file, when no edit is opened
+Procedure onkeyUp Integer wParam Integer lParam
+    If (CAIsCodeMaxCommand(Self,CMD_FileOpenFile,wParam)) Send CAOpenMultipleFiles
+    Else If (CAIsCodeMaxCommand(Self,CMD_FileNewFile,wParam)) Send CANewFile
+    Forward Send onKeyUp wParam lParam
+End_Procedure
+
+Procedure CAOnLabelChanged Integer hoObj
+    //Send OnLabelChanged to ghoFileTabs hoObj
+End_Procedure
+
+Procedure CANewFile
+    Integer hoID iRet iRedraw
+    // Deactivate Find in Files Window if active
+    // 28.02.2003 BP
+    If (active_state(oFindFiles(Self))) Send close_panel to (oFindFiles(Self))
+    Move (piRedrawState(oClientArea(Self))) to iRedraw
+    If (iRedraw) Send SetRedraw False
+    Object oFile is a cEditorEditView
+        Set Parent to (oClientArea(Self))
+        Move Self   to hoID
+        Set GuiSize     to (piViewSize.Y(ghoEditorProperties)) (piViewSize.X(ghoEditorProperties))
+    End_Object
+    Send OpenFile   to hoID ""
+    If (iRedraw) Send SetRedraw True
+End_Procedure
+
+
+// Displays a Standard Open Dialog Box, where the user can select more Files
+// Added 28.01.2003 BP
+
+Procedure CAOpenMultipleFiles
+    Integer hoDialog hoSelectedArray iCou
+    String sDir sTypes sFile
+    Get_Current_Directory   to sDir
+    Get psFileTypes of ghoEditorProperties to sTypes
+    Object oFileSelect is a cMultiOpenDialog
+        Move Self to hoDialog
+        Set Filter_String       to sTypes
+        Set Dialog_Caption      to "Open Multiple Files"
+        Set NoChangeDir_State   to True
+        Set File_Title          to ""
+        Set Initial_Folder      to sDir
+    End_Object
+    Get Show_Dialog of hoDialog to hoSelectedArray
+    If hoSelectedArray Begin
+        For iCou from 0 to ((item_count(hoSelectedArray))-1)
+            Get value of hoSelectedArray item iCou to sFile
+            Send CaOpenFile sFile
+        Loop
+        Send delete_data to hoSelectedArray
+        Send destroy_object to hoSelectedArray
+    End
+    Send destroy_object to hoDialog
+End_Procedure
+
+// Displays a Standard Open Dialog Box, where the user can select more Files
+// Added 28.01.2003 BP
+
+Procedure CAOpenMultipleFilesByType Integer iType
+    Integer hoDialog hoSelectedArray iCou
+    String sDir sTypes sFile
+    Get_Current_Directory   to sDir
+    Get psFileTypes of ghoEditorProperties to sTypes
+    Object oFileSelect is a cMultiOpenDialog
+        Move Self to hoDialog
+        Set Filter_String       to sTypes
+        Set Filter_Index        to iType
+        Set Dialog_Caption      to "Open Multiple Files"
+        Set NoChangeDir_State   to True
+        Set File_Title          to ""
+        Set Initial_Folder      to sDir
+    End_Object
+    Get Show_Dialog of hoDialog to hoSelectedArray
+    If hoSelectedArray Begin
+        For iCou from 0 to ((item_count(hoSelectedArray))-1)
+            Get value of hoSelectedArray item iCou to sFile
+            Send CaOpenFile sFile
+        Loop
+        Send delete_data to hoSelectedArray
+        Send destroy_object to hoSelectedArray
+    End
+    Send destroy_object to hoDialog
+End_Procedure
+
+Procedure CAOpenFile String sFileE
+    Integer hoID hoIDOld iRet iRedraw
+    String  sFile sDir
+    // Deactivate Find in Files Window if active
+    // 28.02.2003 BP
+    If (active_state(oFindFiles(Self))) Send close_panel to (oFindFiles(Self))
+
+    Send activate to Self
+    Object oFile is a cEditorEditView
+        Move Self   to hoID
+        //Set GuiSize     to (piViewSize.Y(ghoEditorProperties)) (piViewSize.X(ghoEditorProperties))
+    End_Object
+
+    If NUM_Arguments Gt 0 Move sFileE           to sFile
+    If sFile Eq "" Begin
+        Move (GetOpenFile(hoID))     to sFile
+    End
+
+    Move (piRedrawState(oClientArea(Self))) to iRedraw
+    If (iRedraw) Send SetRedraw False
+
+    // Change relative .\ path to absolute path since this will be a problem if
+    // the workspace is changed while the file is opened and edited 17.05.01 Bernhard
+
+    If (Left(sFile,2)) Eq ".\" Begin
+        Get_Current_Directory to sDir
+        Move (Replace(".\",sFile,"")) to sFile
+        Move (sDir + "\" + sFile) to sFile
+    End
+    If sFile Ne "" Begin
+        Move (FindViewByFileName(Self,sFile))       to hoIDOld
+        If hoIDOld Begin
+            Send DestroyObject     to hoID
+            Move (SendMessage(window_handle(Self),WM_MDIACTIVATE,(window_handle(hoIDOld)),0)) to iRet
+            If (iRedraw) Send SetRedraw True
+            Procedure_Return
+        End
+    End
+    If sFile Eq "" Begin
+        Send DestroyObject     to hoID
+        If (iRedraw) Send SetRedraw True
+        Procedure_Return
+    End
+    Else Begin
+        If gsCurrentProgramFile Eq ""  If (Uppercase(Right(Trim(CString(sFile)),4))) Eq ".SRC" Send SetCurrentProgramFile sFile //move sFile to gsCurrentProgramFile
+        Get Msg_OpenFile      of hoID sFile    to iRet
+        If (not(iRet)) Begin
+            If (iRedraw) Send SetRedraw True
+            Send Info_Box (Append("File could not be opened: ",sFile)) (Label(Main_Panel_ID(Self)))
+            Send DestroyObject to hoID
+            Procedure_Return
+        End
+    End
+    If (iRedraw) Send SetRedraw True
+End_Procedure
+
+Procedure CAOpenPKG
+    String sDir sDirPKG
+
+    Get_Current_Directory   to sDir
+    Get CurrentRuntimePkgPath of ghoWorkSpaceHandlerEx to sDirPKG
+    Set_Directory sDirPKG
+    // Changed for MultipleFile Open 28.01.2003 BP
+    Send CAOpenMultipleFiles
+    Set_Directory sDir
+End_Procedure
+
+Procedure CAOpenFile_Pkg
+    String sPkgDir sAppDir sTmpDir sOri sDir
+    Get_Current_Directory   to sDir
+    Get CurrentAppSrcPath of ghoWorkSpaceHandlerEx to sAppDir
+    // Check if multi pass
+    If ";" In sAppDir Move (Left(sAppDir, (Pos(";", sAppDir)-1) )) to sOri
+    Else Move sAppDir to sOri
+    While ";" In sAppDir
+        Move (Left(sAppDir, (Pos(";", sAppDir)-1))) to sTmpDir
+        Move (Replace((sTmpDir+";"), sAppDir, "")) to sAppDir
+        If "PKG" In (Uppercase(sTmpDir)) Move sTmpDir to sPkgDir
+    Loop
+    If (sPkgDir="") If "PKG" In (Uppercase(sAppDir)) Move sAppDir to sPkgDir
+    //
+    If (sPkgDir="") Move sOri to sPkgDir
+    //
+    Set_Directory sPkgDir
+    Send CAOpenMultipleFiles
+    Set_Directory sDir
+End_Procedure
+
+Procedure CAOpenFile_DD
+    String sDDDir sDir
+    Get_Current_Directory   to sDir
+    Get CurrentDDSrcPath    of ghoWorkSpaceHandlerEx to sDDDir
+    // Check if multi pass
+    If ";" In sDDDir Move (Left(sDDDir, (Pos(";", sDDDir)-1) )) to sDDDir
+    //
+    Set_Directory sDDDir
+    Send CAOpenMultipleFiles
+    Set_Directory sDir
+End_Procedure
+
+Procedure CAOpenFile_Html
+    String sHtmlDir sDir
+    Get_Current_Directory   to sDir
+    Get CurrentAppHtmlPath  of ghoWorkSpaceHandlerEx to sHtmlDir
+    // Check if multi pass
+    If ";" In sHtmlDir Move (Left(sHtmlDir, (Pos(";", sHtmlDir)-1) )) to sHtmlDir
+    //
+    Set_Directory sHtmlDir
+    Send CAOpenMultipleFiles
+    Set_Directory sDir
+End_Procedure
+
+Procedure CAEditHeaderWorkspace
+    String  sSrc
+    String  sDest
+    Integer iFail
+    Boolean bExists
+    
+    Get_File_Path ("Header.tpl") to sSrc
+    If (sSrc <> "") Begin
+      Get DefaultWorkspaceTemplateName to sDest
+      Get vFilePathExists sDest to bExists
+      If (bExists=False) Begin
+        Get vCopyFile sSrc sDest to iFail
+      End
+      Send CAOpenFile sDest
+    End
+    Else Send Stop_Box "Can not create workspace specific headerfile!\nHeader.Tpl not found."
+End_Procedure
+
+    // Creates the Enties for all opened file, so that the files
+    // can be reopened when the editor is started again.
+
+    // Also FindFiles settings are saved
+    // 29.02.2003 BP
+Procedure CACreateEditorEntries
+    Send RequestSendToAllViews Msg_CreateEditorEntry
+    Send SaveSettings to oFindFiles
+End_Procedure
+    // Closes one File. (Focus)
+Procedure CACloseFile
+    Send RequestSendToView Msg_CloseFileXButton TO_VIEW
+End_Procedure
+    // Close all Files.
+    // Always search the 1st view becouse if the view is destroyed...
+Procedure CACloseAllFiles
+    Integer hoVw iRet iDel iLast
+    Send SetRedraw False
+    Repeat
+        Move hoVw to iLast
+        Get Next_Mdi_Dialog True            to hoVw // find first view
+        If (hoVw Eq iLast) Move 0 to hoVw
+        If hoVw Begin
+            If (Active_State(hoVw)) Begin
+                Get Msg_CloseFile of hoVw       to iRet
+                If iRet Begin
+                    Send SetRedraw True
+                    Procedure_Return 1
+                End
+            End
+        End
+    Until (hoVw Eq 0)
+    Send SetRedraw True
+    Function_Return 0
+End_Procedure
+    // Prints the File.
+Procedure CAPrintFile
+    Send RequestSendToView Msg_PrintFile TO_VIEW
+End_Procedure
+
+Procedure CAPopUpFindInFiles
+    Send activate to (Self)
+    Send popUp to (oFindFiles(oClientArea(Self)))
+    Send SaveSettings to oFindFiles
+End_Procedure
+
+    // Save as a file   (Focus)
+Procedure CASaveFileAs
+    Send RequestSendToView Msg_SaveFileAs False
+End_Procedure
+    // Save a File      (Focus)
+Procedure CASaveFile
+    Send RequestSendToView Msg_SaveFile False
+End_Procedure
+    // Save all Files.
+Procedure CASaveAllFiles
+    Send RequestSendToAllViews Msg_SaveFile False
+End_Procedure
+// Splits the current window horizontally.
+Procedure CASplitWindowHorizontal
+    #IFDEF TH_SCINTILLA
+    #ELSE
+    Send RequestSendToView Msg_SplitWindowHorizontal True
+    #ENDIF        
+End_Procedure
+    // Splits the current window Vertically.
+Procedure CASplitWindowVertical
+    #IFDEF TH_SCINTILLA
+    #ELSE      
+    Send RequestSendToView Msg_SplitWindowVertical True
+    #ENDIF        
+End_Procedure
+    // Duplicates the window.
+Procedure CADuplicateWindow
+    #IFDEF TH_SCINTILLA
+    #ELSE
+    Send RequestSendToView Msg_DuplicateWindow True
+    #ENDIF        
+End_Procedure
+Function CAisDuplicatePossible Returns Integer
+    #IFDEF TH_SCINTILLA
+    Function_Return False
+    #ELSE      
+    Function_Return (RequestGetFromView(Self,Get_isDuplicatePossible,TO_EDIT))
+    #ENDIF        
+End_Function
+// Synchronisiert die Element View mit der aktuellen Zeilen position
+Procedure CAWindowSyncCodeView
+    Send RequestSendToView Msg_SyncCodeView TO_EDIT
+End_Procedure
+    // Closes the window.
+Procedure CACloseWindow
+    Integer iRet
+    #IFDEF TH_SCINTILLA
+    #ELSE
+        Get  RequestGetFromView Get_isWindowDuplicated TO_EDIT to iRet
+        If iRet Send RequestSendToView Msg_CloseWindow TO_EDIT
+        Else    Send RequestSendToView Msg_CloseFile   TO_VIEW
+    #ENDIF        
+End_Procedure
+    // Switches to the CodeExplorer area.
+Procedure CAWindowSwitchToCodeExplorer
+    Send RequestSendToView Msg_WindowSwitchToCodeView TO_VIEW
+End_Procedure
+    // Should activate the ParmeterView as Property page when nothing else is defined.
+Procedure Properties
+    // **WvA: 27-6-2003 Under windows 9x this function is always called
+    // even if a codemax editor window is activated.
+    If (Item_Count(mdi_dialogs(Self)) > 0) Begin
+      Send RequestSendToView Msg_Properties TO_EDIT
+    End
+    Else Begin
+      Send Info_Box "Unable to invoke the properties dialog, you will have to open a document first."
+      // If you want to keep the original behaviour then uncomment
+      // next line and remove the info_box
+      //Send Activate_oParas
+    End
+End_Procedure
+    // Invoke the workspace selector
+Procedure CASelectWorkspace
+  Send Popup to (oWorkSpace(Self))
+End_Procedure // CASelectWorkspace
+
+    // Switches to the next View.
+Procedure CASwitchToNextView
+    Integer hoVW iRet iRedraw
+    Move (FindNextViewFromCurrentView(Self)) to hoVw
+    If ( (hoVW) and (active_state(hoVw)) ) Begin
+        Move (piRedrawState(Self)) to iRedraw
+        If (iRedraw) Send SetRedraw False
+        Move (SendMessage(window_handle(Self),WM_MDIACTIVATE,(window_handle(hoVW)),0)) to iRet //Send activate to hoVW
+        If (iRedraw) Send SetRedraw True
+    End
+End_Procedure
+Procedure switch_next_view
+    Send CASwitchToNextView
+End_Procedure
+    // Switches to previous View.
+Procedure CASwitchToPreviousView
+    Integer hoVW iRet iRedraw
+    Move (FindPreviousViewFromCurrentView(Self)) to hoVw
+    If ( (hoVW) and (active_state(hoVw)) ) Begin
+        Move (piRedrawState(Self)) to iRedraw
+        If (iRedraw) Send SetRedraw False
+        Move (SendMessage(window_handle(Self),WM_MDIACTIVATE,(window_handle(hoVW)),0)) to iRet
+        If (iRedraw) Send SetRedraw True
+    End
+End_Procedure
+Procedure switch_prior_view
+    Send CASwitchToPreviousView
+End_Procedure
+
+Procedure CAWindowCodeExplorerONOFF Integer iFlag
+    Broadcast Send SetCodeViewVisible iFlag
+End_Procedure
+
+Procedure CAToolsPaneToggle
+    Boolean bVisible
+    If (ghoToolsPane) Begin
+        Get ComVisible of ghoToolsPane to bVisible
+        Set ComVisible of ghoToolsPane to (not(bVisible))
+        Set pbToolsPaneVisible of ghoEditorProperties to (not(bVisible))
+        Send SaveIni    to ghoEditorProperties
+    End
+End_Procedure
+
+Procedure CAOutputPaneToggle
+    Boolean bVisible
+    If (ghoOutputPane) Begin
+        Get pbOutputPaneVisible of ghoEditorProperties to bVisible
+        Set ComVisible of ghoOutputPane to (not(bVisible))
+        Set pbOutputPaneVisible of ghoEditorProperties to (not(bVisible))
+        Send SaveIni    to ghoEditorProperties
+    End
+End_Procedure
+
+Procedure DoSelectCurrentWorkSpace String sWrkSpcTag String sVersion
+    String sKey sVer
+    // Update the Current workspace TaG in the registry
+    Send ChangeCurrentWorkspace of ghoWorkSpaceHandlerEx sWrkSpcTag sVersion
+    Set psVDFVersion      of ghoWorkSpaceHandlerEx   to sVersion
+    Send doLoadVDFVersionInfo to ghoWorkSpaceHandlerEx
+    // Set the global VDF Version equal to our selection
+    Set VDFVersion      of Desktop to sVersion
+    Send DoSetOpenPath  to ghoWorkSpaceHandlerEx sWrkSpcTag
+    Send LoadNonEmbeddedDriverAutoLoginPrompt of ghoWorkSpaceHandlerEx
+    Send SaveIni        to ghoEditorProperties // Save it here because the SmartDosBox needs the info.
+End_Procedure // SelectCurrentWorkSpace
+Procedure CAChangeWorkspace String sWrkSpc String sVersion
+    Integer iChanged
+    String  sDir
+    Get RequestChangeWorkspace sWrkSpc to iChanged
+    If iChanged Begin
+        Send DoSelectCurrentWorkSpace sWrkSpc sVersion
+        Get  CurrentAppSrcPath of ghoWorkSpaceHandlerEx to sDir
+        Send SelectWorkingDirectory sDir
+        Send OnWorkSpaceChanged
+    End
+End_Procedure
+
+Procedure CAShortcutItem1
+    Showln "CAShortcutItem1"
+//    Send ShortcutItemSelected to ghoFileTabs 1
+End_Procedure
+Procedure CAShortcutItem2
+//    Send ShortcutItemSelected to ghoFileTabs 2
+End_Procedure
+Procedure CAShortcutItem3
+//    Send ShortcutItemSelected to ghoFileTabs 3
+End_Procedure
+Procedure CAShortcutItem4
+//    Send ShortcutItemSelected to ghoFileTabs 4
+End_Procedure
+Procedure CAShortcutItem5
+//    Send ShortcutItemSelected to ghoFileTabs 5
+End_Procedure
+Procedure CAShortcutItem6
+//    Send ShortcutItemSelected to ghoFileTabs 6
+End_Procedure
+Procedure CAShortcutItem7
+//    Send ShortcutItemSelected to ghoFileTabs 7
+End_Procedure
+Procedure CAShortcutItem8
+//    Send ShortcutItemSelected to ghoFileTabs 8
+End_Procedure
+Procedure CAShortcutItem9
+//    Send ShortcutItemSelected to ghoFileTabs 9
+End_Procedure
+Procedure CAShortcutItem10
+//    Send ShortcutItemSelected to ghoFileTabs 10
+End_Procedure
+
+//____EDIT_Actions...____________________________________
+    // Undo
+Function CACanUndo Returns Integer
+    Function_Return (RequestGetFromView(Self,Get_CM_CanUndo,True))
+End_Function
+Function CACanRedo Returns Integer
+    Function_Return (RequestGetFromView(Self,Get_CM_CanRedo,True))
+End_Function
+Procedure CAUndo
+    Send RequestSendToView Get_CM_Undo True
+End_Procedure
+Procedure CARedo
+    Send RequestSendToView Get_CM_Redo True
+End_Procedure
+    // Cut
+Function CACanCut Returns Integer
+    Function_Return (RequestGetFromView(Self,Get_CM_CanCut,True))
+End_Function
+Procedure CACut
+    Send RequestSendToView Get_CM_Cut True
+End_Procedure
+    // Copy
+Function CACanCopy Returns Integer
+    Function_Return (RequestGetFromView(Self,Get_CM_CanCopy,True))
+End_Function
+Procedure CACopy
+    Send RequestSendToView Get_CM_Copy True
+End_Procedure
+    // Paste
+Function CACanPaste Returns Integer
+    Function_Return (RequestGetFromView(Self,Get_CM_CanPaste,True))
+End_Function
+Procedure CAPaste
+    Send RequestSendToView Get_CM_Paste True
+End_Procedure
+    // Delete line...
+Procedure CADeleteLine
+    Send RequestSendToView Msg_DeleteLine True
+End_Procedure
+    // Select All
+ Procedure CASelectAll
+    Send RequestSendToView Msg_SelectAll True
+ End_Procedure
+    // Select Line
+ Procedure CASelectLine
+    Send RequestSendToView Msg_SelectLine True
+ End_Procedure
+    // Find...
+Procedure CAFind
+    Send RequestSendToView Msg_Find True
+End_Procedure
+    // Find next
+Procedure CAFindNext
+    Send RequestSendToView Msg_FindNext True
+End_Procedure
+    // Replace
+Procedure CAReplace
+    Send RequestSendToView Msg_Replace True
+End_Procedure
+    // Goto line...
+Procedure CAGotoLine Integer iLine
+    If NUM_Arguments Eq 0 Send RequestSendToView Msg_GotoLine True
+    Else                  Send RequestSendToView Msg_GotoLine True iLine
+End_Procedure
+
+//____BUILD_Actions...____________________________________
+
+    // Delivers the filename of the current view
+Function CAFileNameCur Returns String
+    Integer hoID iRet
+    Move (Focus(Desktop))       to hoID
+    If (isFileWindow(Self,hoID))  Begin
+        Function_Return (GetFileName(hoID))
+    End
+    Function_Return ""
+End_Function
+
+Procedure CABuildRun
+    If (Right(uppercase(Trim(CAFileNameCur(Self))),4)) Eq ".SRC" Send CACompileIntern 2 True True
+    Else Send CACompileIntern 2 True False
+End_Procedure
+Procedure CABuildRunCurrent
+    Send CACompileIntern 2 True True
+End_Procedure
+Procedure CABuildCompile
+    Send CACompileIntern 2 False True
+End_Procedure
+Procedure CABuildPreCompile
+    Send CACompileIntern 1 False True
+End_Procedure
+Procedure CABuildExecute
+    String sFile
+    If (Right(uppercase(Trim(CAFileNameCur(Self))),4)) Eq ".SRC" Move (FileWithoutExt(CAFileNameCur(Self))) to sFile
+    Else Move (FileWithoutExt(gsCurrentProgramFile)) to sFile
+    Send CARunInt sFile
+End_Procedure
+Procedure CABuildCommandLineParameter
+    String sRet
+    Get GetCommandLineParameter gsCurrentCommandLinePara to sRet
+    If sRet Ne "#ERR" Move sRet to gsCurrentCommandLinePara
+End_Procedure
+
+Procedure CABuildDebugRun
+    Send CACompileIntern 3 True False
+End_Procedure
+Procedure CABuildDebugRunCurrent
+    Send CACompileIntern 3 True True
+End_Procedure
+
+Function CAFileName Returns String
+    Integer hoVw iRet
+    String  sFile
+    Get Next_Mdi_Dialog True            to hoVw // find first view
+    While (hoVw)
+        If (Active_State(hoVw)) If (oEdit(hoVw)) If (isFileWindow(Self,oEdit(hoVw))) Begin
+            Move (GetFileName((oEdit(hoVw))))   to sFile
+            Move (Trim(sFile))                  to sFile
+            If (Uppercase(Right(sFile,4))) Eq ".SRC" Function_Return sFile
+        End
+        Get Next_Mdi_Dialog False        to hoVw // find next view
+    End
+    Function_Return (CAFileNameCur(Self))
+End_Function
+
+Procedure CALookIfErrors String sFile
+    Integer iErr
+//    Send Delete_Data to (oErrorList(oTabPage1(oErrors(Self))))
+    Move (FileWithoutExt(sFile))  to sFile
+    Append sFile ".ERR"
+    Direct_Input sFile
+        [not SeqEof] Move 1 to iErr
+    Close_Input
+    If ghoCompilerMessages Ne 0 Begin
+        Set piCanCancel of ghoCompilerMessages to False
+        Set label of (parent(ghoCompilerMessages)) to "Build"
+        If ( (iErr) and (not(visible_state(oErrors(Self))))) Send PAWindowErrorListONOFF iErr
+        If ( (not(iErr)) and (piDisplayWatchAutomatic(ghoEditorProperties)) ) Send PAWindowErrorListONOFF False
+    End
+    Else Send PAWindowErrorListONOFF iErr
+    If iErr Begin
+//        Send Fill to (oErrorList(oTabPage1(oErrors(Self)))) sFile
+//        If (piCompileShowErrorMsg(ghoEditorProperties)) ;
+//        Send Info_Box (Append(Item_Count(oErrorList(oTabPage1(oErrors(Self))))," Errors!"))
+//        Send activate to (oErrorList(oTabPage1(oErrors(Self))))
+        Procedure_Return 1
+    End
+End_Procedure
+
+    // Added support for webapp
+    // **WvA: 15-7-03
+    // Changed this "Run VDF Program" procedure so that it is
+    // VDF8 compatible.
+
+    // **BP: 02-01-04
+    // Added the Option to "Always start with Debugger".
+    // Also made the Debugger-Call VDF9 compatible
+
+    // **BP: 18-03-04
+    // Let the Program start from the ProgramPath Directory and not from the AppSrc
+
+Procedure CARunInt String sFile
+    String sCmd sVer sDebugSource sProgramPath sCurDir sWorkspace sWebAppTestURL
+    Number nVer                                // For example:
+    Get ConvertPRGFile  of Desktop sFile    to sFile // P:\Dev\Vdf7\Hammer\Programs\Hammer
+    Get DFrunCmdLine    of Desktop          to sCmd  // D:\Df\Vdf7\Bin\Dfrun.exe
+
+    Get psVDFVersion    of ghoWorkSpaceHandlerEx   to sVer
+    Get StringVdfVersionToNum  of ghoWorkSpaceHandlerEx sVer to nVer // 70=VDF7, 82=VDF8.2
+
+    Move (CurrentProgramPath(ghoWorkspaceHandlerEx)) to sProgramPath
+
+    Get_Current_Directory to sCurDir
+    If ( (sProgramPath<>"") and (Left(sProgramPath,2)<>".\") ) Begin // Only if ProgramPath is Set and not relative!
+        Set_Directory sProgramPath
+    End
+
+    If (nVer < 80) Begin
+        If (piDebugAlways(ghoEditorProperties)) Begin
+            Get DebuggerCmdLine of Desktop              to sCmd
+      Runprogram BACKGROUND sCmd ('"'+sFile+'" '+gsCurrentCommandLinePara)
+    End
+    Else Begin
+            Runprogram BACKGROUND sCmd ('"'+sFile+'" '+gsCurrentCommandLinePara)
+        End
+    End
+    Else Begin
+        If (piDebugAlways(ghoEditorProperties) ) Begin
+            If (nVer < 90) Begin
+                Get DebuggerCmdLine of Desktop              to sCmd
+                If (lowercase(FileFromPath(sFile))<>"hammer.src") Begin // *WvA: added a personal preference, don't start the compiler as there's often
+                  Runprogram BACKGROUND sCmd ('"'+sFile+'" '+gsCurrentCommandLinePara)
+                End
+            End
+            Else Begin
+                Get DebuggerCmdLine of Desktop              to sCmd
+                Get FileFromPath sFile                      to sFile
+                Move (sCmd+' -f "'+(CurrentProgramPath(ghoWorkspaceHandlerEx))+"\"+(FileWithoutExt(sFile))+'.exe '+gsCurrentCommandLinePara+'"') to sCmd
+                Get CAFileNameCur to sDebugSource
+                // *WvA: added for supporting webapp debug compile runs
+                // and debug-run your web applications straight from within the Hammer.
+                If (lowercase(sFile)="webapp") Begin
+                  // We need to stick in some more parameters for the debugger
+                  // because the debugger just needs a tad bit more info from the app.
+                  // between the -f and -s switch we now also have to add:
+                  //
+                  //  Arg 3 :-w
+                  //  Arg 4 :<workspacetag>
+                  //  Arg 5 :-u
+                  //  Arg 6 :<virtual foldername>/default.asp
+                  //
+                  Get psCurWrkSpace of ghoWorkSpaceHandlerEx to sWorkspace
+                  Move (sCmd+' -w "'+sWorkspace+'"') to sCmd
+                  Get WebAppTestURL of ghoWorkSpaceHandlerEx to sWebAppTestURL
+                  Move (sCmd+' -u "'+sWebAppTestURL+'"') to sCmd
+                End
+                If (sDebugSource<>"") Begin
+                    Move (sCmd+' -s "'+sDebugSource+'"') to sCmd
+                End
+                //Showln sCmd
+                Runprogram BACKGROUND sCmd
+            End
+        End
+        Else Begin
+          If (Pos("webapp",lowercase(sFile))<>0) Begin
+            Get WebAppTestURL of ghoWorkSpaceHandlerEx to sWebAppTestURL
+            Send vShellExecute "OPEN" sWebAppTestURL "" ""
+          End
+          Else Begin
+            Runprogram BACKGROUND ('"'+sFile+'.exe" '+gsCurrentCommandLinePara)
+          End
+    End
+    End
+    Set_Directory sCurDir
+End_Procedure
+
+// **BP: 02-01-04
+// Made the Debugger-Call VDF9 compatible
+// **BP: 18-03-04
+// Let the Program start from the ProgramPath Directory and not from the AppSrc
+Procedure CACompleteCompileAction
+    String  sFile sCmd sVer sDebugSource sProgramPath sCurDir
+    Integer iMode iRun iRet
+    Number nVer
+    Send PAShadowMainMenuItem 4 False
+    Get psLastCompiledFileName              to sFile
+    Get piLastCompiledMode                  to iMode
+    Get piLastCompiledRun                   to iRun
+    Get Msg_CALookIfErrors sFile            to iRet
+    Move (FileWithoutExt(sFile))  to sFile
+    If iMode Ne 3 If not iRet If iRun Send CARunInt sFile
+    Else If iRun Begin
+        Get psVDFVersion    of ghoWorkSpaceHandlerEx   to sVer
+        Get StringVdfVersionToNum  of ghoWorkSpaceHandlerEx sVer to nVer // 70=VDF7, 82=VDF8.2
+
+        Get DebuggerCmdLine of Desktop              to sCmd
+
+        If (nVer < 90) Begin
+            Append sCmd " " (sFile+" "+gsCurrentCommandLinePara)
+        End
+        Else Begin
+            Get FileFromPath sFile                      to sFile
+            Move (sCmd+' -f "'+(CurrentProgramPath(ghoWorkspaceHandlerEx))+"\"+(FileWithoutExt(sFile))+'.exe '+gsCurrentCommandLinePara+'"') to sCmd
+            Get CAFileNameCur to sDebugSource
+            If (sDebugSource<>"") Begin
+                Move (sCmd+' -s "'+sDebugSource+'"') to sCmd
+            End
+        End
+        Move (CurrentProgramPath(ghoWorkspaceHandlerEx)) to sProgramPath
+
+        Get_Current_Directory to sCurDir
+        If ( (sProgramPath<>"") and (Left(sProgramPath,2)<>".\") ) Begin // Only if ProgramPath is Set and not relative!
+            Set_Directory sProgramPath
+        End
+
+        Runprogram BACKGROUND sCmd
+        Set_Directory sCurDir
+    End
+End_Procedure
+
+Procedure CAStartCompileAction Handle hProcess Integer iThreadID
+    Integer iRet iFocus
+    String sFile
+    If ghoCompilerMessages Eq 0 Procedure_Return
+    Move (psLastCompiledFileName(Self)) to sFile
+    Get FileFromPath sFile to sFile
+    Set label of (parent(ghoCompilerMessages)) to ("Building " + (Trim(sFile)) )
+    If (piDisplayWatchAutomatic(ghoEditorProperties)) Send PAWindowErrorListONOFF True
+    If (Visible_State(oErrors(Self))) Begin
+        Get focus of desktop to iFocus
+        Send Request_Tab_Display to ghoCompilerMessages 0
+        If iFocus Ne (focus(desktop)) Send activate to iFocus
+    End
+    Send delete_data to ghoCompilerMessages
+    Move (MKSpyCompiler(iThreadID,hProcess,(piLastCompileHide(Self)) )) to iRet
+    Set piCanCancel of ghoCompilerMessages to True
+End_Procedure
+
+Procedure CAPreCompileSys String sFile
+    String sCmd sVdfRoot sOpt
+    Handle hoCompiler
+    Get BuiltInCompiler to hoCompiler
+    //
+    Get psVdfRootDir of ghoWorkSpaceHandlerEx to sVdfRoot
+    Move (sVDFRoot+"Pkg\"+sFile) to sFile
+    //
+    If (hoCompiler=0) Begin
+        Move ('"'+sFile+'"') to sFile
+        Move "/x- /E0 /p" to sOpt
+        Get CompilerCmdLine of Desktop to sCmd
+        Move (sCmd*sFile*sOpt) to sCmd
+        Runprogram background sCmd
+    End
+    Else Begin
+        Send PAShadowMainMenuItem 4 True
+        Send PreCompile to hoCompiler sFile
+    End
+    //
+End_Procedure
+
+Procedure PreCompileDFAllEnt
+    Send CAPreCompileSys "dfAllEnt.pkg"
+End_Procedure
+
+Procedure PreCompileWindows
+    Send CAPreCompileSys "Windows.pkg"
+End_Procedure
+
+Procedure PreCompileAllWebAppClasses
+    Send CAPreCompileSys "AllWebAppClasses.pkg"
+End_Procedure
+
+Procedure CASaveChangedFilesBeforeCompile
+    Integer hoVw iRet iDel iChanged
+    Move 0 to iChanged
+    Get Next_Mdi_Dialog True            to hoVw // find first view
+    While ( (hoVw) and (not(iChanged)) )
+        If (Active_State(hoVw)) Begin
+            If (CM_IsModified(oEdit(hoVW))) Move 1 to iChanged
+        End
+        Get Next_Mdi_Dialog False        to hoVw // find next view
+    End
+    If iChanged Begin
+        If (yesno_box("Do you want to save all changes before compiling?","Question",0)) Eq MBR_YES Begin
+            Get Next_Mdi_Dialog True            to hoVw // find first view
+            While (hoVw)
+                If (Active_State(hoVw)) Begin
+                    If (CM_IsModified(oEdit(hoVW))) Send SaveFile to hoVw
+                End
+                Get Next_Mdi_Dialog False        to hoVw // find next view
+            End
+        End
+    End
+End_Procedure
+
+//External_Function GetShortPathNameEx "GetShortPathNameA" Kernel32.Dll Pointer lpszLongPath Pointer lpszShortPath DWord cchBuffer Returns DWord
+//Function GetShortPathName Global String sLongPath Returns String
+//    String sShortPath
+//    Integer iRetval
+//    ZeroString MAX_PATH to sShortPath
+//    Move (GetShortPathNameEx(AddressOf (sLongPath), AddressOf (sShortPath), MAX_PATH)) to iRetval
+//    Function_Return (Cstring(sShortPath))
+//End_Function // GetShortPathName
+
+    // **BP: 02-01-04
+    // Made the Debugger-Call VDF9 compatible
+    // **BP: 18-03-04
+    // Let the Program start from the ProgramPath Directory and not from the AppSrc
+Procedure CACompileIntern Integer iMode Integer iRun Integer iCurrent
+    Integer iRet iCompile
+    String  sCmd sParas sFile sFileC sVer sDebugFile sDebugSource sProgramPath sCurDir
+    Number  nVer
+    Boolean bConfigure
+    Handle  hoCompiler
+    //
+    If iCurrent Get CAFileNameCur           to sFile
+    Else Move gsCurrentProgramFile          to sFile
+    If sFile Eq "" Procedure_Return
+    Send CASaveChangedFilesBeforeCompile
+    //
+    // By SVN (Built-in Compiler)
+    Get BuiltInCompiler to hoCompiler
+    //
+    Get CompilerCmdLine of Desktop  to sCmd
+    //Move (GetShortPathName(sCmd)) to sCmd
+    Move ('"'+sFile+'"') to sFileC
+
+    If iMode Eq 1 Move (psCompiler.PreCompOptions(ghoEditorProperties)) to sParas
+    If iMode Eq 2 Move (psCompiler.CompOptions(ghoEditorProperties))    to sParas
+    If iMode Eq 3 Move (psDebugCompiler(ghoEditorProperties))           to sParas
+
+    Set piLastCompileHide to False
+    If ( (ghoCompilerMessages Ne 0) and (Pos("I0",(uppercase(sParas))) Ne 0) ) Begin
+        Move (Replace("i0",sParas,"I2")) to sParas
+        Move (Replace("I0",sParas,"I2")) to sParas
+        Set piLastCompileHide to True
+    End
+    Move (sParas + " " + sFileC) to sParas
+    If iMode Ne 3 Move 1                                to iCompile
+    Else Move (piCompiler4Debug(ghoEditorProperties))   to iCompile
+    If iCompile Begin
+        Send PAShadowMainMenuItem 4 True
+        If hoCompiler Begin
+            Set psLastCompiledFileName  to sFile
+            Set piLastCompiledMode      to iMode
+            Set piLastCompiledRun       to iRun
+            If (iMode=1)    Send PreCompile of hoCompiler sFile
+            Else            Send Compile    of hoCompiler sFile
+        End
+        Else Begin
+            Send RunProgramNotify sCmd sParas SW_MINIMIZE Msg_CACompleteCompileAction Self Msg_CaStartCompileAction
+            Set psLastCompiledFileName  to sFile
+            Set piLastCompiledMode      to iMode
+            Set piLastCompiledRun       to iRun
+        End
+        Procedure_Return    // Abbrechen
+    End
+    Move sFile to sDebugFile
+    Move ('"'+FileWithoutExt(sFile)+'"')  to sFile
+    If iMode Ne 3 If not iRet If iRun Send CARunInt sFile
+    Else If iRun Begin
+        Get psVDFVersion    of ghoWorkSpaceHandlerEx   to sVer
+        Get StringVdfVersionToNum  of ghoWorkSpaceHandlerEx sVer to nVer // 70=VDF7, 82=VDF8.2
+
+        Get DebuggerCmdLine of Desktop              to sCmd
+
+        If (nVer < 90) Begin
+        Append sCmd " " sFile
+        End
+        Else Begin
+            Get FileFromPath sDebugFile to sDebugFile
+            Move (sCmd+' -f "'+(CurrentProgramPath(ghoWorkspaceHandlerEx))+"\"+(FileWithoutExt(sDebugFile))+'.exe '+gsCurrentCommandLinePara+'"') to sCmd
+            Get CAFileNameCur to sDebugSource
+            If (sDebugSource<>"") Begin
+                Move (sCmd+' -s "'+sDebugSource+'"') to sCmd
+            End
+        End
+        Move (CurrentProgramPath(ghoWorkspaceHandlerEx)) to sProgramPath
+
+        Get_Current_Directory to sCurDir
+        If ( (sProgramPath<>"") and (Left(sProgramPath,2)<>".\") ) Begin // Only if ProgramPath is Set and not relative!
+            Set_Directory sProgramPath
+        End
+        Runprogram BACKGROUND sCmd
+        Set_Directory sCurDir
+    End
+End_Procedure // CACompileIntern
+
+Procedure CACurrentCompile
+    String sFile
+    Get CAFileNameCur to sFile
+    Move (Uppercase(Trim(Right(sFile, 4)))) to sFile
+    If (sFile<>".SRC")  Send CABuildPreCompile
+    Else                Send CABuildCompile
+End_Procedure
+
+// Is used to deactivate the build menu when compiling.
+Procedure PAShadowMainMenuItem Integer iItem Integer iFlag
+    If ghoBuildMenu ;
+        Set pbEnabled of ghoBuildMenu to (not(iFlag))
+End_Procedure
+
+// Better place then Exit_Application, becouse this functions is
+// triggered when the System closes the App, too.
+Function verify_exit_application Returns Integer
+    Integer iRet
+    Forward Get verify_exit_application  to iRet
+    If not iRet Begin
+        Indicate MKNoParsing True
+        Send CACreateEditorEntries                        to (oClientArea(Self))
+        Get MSg_CACloseAllFiles of (oClientArea(Self))    to iRet
+        If not iRet Send MKCleanUp
+        Indicate MKNoParsing False
+        If (ghoWorkspaceHandlerEx) Begin
+          // No crash on quit please.
+          Send UnloadNonEmbeddedDrivers of ghoWorkspaceHandlerEx
+        End
+    End
+    Function_Return iRet
+End_Function
+    // Save Settings during exit.
+Procedure MKCleanUp
+    Integer iRet
+    Send SaveIni                    to ghoEditorProperties  // Save the INI file
+    Move (CMUnregisterControl())    to WindowIndex          // Unregister the control
+End_Procedure
+
+Function PAIsErrorListFilled Returns Integer
+    Integer hoID
+    Move (oErrorList(oTabPage1(oErrors(Self)))) to hoID
+    Function_Return (Item_Count(hoID) Gt 0)
+End_Function
+Procedure PAGotErrorList
+    Integer hoID
+    Move (oErrorList(oTabPage1(oErrors(Self))))        to hoID
+    If (Visible_State(hoID)) If (Item_Count(hoID)) Gt 0 Send Activate to hoID
+End_Procedure
+
+Procedure PAWindowSwtichToErrorView
+    Send PAGotErrorList
+End_Procedure
+
+Procedure PAWindowErrorListONOFF Integer iFlag
+    Set ComVisible  of ghoOutputPane to iFlag
+End_Procedure
+
+Procedure ConvertFile
+    Integer hoID iC
+    String sL
+    String sFile
+
+    Get FileDialog of Desktop False "Choose a file to convert" "" "" to sFile
+    If sFile Eq "" Procedure_Return
+    Object oTmp is an Array
+        Move Self   to hoID
+    End_Object
+
+    Direct_Input sFile
+    Repeat
+        Readln sL
+        [not SeqEof] Set Value of hoID item (Item_Count(hoID))  to sL
+    Until [SeqEof]
+    Close_Input
+    Direct_Output sFile
+    For iC from 0 to (Item_Count(hoID)-1)
+        Writeln (Value(hoID,iC))
+    End
+    Close_Output
+    Send Request_Destroy_Object to hoID
+End_Procedure
+On_Key key_alt+key_v Send ConvertFile
+
+Function FileDialog Integer iSave String titel String hfilter String sFile Returns String
+   String Fname sDir
+   String PropVal
+   Integer retval
+   Integer OpenFileObj
+   Get_Current_Directory   to sDir
+    If not iSave Begin
+        Object OpenFile is a OpenDialog
+            Set Filter_String       to hFilter
+            Set Dialog_Caption      to titel
+            Set NoChangeDir_State   to True
+            Set File_Title          to sFile
+            Set Initial_Folder      to sDir
+            Move Current_Object to OpenFileObj
+        End_Object
+    End
+    Else Begin
+        Object SaveFile is a SaveasDialog
+            Set Filter_String       to hFilter
+            Set Dialog_Caption      to titel
+            Set NoChangeDir_State   to True
+            Set File_Title          to sFile
+            Set Initial_Folder      to sDir
+            Move Current_Object to OpenFileObj
+        End_Object
+    End
+    Get Show_Dialog of OpenFileObj to Retval
+    If RetVal ;
+        Move (File_Name(OpenFileObj)) to fName
+    Send Destroy_Object to OpenFileObj
+    Function_Return Fname
+End_Function
+
+// Review Required
+// Inserts an Item into the mdi_dialogs set.
+Procedure Insert_Mdi_Dialog Integer iNr Integer hoId
+    Integer iC hoMdiSet
+    If (not(active_state(hoID))) Procedure_Return
+    Move (mdi_dialogs(Self))        to hoMdiSet
+    Move (Item_Count(hoMdiSet)-1)   to iC
+    While (iC Ge iNr)
+        Set value of hoMdiSet item (iC+1) to (Value(hoMdiSet,iC))
+        Decrement iC
+    End
+    Set value of hoMdiSet item iNr to hoId
+End_Procedure
+
+//    Property Integer piLastActiveView
+//Procedure Activate
+//    Forward Send Activate
+//    If (piActiveView(Self)) Send activate to (piActiveView(Self))
+//End_Procedure
+
+Procedure NotifyActiveView Integer iOID
+    Set piActiveView    to iOID
+End_Procedure
+
+// End of Review Required
+
+    // To trap these changes
+Procedure SetCurrentProgramFile String sName
+    Move sName  to gsCurrentProgramFile
+    Move ""     to gsCurrentCommandLinePara
+End_Procedure
+
+Procedure RequestStartFileFind String sPath String sType String sText Integer bSubFolders Integer bMatchCase Integer bMatchWord Integer bShowAll Integer bRegExp
+    Integer hoResult hoBefore iTab iRedraw
+    Get focus of desktop to hoBefore
+    Move (piRedrawState(oClientArea(Self))) to iRedraw
+    If (iRedraw) Send SetRedraw False
+    Send CancelFileFind to (oFileFinder(Self))
+    Send PAWindowErrorListONOFF True
+    Send StartFileFind to (oFileFinder(Self)) sPath sType sText bSubFolders bMatchCase bMatchWord bShowAll bRegExp
+    Send CreateFindPage to (oFileFinder(Self))
+    Send activate to hoBefore
+    If (iRedraw) Send SetRedraw True
+End_Procedure
+
+Procedure RequestCancelFileFind
+    Send CancelFileFind to (oFileFinder(Self))
+    Send OnFinish to (oFileFinder(Self))
+End_Procedure
+
+Procedure CAEditHeaderGlobal
+    String sSrc
+    Get_File_Path "Header.Tpl"  to sSrc
+    If sSrc Eq "" Send Stop_Box "Cant create userspecific headerfile.\nHeader.Tpl not found."
+    If sSrc Eq "" Procedure_Return
+    Send CAOpenFile sSrc
+End_Procedure
+Procedure CAEditHeaderUser
+    String  sSrc sDest
+    Integer iNotExist
+    Get_File_Path ("Header"+gsUserName+".tpl") to sDest
+    If sDest Eq "" Begin
+        Get_File_Path "Header.Tpl"  to sSrc
+        If sSrc Eq "" Send Stop_Box "Cant create userspecific headerfile.\nHeader.Tpl not found."
+        If sSrc Eq "" Procedure_Return
+        Move (Lowercase(sSrc))  to sSrc
+        Move (Replace("header.tpl",sSrc,("Header"+gsUserName+".tpl")))  to sDest
+        CopyFile sSrc   to sDest
+    End
+    Send CAOpenFile sDest
+End_Procedure
+
+//
+// Create a default template header file name based of the .sws filename
+//
+Function DefaultWorkspaceTemplateName Returns String
+  String  sFileName
+  String  sProgram
+  String  sWSName sExt
+       
+  Move "" to sFileName
+  Get CurrentProgramPath   of ghoWorkspaceHandlerEx to sProgram
+  Get CurrentWorkspaceName of ghoWorkspaceHandlerEx to sWSName
+  If (Pos("\",sWSName)) Begin  // take out file parts, no need if old style workspace
+    Get ParseFileExtension sWSName to sExt
+    Get ParseFileName      sWSName to sWSName
+    If (sExt<>"") Begin
+      Move (Replace("."+sExt,sWSName,"")) to sWSName
+    End
+  End
+  Get vFolderFormat sProgram to sProgram
+  Move (sProgram+sWSName+".tpl") to sFilename
+  Function_Return sFileName
+End_Function // DefaultWorkspaceTemplateName
+
+Function ProcessOptionMacros String sString String sFile Returns String
+    String  sVdfRoot
+    String  sProgramPath
+    String  sRoot
+    String  sDfrun
+    String  sStartup
+    Number  nVersion
+
+    Get fnCurrentVdfVersion of ghoWorkspaceHandlerEx to nVersion
+    If (Pos("%VDFROOT%",sString) <> 0) Begin
+        If (ghoApplication <> 0) Begin
+          Get psProgramPath of (phoWorkSpace(ghoApplication)) to sProgramPath
+        End
+        Move (Replace("Programs",sProgramPath,"")) to sRoot
+        Move (Replace("%VDFROOT%",sString,sRoot))  to sString
+    End
+
+    Get psVdfRootDir   of ghoWorkSpaceHandlerEx to sVdfRoot
+    Move (Left(sVDFRoot, (Length(sVDFRoot)-1))) to sVdfRoot // Trimming last slash
+    If (nVersion<80) Begin
+      Get psDfrun of ghoEditorProperties to sDfrun
+    End
+    Else Move "" to sDfrun // no need to add a dfrun.exe in front of any command after VDF7
+    Move (Replaces("@DFRUN@",sString,sDfrun )) to sString
+
+    If (Pos("@CURDIR@",sString)) Begin
+      // Cannot use current directory as it doesn't always contain the same folder
+      // as the Hammer executable.
+      Get VDFStartupPath to sStartUp
+      Move (Replaces("@CURDIR@",sString,sStartUp))    to sString
+    End
+    Move (Replaces("@PROGRAM@",sString,gsCurrentProgramFile)) to sString
+    Move (Replaces("@VDFROOT@",sString,sVdfRoot)) to sString
+    // File Parameter...
+    Move (Replaces("%1", sString, sFile)) to sString
+
+    #IFDEF (!@<160)
+    If (Pos("PROGRAM FILES",Uppercase(sString))) Begin
+      Move (Uppercase(sString)) to sString
+      Move (Replaces("PROGRAM FILES",sString,"PROGRA~1")) to sString
+    End
+    #ENDIF
+    
+    Move (Replaces("\\",sString,"\")) to sString
+    Function_Return (Ltrim(sString))
+End_Function
+
+Procedure LaunchUtility String sPath String sFile
+  String sCmd
+  String sParams
+  If (sPath<>"") Begin
+    Move "" to sParams
+    Get ProcessOptionMacros sPath sFile to sCmd
+    If (pos("%1",sPath)=0 and sFile<>"") Begin
+      Move sFile to sParams
+    End
+        Runprogram background ('"'+sCmd+'"') sParams
+  End
+End_Procedure
+
+// **WvA: 28-10-2004
+// In VDF8 and higher DAW compiled their utilities from a .vd? file
+// to 'true' executables. As a result of this the tools have been
+// moved from the lib folder towards the bin folder
+// This method will automatically adjust the path settings
+// and change lib and bin accordingly.
+Function AdjustUtilityPathToVDFversion String sPath Returns String
+    Number nVersion
+    Get fnCurrentVdfVersion of ghoWorkSpaceHandlerEx to nVersion
+
+    Move (Uppercase(sPath)) to sPath
+    If (nVersion >= 80) Begin
+      Move (Replace("@DFRUN@ @VDFROOT@\LIB",sPath,"@VDFROOT@\BIN")) to sPath
+
+      // We don't need to add a .vd? extension to start the
+      // application as long as we call the runtimer first.
+      Move (Replace(".VDF",sPath,"")) to sPath
+      Move (Replace(".VD5",sPath,"")) to sPath
+      Move (Replace(".VD6",sPath,"")) to sPath
+      Move (Replace(".VD7",sPath,"")) to sPath
+      If (nVersion>=91) Begin
+        Move (Replace("@VDFROOT@\BIN\IDE",sPath,"@VDFROOT@\BIN\STUDIO")) to sPath
+      End
+    End
+    Else Begin
+      Move (Replace("@VDFROOT@\BIN",sPath,"@VDFROOT@\LIB")) to sPath
+      Move (Replace("@VDFROOT@\LIB\STUDIO",sPath,"@VDFROOT@\LIB\IDE")) to sPath
+    End
+    Function_Return sPath
+End_Function // AdjustUtilityPathToVDFversion
+
+Function InsertCurrentWorkspace String sTmp Returns String
+  String sWSTag
+  Number nVersion
+  
+  Get fnCurrentVdfVersion of ghoWorkSpaceHandlerEx to nVersion
+  If (nVersion>=120) Begin
+    // open Studio/DBB on current workspace only
+    Get CurrentWorkspaceTag of ghoWorkSpaceHandlerEx to sWSTag
+    Move ('"-x'+sWSTag+'" '+sTmp) to sTmp
+  End
+  Function_Return sTmp
+End_Function
+
+//
+// Will normally pass the currently opened file in the Hammer, but no
+// file if there's none open.
+//
+Procedure LaunchIDEUtility String sFile
+    String sPath sTmp
+    
+    If (Num_Arguments>0) Move ('"'+sFile+'"') to sTmp
+    Else Move "" to sTmp
+    
+    Get InsertCurrentWorkspace sTmp to sTmp
+
+    Get psIdePath of ghoEditorProperties to sPath
+    Get AdjustUtilityPathToVDFversion sPath to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchMergeUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psMergePath of ghoEditorProperties to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchVCSUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psVCSPath of ghoEditorProperties to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchProjectSignUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psSignAppPath of ghoEditorProperties to sPath
+    Get InsertCurrentWorkspace sTmp to sTmp // "-xSWSFILE.sws"
+    Send LaunchUtility sPath sTmp
+End_Procedure
+
+Procedure LaunchDBBUtility String sFile
+    String sPath sTmp
+    
+    If (Num_Arguments>0) Move ('"'+sFile+'"') to sTmp
+    Else Move "" to sTmp
+    
+    Get InsertCurrentWorkspace sTmp to sTmp
+
+    Get psDBBPath of ghoEditorProperties to sPath
+    Get AdjustUtilityPathToVDFversion sPath to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchDBEUtility String sFile
+    String sPath sTmp
+    
+    Move "" to sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psDbePath of ghoEditorProperties to sPath
+    Get AdjustUtilityPathToVDFversion sPath to sPath
+    If (sTmp<>"") Begin
+      Move (sPath+" %1") to sPath // without that the file parameter never gets expanded
+    End
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchDBCUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psDbcPath of ghoEditorProperties to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchDBUUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psDbuPath of ghoEditorProperties to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchRptUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psRptPath of ghoEditorProperties to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchMenuUtility String sFile
+    String sPath sTmp
+    If (Num_Arguments>0) Move sFile to sTmp
+    Get psMenuPath of ghoEditorProperties to sPath
+    Send LaunchUtility sPath sTmp
+End_Procedure
+//
+Procedure LaunchCodeArt String sFile
+    String sErr sTmp sPath
+    If (Num_Arguments>0) Move sFile to sTmp
+//        If (psCodeArtPath(ghoEditorProperties)="") Begin
+//            Get CodeArt Of ghoCodeArt sTmp To sErr
+//            If "ERROR:" In sErr Send Stop_Box sErr "Error Occured During Processing"
+//            Else                Begin
+//                Send Info_Box sErr "CodeArt Completed Successfully!"
+//                Send CAOpenFile To (oClientArea(Self)) (psOutFile(ghoCodeArt))
+//            End
+//        End
+//        Else Begin
+        Get psCodeArtPath of ghoEditorProperties to sPath
+        Send LaunchUtility sPath sTmp
+//        End
+End_Procedure
+//
+Procedure LaunchCodeSpy String sFile
+    String sErr sTmp sPath
+    If (Num_Arguments>0) Move sFile to sTmp
+//        If (psCodeArtPath(ghoEditorProperties)="") Begin
+//            Get CodeArt Of ghoCodeArt sTmp To sErr
+//            If "ERROR:" In sErr Send Stop_Box sErr "Error Occured During Processing"
+//            Else                Begin
+//                Send Info_Box sErr "CodeArt Completed Successfully!"
+//                Send CAOpenFile To (oClientArea(Self)) (psOutFile(ghoCodeArt))
+//            End
+//        End
+//        Else Begin
+        Get psCodeArtPath of ghoEditorProperties to sPath
+        Send LaunchUtility sPath sTmp
+//        End
+End_Procedure
+//
+Procedure LaunchCodePub String sFile
+    String  sErr sTmp sPath
+    String  sHtmlFileName
+    Integer eResponse
+    If (Num_Arguments>0) Move sFile to sTmp
+    Else Get CAFileNameCur to sTmp
+    If (psCodePubPath(ghoEditorProperties)="") Begin
+        Get CodePub   of ghoCodePub sTmp to sErr
+        Get psOutFile of ghoCodePub to sHtmlFileName
+        If "ERROR:" In sErr Send Stop_Box sErr "Error Occured During Processing"
+        Else Begin
+          Move (YesNo_Box(sErr+"\nOpen this file in the browser?", "CodePub Completed Successfully", MB_DEFBUTTON1)) to eResponse
+          If (eResponse = MBR_YES) Begin
+            Send vShellExecute "OPEN" sHtmlFileName "" ""
+          End
+          Send CAOpenFile to (oClientArea(Self)) sHtmlFileName
+        End
+    End
+    Else Begin
+        Get psCodePubPath of ghoEditorProperties to sPath
+        Send LaunchUtility sPath sTmp
+    End
+End_Procedure
+//
+Procedure Request_CreatecDependencyScanner
+    Integer hoId
+    If (phoDependencyScanner(Self)=0) Begin
+        Object oDependencyScanner is a cDependencyScanner
+            Move Self to hoId
+        End_Object
+        Set phoDependencyScanner    to hoId
+    End
+End_Procedure
+Procedure PADependencyConfig
+    Integer hoId
+    Send Request_CreatecDependencyScanner
+    Move (phoDependencyScanner(Self))   to hoId
+    If hoId Send DoConfig               to hoId
+End_Procedure
+Procedure PADependencyScan
+    Integer hoId
+    Send Request_CreatecDependencyScanner
+    Move (phoDependencyScanner(Self))   to hoId
+    If hoId Begin
+        Send DoScan                     to hoId
+        Send DoWriteDefault             to hoId
+        If (piOutputMode(hoId)) Eq 0 Begin
+            Send CAOpenFile (psTextFile(hoId))
+        End
+    End
+End_Procedure
+
+Procedure Define_EditViewHotkeys Handle hoEditView
+    
+    // File Menu
+    Send DefineOnKey of hoEditView CMD_FileOpenFile      msg_CAOpenFile
+    Send DefineOnKey of hoEditView CMD_FileSaveFile      msg_CASaveFile
+    Send DefineOnKey of hoEditView CMD_FileSaveFileAs    msg_CASaveFileAs
+    Send DefineOnKey of hoEditView CMD_FileSaveAll       msg_CASaveAllFiles
+    Send DefineOnKey of hoEditView CMD_FileCloseFile     msg_CACloseFile
+    Send DefineOnKey of hoEditView CMD_FileCloseAllFiles msg_CACloseAllFiles
+    Send DefineOnKey of hoEditView CMD_FileNewFile       msg_CANewFile
+    
+    // Edit Menu
+    Send DefineOnKey of hoEditView CMD_FindInFiles       msg_CAPopUpFindInFiles
+    
+    // Options Menu
+    Send DefineOnKey of hoEditView CMD_SelectWorkSpace   msg_CASelectWorkSpace
+    
+    // Build Menu
+    Send DefineOnKey of hoEditView CMD_BuildRun          msg_CABuildRun
+    Send DefineOnKey of hoEditView CMD_BuildRunCurrent   msg_CABuildRunCurrent
+    Send DefineOnKey of hoEditView CMD_BuildCompileCurrent msg_CABuildCompile
+    Send DefineOnKey of hoEditView CMD_BuildPreCompile   msg_CABuildPreCompile
+    Send DefineOnKey of hoEditView CMD_BuildExecute      msg_CABuildExecute
+    Send DefineOnKey of hoEditView CMD_BuildDebugRun     msg_CABuildDebugRun
+    Send DefineOnKey of hoEditView CMD_BuildDebugRunCurrent msg_CABuildDebugRunCurrent
+    
+    // There are more hotkeys in the codemax control, but a lot of them only
+    // make sense when you are actually editing int he control.
+    // So we'll add more on a case by case bases (if needed)
+End_Procedure // Define_EditViewHotkeys
+
+
+// USed to shadow toolbar dynamically.
+Procedure ShadowToolBarItem Integer iItem Integer iState
+End_Procedure
+
+Procedure ClearStatusInfos
+    Set psText of (oInsPane(oStatusBar(ghoCommandBars)))      to ""
+    Set psText of (oGoToPane(oStatusBar(ghoCommandBars)))     to ""
+    Set psText of (oStatusPane1(oStatusBar(ghoCommandBars)))  to ""
+End_Procedure
+
+Procedure ShowCursorPosition Integer iLine Integer iCol
+    String sLine
+    Append sLine "Ln " (iLine+1) ", " "Col " (iCol+1)
+    Set psText of (oGoToPane(oStatusBar(ghoCommandBars))) to sLine
+End_Procedure
+
+Procedure ShowInsert Integer iMode
+    If iMode Set psText of (oInsPane(oStatusBar(ghoCommandBars))) to "INS"
+    Else     Set psText of (oInsPane(oStatusBar(ghoCommandBars))) to "OVR"
+End_Procedure
+
+Procedure ShowMethodInfo String sLine
+    Set psText of (oStatusPane1(oStatusBar(ghoCommandBars))) to sLine
+End_Procedure
+
+Procedure ShowLanguageInfo String sLanguage
+    If (sLanguage="VDF") Move "DataFlex" to sLanguage
+    Set psText of (oLanguagePane(oStatusBar(ghoCommandBars))) to sLanguage
+End_Procedure // ShowLanuageInfo
+
+Procedure ShowWorkspaceInfo
+    String sInfo
+    String sVersion
+    Number nVersion
+    Get CurrentWorkspaceDescription of ghoWorkSpaceHandlerEx to sInfo
+    Get psVdfVersion                of ghoWorkSpaceHandlerEx to sVersion
+    Get fnCurrentVdfVersion         of ghoWorkSpaceHandlerEx to nVersion
+    Move (sInfo*"(DF"+sVersion+")") to sInfo
+    Set psText of (oWorkspacePane(oStatusBar(ghoCommandBars)))    to sInfo
+    Send ShowLanguageInfo (psLanguage(ghoEditorProperties))
+End_Procedure
+

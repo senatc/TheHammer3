@@ -1,0 +1,58 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2014  KURANT Project
+// All rights reserved.
+//
+// $FileName    : cComboForm.pkg
+// $ProjectName : The Hammer 2.0
+// $Authors     : Wil van Antwerpen, Michael Kurz, Sergey V. Natarov, Bernhard Ponemayr
+// $Created     : 01.25.2014  01:08
+// $Type        : LGPL
+//
+// Contents: comboform subclass
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+Use Dfcmbfrm.pkg
+
+// Visual DataFlex 14.0 Migration Utility, added July 2, 2008: 11:51:08
+#IF (!@ >= 120)
+{ OverrideProperty=Capslock_state InitialValue=False }
+#ENDIF
+Class cComboForm Is a ComboForm
+
+  // Construct_Object: Object constructor.
+  Procedure Construct_object
+    Forward Send Construct_Object
+
+    Set Window_Style To CBS_AUTOHSCROLL True
+
+    On_Key kCancel Send Close_Panel
+  End_Procedure // Construct_object
+
+  // Make the comboform drop down the list
+  // We can't use a plain send prompt as that doesn't work.
+  Procedure DoDropDown
+    Handle hWnd
+    Move (Window_Handle(Self)) To hWnd
+    If (hWnd) Begin
+      Send Windows_Message CB_SHOWDROPDOWN True 0
+    End
+  End_Procedure // DoDropDown
+
+  Procedure Page Integer iPageObject
+    Integer iMargin
+    Integer iVoid
+
+    Forward Send Page iPageObject
+    If (iPageObject) Begin
+      // Fix form_margin property, thanks Vincent!
+      Get Form_Margin To iMargin
+      Get Windows_Message CB_LIMITTEXT iMargin 0 To iVoid
+    End
+  End_Procedure // Page
+
+End_Class // cComboForm
+
+

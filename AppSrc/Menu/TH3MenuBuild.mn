@@ -1,0 +1,215 @@
+// TH3BuildMenu.mn
+Register_Function CAFileNameCur Returns String
+
+Object oBuildMenu is a cCJMenuItem
+    Set peControlType to xtpControlPopup          
+    Set psCaption to "&Build"
+    Set psDescription to "Compile, Debug, Run the Project"
+    Set psCategory to "Build"
+
+    Object oRunItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psImage to "Build16.bmp"
+        Set psCaption   to "Run"
+        Set psToolTip to "Compile and Run the current project"
+        Set psDescription to "Run project"
+        Set psShortcut to "F5"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send CABuildRun of hoClient
+        End_Procedure
+    End_Object
+
+    Object oCompileItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psImage to "Compile16.bmp"
+        Set psCaption   to "Compile"
+        Set psToolTip to "Compile the current project"
+        Set psDescription to "Compile project"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send CABuildCompile of hoClient
+        End_Procedure
+    End_Object
+
+    Object oExecuteItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psImage to "Run16.bmp"
+        Set psCaption   to "Execute"
+        Set psToolTip to "Execute the current project"
+        Set psDescription to "Execute project"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send CABuildExecute of hoClient
+        End_Procedure
+    End_Object
+
+    Object oCmdLineItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        //Set psImage to "New16.bmp"
+        Set psCaption   to "Command Line Parameters"
+        Set psToolTip to "Allows to specify the command line for the current project"
+        Set psDescription to "Specify run parameters"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send CABuildCommandLineParameter of hoClient
+        End_Procedure
+    End_Object
+
+    Object oSignItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Sign Project"
+        Set psToolTip to "Sign the current DataFlex project"
+        Set psDescription to "Sign the current DataFlex project"
+        Set psShortcut to ""
+        Set psImage to "ActionSign16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send Info_Box "Further work required on Project Signing"
+            Send LaunchProjectSignUtility of hoClient
+        End_Procedure
+    End_Object
+
+    Object oDebugItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        //Set psImage to "New16.bmp"
+        Set psCaption   to "Debug Run"
+        Set psToolTip to "Compile and run the current project with the debugging tool"
+        Set psDescription to "Debug"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send CABuildDebugRun of hoClient
+        End_Procedure
+    End_Object
+
+    Object oPrecompileWindowsItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        //Set psImage to "New16.bmp"
+        Set psCaption   to "Pre-Compile Windows.pkg..."
+        Set psToolTip to "Pre-compile standard DataFlex Windows.pkg package"
+        Set psDescription to "Pre-Compile Windows.pkg"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send PreCompileWindows of hoClient
+        End_Procedure
+    End_Object
+
+    Object oPrecompileDFAllEntItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        //Set psImage to "New16.bmp"
+        Set psCaption   to "Pre-Compile DFAllEnt.pkg..."
+        Set psToolTip to "Pre-compile standard DataFlex DFAllEnt.pkg package"
+        Set psDescription to "Pre-Compile Windows.pkg"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send PreCompileDFAllEnt of hoClient
+        End_Procedure
+    End_Object
+
+    Object oPrecompileAllWebAppItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        //Set psImage to "New16.bmp"
+        Set psCaption   to "Pre-Compile AllWebAppClasses.pkg..."
+        Set psToolTip to "Pre-compile standard DataFlex AllWebAppClasses.pkg package"
+        Set psDescription to "Pre-Compile AllWebAppClasses.pkg"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send PreCompileAllWebAppClasses of hoClient
+        End_Procedure
+    End_Object
+
+    Object oPrecompileItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Pre-Compile..."
+        Set psToolTip to "Pre-compile selected file"
+        Set psDescription to "Pre-Compile selected file"
+        Set psShortcut to ""
+        Procedure OnExecute Variant vCommandBarControl
+            Handle hoClient
+            Get Client_Id to hoClient
+            Send CABuildPreCompile of hoClient
+        End_Procedure
+    End_Object
+
+    Procedure OnPopupInit Variant vCommandBarControl Handle hCommandBarControls
+        Forward Send OnPopupInit vCommandBarControl hCommandBarControls
+        //
+        String sFile sExt sCurFile sTmp
+        Handle hoClient
+        Get Client_Id to hoClient
+        // Init
+        Set pbVisible of oPrecompileItem    to False
+        Set psCaption of oRunItem           to "&Run"
+        Set psCaption of oCompileItem       to "&Compile"
+        Set psCaption of oExecuteItem       to "&Execute"
+        Set psCaption of oPrecompileItem    to "&Pre-Compile"
+        Set pbEnabled of oRunItem           to False
+        Set pbEnabled of oCompileItem       to False
+        Set pbEnabled of oExecuteItem       to False
+        Set pbEnabled of oDebugItem         to False
+        Set pbEnabled of oCmdLineItem       to False
+        Set pbEnabled of oSignItem          to False
+        //
+        If (gsCurrentProgramFile<>"") Move gsCurrentProgramFile to sFile
+        Get CAFileNameCur of hoClient to sCurFile
+        Move (Right(Uppercase(Trim(sCurFile)),4)) to sExt
+        If (sExt=".SRC") Move sCurFile to sFile
+        If (sFile<>"") Begin
+            Set psCaption of oRunItem       to ("&Run"*'<'+sFile+'>')
+            Set psCaption of oCompileItem   to ("&Compile"*'<'+sCurFile+'>')
+            Move (FileFromPath(sFile))  to sTmp
+            If (sTmp Ne "") Begin
+                Move (Left(sTmp,Length(sTmp)-4))    to sTmp
+                If (Trim(gsCurrentCommandLinePara)) Ne "" Begin
+                    Append sTmp " " (Character(34)) gsCurrentCommandLinePara (Character(34))
+                End
+                Move sTmp to sFile
+            End
+            Set psCaption of oExecuteItem   to ("&Execute"*'<'+sFile+'>')
+            Set pbEnabled of oRunItem           to True
+            Set pbEnabled of oCompileItem       to True
+            Set pbEnabled of oExecuteItem       to True
+            Set pbEnabled of oDebugItem         to True
+            Set pbEnabled of oCmdLineItem       to True
+            Set pbEnabled of oSignItem          to True
+        End
+        //
+        If (sExt=".PKG") Begin
+            Move sCurFile to sFile
+            Set pbVisible of oPrecompileItem to True
+            Set psCaption of oPrecompileItem to ("&Pre-Compile"*'<'+sFile+'>')
+        End
+        //
+        // Hot Keys
+        Send AddCJKeyStringToMenuItem (oRunItem    (Self)) CMD_BuildRun
+        Send AddCJKeyStringToMenuItem (oCompileItem(Self)) CMD_BuildCompileCurrent
+        Send AddCJKeyStringToMenuItem (oExecuteItem(Self)) CMD_BuildExecute
+        Send AddCJKeyStringToMenuItem (oDebugItem  (Self)) CMD_BuildDebugRunCurrent
+        //
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+        Get Object_Id to ghoBuildMenu
+    End_Procedure
+
+End_Object

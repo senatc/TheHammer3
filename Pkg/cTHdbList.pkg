@@ -1,0 +1,33 @@
+//  The Hammer version of the dbList class
+//
+//
+// **WvA: 28-02-2003, Support for mousewheel added (VDF7 and below)
+// After an idea taken from DAW newsgroup mail
+// by Frygyes Nagy, January 29th, 2003
+//
+
+#REPLACE WM_MOUSEWHEEL |CI$020A
+
+Class cTHdbList IS A dbList
+
+  Procedure Construct_Object
+// Add mousewheel support for VDF7 and lower.
+#IF FMAC_VERSION Le 7
+     Set External_Class_Name "THformList" To "DFformlist"
+     Set External_Message  WM_MOUSEWHEEL   To OnMWheel
+#ENDIF
+     forward Send Construct_Object
+  End_Procedure // Construct_Object
+
+#IF FMAC_VERSION Le 7
+  Procedure OnMWheel integer aufab
+    Move key_up_arrow to termchar
+    If aufab Lt 0  move key_down_arrow to termchar
+    Send key to self termchar
+  End_Procedure // OnMWheel
+#ENDIF
+
+End_class // cTHdbList
+
+
+

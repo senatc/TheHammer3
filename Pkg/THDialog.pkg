@@ -1,0 +1,167 @@
+// THDialog.pkg
+
+Register_Procedure  Request_SaveAllEntries
+Register_Procedure  NotifyChange
+Register_Object     oStatusHelp
+
+Class cNotifierCheckBox is a CheckBox
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        On_Key key_F2 Send Request_SaveAllEntries
+        On_Key kCancel Send Close_Panel
+    End_Procedure // Construct_Object
+    Procedure onChange
+        Delegate Send NotifyChange
+    End_Procedure
+End_Class
+
+Class cNotifierForm is a Form
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Label_Col_Offset to 2
+        Set Label_Justification_Mode to JMode_Right
+        On_Key key_F2 Send Request_SaveAllEntries
+        On_Key kCancel Send Close_Panel
+    End_Procedure // Construct_Object
+    Procedure onChange
+        Delegate Send NotifyChange
+    End_Procedure
+End_Class
+
+Class cNotifierSpinForm is a Spinform
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Label_Col_Offset to 2
+        Set Label_Justification_Mode to JMode_Right
+        On_Key key_F2 Send Request_SaveAllEntries
+        On_Key kCancel Send Close_Panel
+    End_Procedure // Construct_Object
+    Procedure onChange
+        Delegate Send NotifyChange
+    End_Procedure
+End_Class
+
+Class cNotifierComboForm is a ComboForm
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Label_Col_Offset to 2
+        Set Label_Justification_Mode to JMode_Right
+        On_Key key_F2 Send Request_SaveAllEntries
+        On_Key kCancel Send Close_Panel
+    End_Procedure // Construct_Object
+    Procedure onChange
+        Delegate Send NotifyChange
+    End_Procedure
+End_Class
+
+Class cColorPicker is a Container3D
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Size to 10 90
+        Set Location to 9 7
+        Set Border_Style to Border_Normal
+        Set Color to clWhite
+    End_Procedure
+    Procedure Mouse_Down Integer i1
+        Handle  hoDlg
+        Integer bOk iColor
+        String sLabel 
+        Get Color to iColor
+        Object oColorDlg is a ColorDialog
+            Set SelectedColor   to iColor
+            Set Custom_Color 0  to iColor
+            Get Object_Id       to hoDlg
+        End_Object
+        Get Show_Dialog of hoDlg to bOK
+        If bOK Begin
+            Get SelectedColor of hoDlg to iColor
+            Set Color to iColor
+            Delegate Send OnColorChange
+        End
+        Send Destroy to hoDlg
+        Forward Send Mouse_Down i1
+    End_Procedure
+End_Class
+
+Class cColorBox is a Container3d
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer piColorerIndex
+        Set Size to 22 105
+        Set Border_Style to Border_Normal
+        Set Color to clWhite
+        Object oLabel is a TextBox
+            Set Auto_Size_State to False
+            Set Size to 15 106
+            Set Location to 0 0
+            Set Label to "Color"
+            Set Justification_Mode to JMode_Center
+            Set Transparent_State to True
+        End_Object
+        Object oColorPicker is a cColorPicker
+        End_Object
+    End_Procedure
+    Procedure OnColorChange
+    End_Procedure
+    Procedure Set Label String sLabel
+        Set Label of (oLabel(Self)) to sLabel
+    End_Procedure
+    Function Label Returns String
+        Function_Return (Label(oLabel(Self)))
+    End_Function
+    Procedure Set SlectedColor Integer iRGBColor
+        If (iRGBColor=-1) Begin
+            Move clWhite to iRGBColor
+        End
+        Set Color of (oColorPicker(Self)) to iRGBColor
+    End_Procedure
+    Function SelectedColor Returns Integer
+        Function_Return (Color(oColorPicker(Self)))
+    End_Function
+End_Class
+
+Class cCmdLineSelector is a Button
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Handle phoPathForm 0
+        Property String psFileDialogCaption ""
+        Set Size to 13 50
+        Set Label to "Browse"
+    End_Procedure
+    Procedure OnClick
+        String sVDFRoot
+        Handle hoForm
+        Integer hoDialog bOk
+        String  sCurrentFolder sFileName sDirSep sCaption
+        Get phoPathForm to hoForm
+        If (hoForm=0) Procedure_Return // Acceptor form not attached
+        Get psFileDialogCaption to sCaption
+        Move (psVdfRootDir(ghoWorkSpaceHandlerEx)) to sVDFRoot
+        Move (Sysconf(SYSCONF_DIR_SEPARATOR)) to sDirSep
+        Get Value of hoForm item 0 to sFileName
+        Move (Trim(sFileName)) to sFileName
+        
+        If (Pos(sDirSep,sFileName) <> 0) Begin
+            Move (Parse_Drive(sFileName)+Parse_Path(sFileName)+sDirSep) to sCurrentFolder
+        End
+        
+        Move (oOpenDialog(Self)) to hoDialog
+        If (hoDialog <> 0) Begin
+            Set Dialog_Caption of hoDialog to sCaption
+            Set Initial_Folder of hoDialog to sCurrentFolder
+            Get Show_Dialog of hoDialog to bOk
+            If bOk Begin
+                Get File_Name of hoDialog to sFileName
+                If (Uppercase(sFileName) contains Uppercase(sVDFRoot)) Begin
+                    Move (Right(sFileName, Length(sFileName)-Length(sVDFRoot))) to sFileName
+                    Move ("@VDFROOT@\" + sFileName) to sFileName
+                End
+                Set Value of hoForm item 0 to sFileName
+                Set Item_Changed_State of hoForm item 0 to True
+                If (Focus(Self) <> hoForm) Begin
+                    Send Activate to hoForm
+                End
+            End
+        End
+    End_Procedure
+End_Class

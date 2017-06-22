@@ -1,0 +1,24 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : DFIEnum.pkg
+// $ProjectName : Shared Classes - Com Wrapper
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 02-20-2001 @ 19:00
+//
+// Contents:
+//      Enumerator Calls.
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+
+
+    // Functions to call IEnumFORMATETC
+external_function DFIEnum_Clone         "DFIEnum_Clone"         COM_DLL Pointer pIF Pointer pIFNew returns Integer
+external_function DFIEnum_Next          "DFIEnum_Next"          COM_DLL Pointer pIF Integer celt Pointer rgelt Integer pceltFetched returns Integer
+external_function DFIEnum_Reset         "DFIEnum_Reset"         COM_DLL Pointer pIF returns Integer
+external_function DFIEnum_Skip          "DFIEnum_Skip"          COM_DLL Pointer pIF Integer celt returns Integer

@@ -1,0 +1,169 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2014  KURANT Project
+// All rights reserved.
+//
+// $FileName    : cFolderTabsPopupmenu.pkg
+// $ProjectName : The Hammer 2.0
+// $Authors     : wil
+// $Created     : 02.02.2014  19:19
+// $Type        : LGPL
+//
+// Contents:
+// The so called foldertabs at the botton of the screen in the hammer have a
+// context menu. This popup class defines the functionality of that context menu.
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+
+Use Windows.pkg
+Use mExecute.pkg
+Use cSystemInfo.pkg
+Use vWin32fh.pkg
+
+//Register_Object    Client_Area
+Register_Procedure DoShowFileProperties
+Register_Procedure DoCloseFile
+Register_Procedure DoCloseAllOtherFiles
+Register_Procedure DoExploreFolder
+Register_Procedure DoCommandWindowHere
+Register_Procedure DoOpenAssociated
+
+//
+// Popup menu constants
+Enum_List
+  Define Cpm_FileProperties  For 0
+  Define Cpm_None1          // 1
+  Define Cpm_ExploreFolder  // 2
+  Define Cpm_CommandWindow  // 3
+  Define Cpm_OpenAssociated // 4
+  Define Cpm_None2          // 5
+  Define Cpm_FileClose      // 6
+  Define Cpm_CloseAll       // 7
+End_Enum_List    
+
+
+Class cFolderTabsPopupmenu Is a FloatingPopupMenu
+
+
+    Procedure Construct_Object
+
+      Forward Send Construct_Object
+
+      Property String psFileName            ""
+      Property Handle phoSelectedEditWindow 0
+      
+      Send DefinePopupMenu
+    End_Procedure // Construct_Object
+
+    
+    Procedure DefinePopupMenu
+      Integer iItem
+      Integer iCount  
+
+      Send Add_Item msg_DoShowFileProperties  "Properties"
+      Send Add_Item msg_None    ""
+      Send Add_Item msg_DoExploreFolder       "Open Containing Folder"
+      Send Add_Item msg_DoCommandWindowHere   "Open Command Window Here"
+      Send Add_Item msg_DoOpenAssociated      "Open with default application"
+      Send Add_Item msg_None    ""
+      Send Add_Item msg_DoCloseFile           "Close file"
+      Send Add_Item msg_DoCloseAllOtherFiles  "Close All Other Files"
+      
+      Get item_count To iCount
+      For iItem From 0 To (iCount-1)
+          Set Aux_Value Item iItem To Self
+      Loop
+    End_Procedure // DefinePopupMenu
+
+    Procedure DoShowFileProperties
+      String  sFileName
+
+      Get psFileName To sFileName
+      Send SHPropertiesFile sFileName
+    End_Procedure //
+
+    Procedure DoOpenAssociated
+      String  sFileName
+
+      Get psFileName To sFileName
+      Send vShellExecute "OPEN" sFileName "" ""
+    End_Procedure //
+
+    Procedure DoCommandWindowHere
+      String  sFileName
+      String  sPath sOldPath
+      String  sCMD 
+      Integer iVoid  
+      Boolean bExists
+
+      Get psFileName To sFileName
+      Get ParseFolderName sFileName To sPath
+      If (sPath<>"") Begin
+  
+        Get vFolderExists sPath to bExists
+        If (bExists) Begin
+          Get_Current_Directory To sOldPath
+          Set_Directory sPath       
+          If (isWindowsNTor2000(Desktop)) Move "CMD.EXE"  To sCMD
+          Else Move "COMMAND.COM"                         To sCMD
+          Move (WinExec(sCMD,SW_NORMAL)) To iVoid
+          Set_Directory sOldPath       
+        End  
+        Else Begin
+          Send Stop_Box ("Unable to set path"+sPath+"\nWindows claims it does not exist.")
+        End
+      End
+    End_Procedure // DoCommandWindowHere
+    
+
+    Procedure DoCloseFile
+      Handle  hoObj
+      Integer iRet
+      Boolean bRedraw
+      Get phoSelectedEditWindow To hoObj
+      If ( (hoObj) And (active_state(hoObj)) ) Begin
+        Get piRedrawState Of (oClientArea(Self)) To bRedraw
+        If (bRedraw) Send SetRedraw False
+        Move (SendMessage(window_handle(oClientArea(Self)),WM_MDIACTIVATE,(window_handle(hoObj)),0)) To iRet
+        If (bRedraw) Send SetRedraw True
+        Send CACloseFile  Of (oClientArea(Self))
+      End
+    End_Procedure // DoCloseFile
+
+    Procedure DoCloseAllOtherFiles
+    End_Procedure // DoCloseAllOtherFiles
+
+
+    Procedure DoExploreFolder
+      String  sFileName
+
+      Get psFileName To sFileName
+      // open explorer in default style at correct path, with filename selected.
+      Runprogram background "Explorer" ("/e,/select,"+sFileName)
+    End_Procedure // DoExploreFolder
+
+
+    Procedure Popup
+      Integer iItem
+      Integer iCount
+      String  sFilename
+
+      Get psFileName To sFileName
+      Set Value Item Cpm_FileClose To ("Close "+sFilename)
+      //
+      Get item_count To iCount
+      For iItem From 0 To (iCount-1)
+        Set Shadow_State Item iItem To true
+      Loop
+
+      Set Shadow_State Item Cpm_FileProperties to False
+      Set Shadow_State Item Cpm_ExploreFolder  to False
+      Set Shadow_State Item Cpm_CommandWindow  to False
+      Set Shadow_State Item Cpm_OpenAssociated to False
+      Set Shadow_State Item Cpm_FileClose      to False
+      Forward Send Popup
+    End_Procedure // popup
+End_Class // cFolderTabsPopupmenu

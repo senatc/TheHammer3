@@ -1,0 +1,113 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz 
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at> 
+//
+// $FileName    : DFIDataObject.pkg
+// $ProjectName : Shared Classes - Com Wrapper
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 04-10-2001 @ 19:00
+//
+// Contents:
+//      Make calls with tis COM Interface and receive call notifications.
+//      
+// $Rev History
+//
+//*****************************************************************************************
+
+Use ComNotificationHandler.pkg 
+Use mPointer.pkg
+
+    // Constants used in the FORMATEC Structure.
+Define DVASPECT_CONTENT    For 1
+Define DVASPECT_THUMBNAIL  For 2 
+Define DVASPECT_ICON       For 4 
+Define DVASPECT_DOCPRINT   For 8 
+
+
+    // Constants for tSTGMEDIUM.tymed to indicate what data is in it.
+Define TYMED_HGLOBAL   For 1
+Define TYMED_FILE      For 2
+Define TYMED_ISTREAM   For 4
+Define TYMED_ISTORAGE  For 8
+Define TYMED_GDI       For 16
+Define TYMED_MFPICT    For 32
+Define TYMED_ENHMF     For 64
+Define TYMED_NULL      For 0
+
+
+    // Storage Medium, in C++ it is defined as a Union Type whith these members:
+    //    [case(TYMED_GDI)]      HBITMAP        hBitmap; 
+    //    [case(TYMED_MFPICT)]   HMETAFILEPICT  hMetaFilePict; 
+    //    [case(TYMED_ENHMF)]    HENHMETAFILE   hEnhMetaFile; 
+    //    [case(TYMED_HGLOBAL)]  HGLOBAL        hGlobal; 
+    //    [case(TYMED_FILE)]     LPWSTR         lpszFileName; 
+    //    [case(TYMED_ISTREAM)]  IStream        *pstm; 
+    //    [case(TYMED_ISTORAGE)] IStorage       *pstg;             
+    // All are 4Byte values so I can wrap that in DataFlex with a single Pointer variable.
+    // which contents depends on .tymed.
+TYPE tSTGMEDIUM
+    FIELD tSTGMEDIUM.tymed                     as Dword
+    FIELD tSTGMEDIUM.hContent                  as Pointer
+END_TYPE
+
+
+    // DVTARGETDEVICE Struct. is used within the FORMATEC Struct.
+TYPE tDVTARGETDEVICE
+    FIELD tDVTARGETDEVICE.tdSize               as Dword     //TYPE: DWORD
+    FIELD tDVTARGETDEVICE.tdDriverNameOffset   as WORD      //TYPE: WORD
+    FIELD tDVTARGETDEVICE.tdDeviceNameOffset   as WORD      //TYPE: WORD
+    FIELD tDVTARGETDEVICE.tdPortNameOffset     as WORD      //TYPE: WORD
+    FIELD tDVTARGETDEVICE.tdExtDevmodeOffset   as WORD      //TYPE: WORD
+    FIELD tDVTARGETDEVICE.tdData               as CHAR 1    //TYPE: BYTE
+END_TYPE
+
+
+Define CLIPFORMAT   For Dword
+
+    // FORMATEC Struct. which is used very often within IDataObject Methods.
+TYPE tFORMATETC
+    FIELD tFORMATETC.cfFormat             as CLIPFORMAT         //TYPE: CLIPFORMAT
+    FIELD tFORMATETC.ptd                  as Pointer            //TYPE: *DVTARGETDEVICE
+    FIELD tFORMATETC.dwAspect             as Dword              //TYPE: DWORD
+    FIELD tFORMATETC.lindex               as Integer            //TYPE: LONG
+    FIELD tFORMATETC.tymed                as Dword              //TYPE: DWORD
+END_TYPE
+
+
+    // Fills in values into a FORMATETC Struct.
+#COMMAND SETDefFormatEtc R R R
+    Zerotype tFORMATETC     to !1
+    Put !2                  to !1   at tFORMATETC.cfFormat
+    Put 0                   to !1   at tFORMATETC.ptd    
+    Put DVASPECT_CONTENT    to !1   at tFORMATETC.dwAspect
+    Put -1                  to !1   at tFORMATETC.lindex
+    Put !2                  to !1   at tFORMATETC.tymed
+#ENDCOMMAND
+
+#COMMAND Debug.ShowFORMATETC R .
+    Local_Ex Integer iDummy
+    GetBuff        from !1     at tFORMATETC.cfFormat   to iDummy
+    showln "cfFormat: " iDummy " " (GetClipboardFormatName(iDummy))
+    GetBuff        from !1     at tFORMATETC.ptd        to iDummy
+//    showln "ptd: " iDummy  
+    GetBuff        from !1     at tFORMATETC.dwAspect   to iDummy
+//    showln "dwAspect: " iDummy
+    GetBuff        from !1     at tFORMATETC.lindex     to iDummy
+//    showln "lindex: " iDummy      
+    GetBuff        from !1     at tFORMATETC.tymed      to iDummy
+//    showln "tymed: " iDummy          
+#ENDCOMMAND
+
+
+
+    // Methods for IDataObject
+external_function DFIDataObject_GetData               "DFIDataObject_GetData"               COM_DLL Pointer pIF Pointer pFormatetc Pointer pmedium returns Integer
+external_function DFIDataObject_GetDataHere           "DFIDataObject_GetDataHere"           COM_DLL Pointer pIF Pointer pFormatetc Pointer pmedium returns Integer
+external_function DFIDataObject_QueryGetData          "DFIDataObject_QueryGetData"          COM_DLL Pointer pIF Pointer pFormatetc returns Integer
+external_function DFIDataObject_GetCanonicalFormatEtc "DFIDataObject_GetCanonicalFormatEtc" COM_DLL Pointer pIF Pointer pFormatetcIn Pointer pFormatetcOut returns Integer
+external_function DFIDataObject_SetData               "DFIDataObject_SetData"               COM_DLL Pointer pIF Pointer pFormatetc Pointer pmedium Integer fRelease returns Integer
+external_function DFIDataObject_EnumFormatEtc         "DFIDataObject_EnumFormatEtc"         COM_DLL Pointer pIF Dword dwDirection Pointer  ppenumFormatetc returns Integer
+external_function DFIDataObject_DAdvise               "DFIDataObject_DAdvise"               COM_DLL Pointer pIF Pointer pFormatetc Dword advf Pointer pAdvSink Dword pdwConnection returns Integer
+external_function DFIDataObject_DUnadvise             "DFIDataObject_DUnadvise"             COM_DLL Pointer pIF Dword dwConnection returns Integer
+external_function DFIDataObject_EnumDAdvise           "DFIDataObject_EnumDAdvise"           COM_DLL Pointer pIF Pointer ppenumAdvise returns Integer

@@ -1,0 +1,46 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : cEditorBuildCounterHandler.pkg
+// $ProjectName : Codemax
+// $Author      : Michael Kurz
+// $Created     : 17.05.2001  14:16
+//
+// Contents:
+//  Creates or modifies and include file which contains the buildnr.
+//  Whats the idea:
+//      Modifies an includefile before the compiling process is started so the buildnr
+//      can be accessed within a program.
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+
+Define BuildCounter         For "gcBuildCounter"
+Define BuildCounterStr      For ("#REPLACE "+BuildCounter)
+
+Class cEditorBuildCounterHandler Is an Array
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String  psFileName     Public ""
+        Property Integer piItemNr       Public 0
+    End_Procedure
+    Procedure ReadFile String sFile
+        String sLine
+        Direct_Input sFile
+        [Seqeof] Procedure_Return
+        Send Delete_Data
+        Repeat
+            ReadLn sLine
+            If (Left(Trim(Uppercase(sLine)),Length(BuildCounterStr))) Eq BuildCounterStr ;
+                Set piItemNr    To (Item_Count(Self))
+            [Not Seqeof] Set value Item (Item_Count(Self))  To sLine
+        Until [Seqeof]
+        Close_Input
+    End_Procedure
+End_Class
+
+

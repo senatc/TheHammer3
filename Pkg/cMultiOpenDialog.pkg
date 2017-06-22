@@ -1,0 +1,207 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2014  KURANT Project
+// All rights reserved.
+//
+// $FileName    : cMultiOpenDialog.pkg
+// $ProjectName : The Hammer 2.0
+// $Authors     : Wil van Antwerpen, Michael Kurz, Sergey V. Natarov, Bernhard Ponemayr
+// $Created     : 01.25.2014  01:08
+// $Type        : LGPL
+//
+// Contents: Select multiple files in open file dialog
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+Use file_dlg
+
+#IF FMAC_VERSION > 14
+// In VDF15.0 DAW added multi file open functionality to their file_dlg package
+// and changed the type definition to use the new type struct.
+  Type OPENFILENAME
+    Field OPENFILENAME.lStructSize        as DWord
+    Field OPENFILENAME.hwndOwner          as Handle
+    Field OPENFILENAME.hInstance          as Handle
+    Field OPENFILENAME.lpstrFilter        as Pointer
+    Field OPENFILENAME.lpstrCustomFilter  as Pointer
+    Field OPENFILENAME.nMaxCustFilter     as DWord
+    Field OPENFILENAME.nFilterIndex       as DWord
+    Field OPENFILENAME.lpstrFile          as Pointer
+    Field OPENFILENAME.nMaxFile           as DWord
+    Field OPENFILENAME.lpstrFileTitle     as Pointer
+    Field OPENFILENAME.nMaxFileTitle      as DWord
+    Field OPENFILENAME.lpstrInitialDir    as Pointer
+    Field OPENFILENAME.lpstrTitle         as Pointer
+    Field OPENFILENAME.ofnFlags           as DWord
+    Field OPENFILENAME.nFileOffset        as Short
+    Field OPENFILENAME.nFileExtension     as Short
+    Field OPENFILENAME.lpstrDefExt        as Pointer
+    Field OPENFILENAME.lCustData          as DWord
+    Field OPENFILENAME.lpfnHook           as Pointer
+    Field OPENFILENAME.lpTemplateName     as Pointer
+  End_Type
+#ENDIF
+
+
+#IFDEF OFN_EXPLORER
+#ELSE
+#Replace OFN_EXPLORER       |CI$080000
+#ENDIF
+
+#IFDEF GET_COMMDLGEXTENDEDERROREF
+#ELSE
+    External_function CommDlgExtendedErrorEf "CommDlgExtendedError" comdlg32.dll Returns Integer
+    Define FNERR_BUFFERTOOSMALL For |CI$3003
+#ENDIF
+
+Class cMultiOpenDialog Is an OpenDialog
+
+    Function Show_Dialog Returns Integer // bool
+        Handle hWnd
+        Integer bOK iFilter iFlags bHideRO bTickRO bFileExist bPathExist iMsg iMulti iRet
+        Integer icInitDir bCreatePrompt bOverwritePrompt bAllowReadOnly
+        Integer bNoChangeDir iArgumentSize
+        Pointer lpsOFN lpsFileTitle lpsFileName lpsFilter lpsInitDir pDatei
+        Pointer lpsTitle lpsDefExt
+        Get_Argument_Size To iArgumentSize
+        If iArgumentSize Lt 4096 Set_Argument_Size 4096
+        String sOFN sFileName sFileTitle sFilter sInitDir sTitle sDefExt sDatei sFiles sVerzeichnis sNullStr
+        Pointer pVoid
+
+        FillType OPENFILENAME with 0 To sOFN
+
+        Get Container_Handle To hWnd
+
+        If (ShowFileTitle_State(current_object)) ;
+        Get File_Title            To sFileName
+        Get Initial_Folder        To sInitDir
+        Get Dialog_Caption        To sTitle
+        Get Filter_String         To sFilter
+        Get HideReadOnly_State    To bHideRO
+        Get TickReadOnly_State    To bTickRO
+        Get FileMustExist_State   To bFileExist
+        Get PathMustExist_State   To bPathExist
+        Get CreatePrompt_State    To bCreatePrompt
+        Get OverwritePrompt_State To bOverwritePrompt
+        Get AllowReadOnly_State   To bAllowReadOnly
+        Get NoChangeDir_State     To bNoChangeDir
+        Get Filter_Index          To iFilter
+        Append sFilter    (Character(0)) (Character(0))
+        GetAddress Of sFilter    To lpsFilter
+        Move (OemToAnsi(lpsFilter, lpsFilter)) To pVoid
+        Move (Replaces('|', sFilter, Character(0))) To sFilter
+
+        Move (Repeat(Character(0),4096)) To sNullStr
+
+        Append sInitDir   (Character(0))
+        Append sFileTitle sNullStr
+        Append sFileName  sNullStr
+        Append sTitle     (Repeat(Character(0),255))
+        Append sDefExt    (Character(0))
+
+        GetAddress Of sInitDir   To lpsInitDir
+        GetAddress Of sFileName  To lpsFileName
+        GetAddress Of sFileTitle To lpsFileTitle
+        GetAddress Of sTitle     To lpsTitle
+        GetAddress Of sDefExt    To lpsDefExt
+        GetAddress Of sFilter    To lpsFilter
+
+        Move (OemToAnsi(lpsInitDir, lpsInitDir)) To pVoid
+        Move (OemToAnsi(lpsFileName, lpsFileName)) To pVoid
+        Move (OemToAnsi(lpsTitle, lpsTitle)) To pVoid
+
+
+        If bFileExist           Calc (iFlags + OFN_FILEMUSTEXIST)    To iFlags
+        If bPathExist           Calc (iFlags + OFN_PATHMUSTEXIST)    To iFlags
+        If bHideRO              Calc (iFlags + OFN_HIDEREADONLY)     To iFlags
+        If bTickRO              Calc (iFlags + OFN_READONLY)         To iFlags
+        If bCreatePrompt        Calc (iFlags + OFN_CREATEPROMPT)     To iFlags
+        If bOverwritePrompt     Calc (iFlags + OFN_OVERWRITEPROMPT)  To iFlags
+        If Not bAllowReadOnly   Calc (iFlags + OFN_NOREADONLYRETURN) To iFlags
+        If bNoChangeDir         Calc (iFlags + OFN_NOCHANGEDIR)      To iFlags
+                                Calc (iFlags + OFN_ALLOWMULTISELECT) To iFlags
+                                Calc (iFlags + OFN_EXPLORER)         To iFlags
+
+        Put hWnd              To sOFN At OPENFILENAME.hWndOwner
+        Put OPENFILENAME_Size To sOFN At OPENFILENAME.lStructSize
+        Put iFilter           To sOFN At OPENFILENAME.nFilterIndex
+        Put lpsFileName       To sOFN At OPENFILENAME.lpstrFile
+
+        If sInitDir Ne '' ;
+        Put lpsInitDir        To sOFN At OPENFILENAME.lpstrInitialDir
+
+        If sTitle Ne '' ;
+        Put lpsTitle          To sOFN At OPENFILENAME.lpstrTitle
+
+        Put 4096              To sOFN At OPENFILENAME.nMaxFileTitle
+        Put 4096              To sOFN At OPENFILENAME.nMaxFile
+        Put lpsFileTitle      To sOFN At OPENFILENAME.lpstrFileTitle
+        Put iFlags            To sOFN At OPENFILENAME.ofnFlags
+        Put lpsFilter         To sOFN At OPENFILENAME.lpstrFilter
+        Put lpsDefExt         To sOFN At OPENFILENAME.lpstrDefExt
+
+        GetAddress Of sOFN To lpsOFN
+
+        // Get AbstractFileDialog.External_msg To iMsg
+        Move (GetOpenFileName(lpsOFN)) To bOK
+
+        If bOK Begin
+            GetBuff From sOFN At OPENFILENAME.ofnFlags     To iFlags
+            GetBuff From sOFN At OPENFILENAME.nFilterIndex To iFilter
+            GetBuff From sOFN At OPENFILENAME.nFileOffset  To icInitDir
+
+            Move (Character(0)) To sFiles
+            Append sFiles (Character(0))
+
+            If (Pos(Character(0),sFileName)) Eq (Pos(sFiles,sFileName)) Move 0 To iMulti
+            Else Move 1 To iMulti
+
+            Object oSelectedFiles Is an array
+            End_Object
+
+            Move sFileName To sFiles
+            Move "" To sVerzeichnis
+
+            While (Character(0)) In sFiles
+                Left sFiles To sDatei (Pos(Character(0),sFiles))
+                Replace sDatei In sFiles with ""
+                GetAddress Of sDatei To pDatei
+                Move (AnsiToOem(pDatei,pDatei)) To iRet
+                Move (cString(sDatei)) To sDatei
+                If (Trim(sDatei)) Ne "" Begin
+                    If (iMulti) Begin
+                        If (Trim(sVerzeichnis)) Eq "" Begin
+                            Move sDatei To sVerzeichnis
+                            Append sVerzeichnis "\"
+                        End
+                        Else Begin
+                            Insert sVerzeichnis In sDatei At 1
+                            Set value Of (oSelectedFiles(Self)) Item (item_count(oSelectedFiles(Self))) To sDatei
+                        End
+                    End
+                    Else Set value Of (oSelectedFiles(Self)) Item (item_count(oSelectedFiles(Self))) To sDatei
+                End
+            End
+
+            Left sFileName To sInitDir icInitDir
+            Set Initial_Folder     To sInitDir
+
+            Set TickReadOnly_State To (iFlags Iand OFN_READONLY)
+            Set Filter_Index       To iFilter
+
+            Move (AnsiToOem(lpsFileName, lpsFileName)) To pVoid
+            Move (AnsiToOem(lpsFileTitle, lpsFileTitle)) To pVoid
+            Set File_Name          To (CString( sFileName ))
+            Set File_Title         To (CString( sFileTitle ))
+            Move (oSelectedFiles(Self)) To bOK
+        End
+        Else If (CommDlgExtendedErrorEf()) Eq FNERR_BUFFERTOOSMALL Send info_box "Too many Files selected."
+
+        If iArgumentSize Lt 4096 Set_Argument_Size iArgumentSize
+
+        Function_Return (bOK)
+    End_Function
+
+End_Class

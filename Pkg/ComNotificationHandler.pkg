@@ -1,0 +1,297 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : ComNotificationHandler.pkg
+// $ProjectName : Shared Classes - Com Wrapper
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 02-20-2001 @ 19:00
+//
+// Contents:
+//      Object with a WindowHandle to receive the Notification Calls.
+//      and basic declarations.
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+Use mPointer.pkg
+Use mStrConv.pkg
+Use WinError.Pkg
+
+
+		// IUnknown
+Define IID_IUnknown             For "00000000-0000-0000-C000-000000000046"
+Define IUnknown_AddRef					For 500
+Define IUnknown_Release				  For 501
+Define IUnknown_QueryInterface	For 502
+	// IDropTarget
+Define IID_IDropTarget          For "00000122-0000-0000-C000-000000000046"
+Define IDropTarget_DragEnter			For 1000
+Define IDropTarget_DragOver 			For 1001
+Define IDropTarget_DragLeave			For 1002
+Define IDropTarget_Drop				    For 1003
+	// IDropSource
+Define IID_IDropSource                  For "00000121-0000-0000-C000-000000000046"
+Define IDropSource_GiveFeedback		    For 1020
+Define IDropSource_QueryContinueDrag	For 1021
+
+    // 128 Bit value which identifies a GUI of COM.
+Type tGUID
+    Field tGUID.Data1                as Char 4   //TYPE: long
+    Field tGUID.Data2                as Char 2   //TYPE: short
+    Field tGUID.Data3                as Char 2   //TYPE: short
+    Field tGUID.Data4                as Char 8   //TYPE: char
+End_Type
+
+    // For a better readable code.
+Define REFIID                           For String
+
+    // To allow a later renameing of the DLL with little code change.
+Define COM_DLL      For DragNDrop.DLL
+
+    // Initialize COM (Drag and Drop needs an OleInitialize, a CoInitialize(Ex) isnt enough!
+External_function CoInitialize          "CoInitialize"          Ole32.dll Pointer pReserved Returns Integer
+External_function OleInitialize         "OleInitialize"         Ole32.dll Pointer pReserved Returns Integer
+External_function OleUnInitialize       "OleUninitialize"       Ole32.dll Returns Integer
+
+    // For an easier handling.
+Procedure InitOle Global Integer iFlag
+    Integer iRet
+    If iFlag Move (OleInitialize(0))    To iRet
+    Else     Move (OleUnInitialize())   To iRet
+End_Procedure
+
+
+    // The Base functions from IUnknown.
+External_function DFIUnknown_AddRef           "DFIUnknown_AddRef"           COM_DLL Pointer pID Returns Integer
+External_function DFIUnknown_Release          "DFIUnknown_Release"          COM_DLL Pointer pID Returns Integer
+External_function DFIUnknown_QueryInterface   "DFIUnknown_QueryInterface"   COM_DLL Pointer pID String sRiid Pointer ppIF Returns Integer
+
+    // I use this messages to receive InterfaceCalls.
+    // (An Interface can be used to receive events and cause events)
+Define COM_BASE	    For (WM_USER+1000)      // to allow moving the BaseMessage in an easy way.
+Define COM_MESSAGE  For (COM_BASE+1)        // Cover Interface Calls.
+
+    // Base DataType which covers the Parameters of any call and the MessageType.
+    // all parameters are transfered with an integer value.
+    // (should be enough)
+    // pParas is a pointer to an integer array with ParaCount members.
+Type tDFParas
+    Field tDFParas.MessageType      as Integer
+    Field tDFParas.ParaCount        as Integer
+    Field tDFParas.pParas           as Pointer
+End_Type
+
+    // Used to verfy that a Pointer is ne 0.
+Function COMVerifyPointer Global Pointer pPtr String sClsName String sMethodName Integer hoObj Returns Integer
+    String sStr
+    If pPtr Eq 0 Begin
+        Append sStr "Pointer = 0\n\n"
+        Append sStr "Class: " sClsName "\n"
+        Append sStr "Function: " sMethodName "\n\n"
+        Append sStr "Object Reference: \n"
+        Append sStr (Name(hoObj))
+        Send Info_Box sStr "Verify Pointer"
+        Function_Return 1
+    End
+    Function_Return 0
+End_Function
+
+    // Every InterfaceObject is derived from this class.
+    // It "decodes" the given tDFParas structure in a more handy VDF format by filling
+    // it into an VDF Array.
+Class cDFIUnknown Is a DFObject
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        //____InterfaceInformation...______________________________________________________
+        Property Pointer pInterFacePointer  Public 0            // Pointer to the Interface.
+        Property String  psInterFaceID      Public IID_IUnknown // In a SubClassing this is set to the Interface.
+
+        //____Parameter_Decoding...________________________________________________________
+        Property Integer piMessageType  Public 0            // For decoding parameters and
+        Object oParameters Is an Array                      // Messagetype.
+        End_Object
+        Set Focus_Mode To nonfocusable
+    End_Procedure
+    Function ICom Returns Integer
+        Function_Return (pInterFacePointer(Self))
+    End_Function
+
+        // Sets the retval of a mapped interface call.
+    Procedure SetRetVal Integer iRetVal
+    End_Procedure
+    Procedure SetRetValIntern Integer iRetVal
+        Integer iRet
+        If (COMVerifyPointer(pInterFacePointer(Self),"cDFIUnknown","SetRetVal",Self)) Procedure_Return 1
+        Send SetRetVal iRetVal
+    End_Procedure
+
+        // Fills the Parameters into the Array.
+    Procedure FillInParameters Pointer pParas
+        Integer iRet iType iCount iC iValue
+        String  sDFParas sValue
+        Pointer pDFParas pValue
+        ZeroType tDFParas       To sDFParas
+        GetAddress Of sDFParas  To pDFParas
+        Move (CopyMemory(pDFParas,pParas,tDFParas_Size))    To iRet
+
+        GetBuff From sDFParas At tDFParas.MessageType       To iType
+        Set piMessageType                                   To iType
+
+        GetBuff From sDFParas At tDFParas.ParaCount         To iCount
+        GetBuff From sDFParas At tDFParas.pParas            To pParas
+        If pParas Eq 0 Procedure_Return
+        Move (Repeat(Character(0),4*iCount))                To sValue
+        GetAddress Of sValue                                To pValue
+        Move (CopyMemory(pValue,pParas,(iCount*4)))         To iRet
+        Send Delete_Data                                    To (oParameters(Self))
+        For iC From 0 To (iCount-1)
+            Move (BytesToDWord(sValue,(iC*4)+1))            To iValue
+            Set value Of (oParameters(Self)) Item iC        To iValue
+        End
+    End_Procedure
+
+        // Copies a DWord into a pointer to a dword.
+        // (This is needed very often within Interfaces, to change the DragNDrop cursor.
+    Procedure DWordValueToPointer Pointer pDw Dword dwValue
+        String  sDWord
+        Pointer pDWord iRet
+        If (COMVerifyPointer(pDW,"cDFBaseComInterface","DWordValueToPointer",Self)) Procedure_Return 1
+        Move (DWordToBytes(dwValue))        To sDWord
+        GetAddress Of sDWord                To pDWord
+        Move (CopyMemory(pDW,pDword,4))     To iRet
+    End_Procedure
+        // Gets a value on a specific Address. String
+        // RetVal is converted to ASCII values to prevent DF from creating problems
+        // with Character(0)
+    Function GetStrValueFromPointer Pointer pDW Integer iL Returns String
+        Integer iRet
+        Local_Buffer sRet pRet (iL+1)
+        Move (CopyMemory(pRet,pDW,iL))  To iRet
+        Function_Return (ConvertBuffToAsciiHex(sRet))
+    End_Function
+        // Gets a DWord value from a pointer Address.
+    Function GetDwordValueFromPointer Pointer pDW Returns String
+        Integer iRet
+        Local_Buffer sRet pRet 4
+        Move (CopyMemory(pRet,pDW,4))  To iRet
+        Function_Return (BytesToDWord(sRet,1))
+    End_Function
+
+        // Get a value from an Address of a REFIID
+    Function GetGUIDFromPointer Pointer pDW Returns String
+        Integer iRet
+        String  sStr sRetVal
+        Local_Buffer sRet pRet tGUID_Size
+        Move (CopyMemory(pRet,pDW,tGUID_Size))          To iRet
+        GetBuff_String From sRet At tGUID.Data1         To sStr
+        Move (FlipStrLR(sStr))                          To sStr
+        Move (ConvertBuffToAsciiHex(sStr))              To sStr
+        Append sRetVal sStr
+        GetBuff_String From sRet At tGUID.Data2         To sStr
+        Move (FlipStrLR(sStr))                          To sStr
+        Move (ConvertBuffToAsciiHex(sStr))              To sStr
+        Append sRetVal "-" sStr
+        GetBuff_String From sRet At tGUID.Data3         To sStr
+        Move (FlipStrLR(sStr))                          To sStr
+        Move (ConvertBuffToAsciiHex(sStr))              To sStr
+        Append sRetVal "-" sStr
+        GetBuff_String From sRet At tGUID.Data4         To sStr
+        Move (ConvertBuffToAsciiHex(sStr))              To sStr
+        Move (Insert("-",sStr,5))                       To sStr
+        Append sRetVal "-" sStr
+        Function_Return sRetVal
+    End_Function
+
+        // Sets the InterfacePointer.
+    Procedure SetInterfacePointer Pointer ppIF Pointer pIFNew
+        Send DWordValueToPointer  ppIF pIFNew
+    End_Procedure
+
+    Function AddRef Returns Integer
+    End_Procedure
+    Function Release Returns Integer
+    End_Procedure
+    Function QueryInterface REFIID riid Pointer ppIF
+        Pointer pIF
+        Function_Return E_NOINTERFACE
+        If (riid Eq IID_IUnknown)           Move (pInterFacePointer(Self))    To pIF
+        If (riid Eq psInterFaceID(Self))    Move (pInterFacePointer(Self))    To pIF
+        If (pIF Ne 0) Begin
+            Send SetInterfacePointer ppIF pIF
+            Function_Return NOERROR
+        End
+        Function_Return E_NOINTERFACE
+    End_Function
+
+        // Is called for every Message with its type and the ArrayID with the Parameters.
+    Procedure DecodeMessage Integer iType Integer hoParas
+    End_Procedure
+
+        // Finds all Parameters.
+    Procedure onNewMessage Integer pParas
+        Integer iRet hoID pPtr
+        String  sRefIID
+        Move (oParameters(Self))                                 To hoID
+        Send FillInParameters pParas
+        If (piMessageType(Self))      Eq IUnknown_AddRef         Get AddRef  To iRet
+        Else If (piMessageType(Self)) Eq IUnknown_Release        Get Release To iRet
+        Else If (piMessageType(Self)) Eq IUnknown_QueryInterface Get QueryInterface (GetGUIDFromPointer(Self,Value(hoID,0))) (Value(hoID,1)) To iRet
+        Else Get Msg_DecodeMessage (piMessageType(Self)) (oParameters(Self))    To iRet
+        Send SetRetValIntern iRet
+    End_Procedure
+End_Class
+
+
+
+Integer ghoComNotificationHandler
+
+    // Routs all Messages to the Object given in wParam.
+    // Used for receivin WindowMessages which covers the InterfaceCalls.
+Class cComNotificationHandler Is a DFControl
+    Register_Procedure onComMessage
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set External_Class_Name "cComNotificationHandler"   To "STATIC"
+        Set External_Message COM_MESSAGE                    To msg_onComMessage
+        Set Focus_Mode To nonfocusable
+    End_Procedure
+
+    Procedure onComMessage Integer wParam Integer lParam
+        If wParam Ne 0 Send onNewMessage To wParam lParam
+    End_Procedure
+End_Class
+
+    // Becouse we need a window handle the  cComNotificationHandler  object need to placed
+    // in a Panel window, so this PKG can (must) be included direct at the Desktop.
+    // So the Interface Calling is independent from a Application Panel, and doesnt force that an App
+    // has one.
+Class cComNotificationPanel Is an BasicPanel
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Send InitOle True   // Init OLE
+
+        Object oComNotificationHandler Is a cComNotificationHandler
+            Move Self   To ghoComNotificationHandler
+        End_Object
+        Set Focus_Mode To nonfocusable
+        Set Visible_State To False // we want it "visible" to Windows (to get a window-handle) - but not us
+    End_Procedure
+    Procedure Page_Object Integer iFlag
+        Forward Send Page_Object iFlag
+        If iFlag Send Page_Object To (oComNotificationHandler(Self)) iFlag
+    End_Procedure
+
+    Procedure Destroy_Object
+        Send InitOle False   // UnInit OLE
+        Forward Send Destroy_Object
+    End_Procedure
+End_Class
+
+    // Creates this DummyPanel with the Receiving window in it.
+Object oComNotificationPanel Is a cComNotificationPanel
+    Send Page_Object True
+End_Object
+

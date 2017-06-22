@@ -1,0 +1,688 @@
+// TH3ToolsMenu.mn
+
+Register_Procedure DoInsertWorkspaceHeader
+Class cCJHeaderMenuItem is a cCJMenuItem
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String psTemplate ""
+        Property Integer piItemMessage 0
+    End_Procedure
+    Procedure DoInsertWorkspaceHeader
+        String  sPath
+        String  sTemplate
+        Get  psTemplate             to sTemplate
+        Get  CurrentProgramPath     of ghoWorkspaceHandlerEx to sPath
+        Get  vFolderFormat sPath    to sPath
+        Send InsertHeaderFromFile   to (Focus(Desktop)) (sPath+sTemplate)
+    End_Procedure    
+    Procedure DoEditWorkspaceHeader
+        String  sPath
+        String  sTemplate
+        Handle hoClient
+        Get Client_Id               to hoClient
+        Get  psTemplate             to sTemplate
+        Get  CurrentProgramPath     of ghoWorkspaceHandlerEx to sPath
+        Get  vFolderFormat sPath    to sPath
+        Send CAOpenFile             of hoClient (sPath+sTemplate)
+    End_Procedure    
+    Procedure OnExecute Variant vCommandBarControl
+        Integer iMessage
+        Get piItemMessage to iMessage
+        If iMessage ;
+            Send iMessage
+    End_Procedure
+End_Class
+
+Object oToolsMenu is a cCJCustomMenu
+    Set psCaption to "&Tools"
+    Set psDescription to "Tools"
+    Set psCategory to "Tools"
+
+    Object oHeadersMenuItem is a cCJMenuItem
+        Property Handle  phoTemplates     0
+        Set peControlType to xtpControlPopup          
+        Set psCaption to "File Headers"
+        Set psDescription to "Insert header into the current source file"
+        
+        Object oInsertMenuItem is a cCJMenuItem
+            Property Handle[] phArrayOfWindows
+            Set peControlType to xtpControlPopup          
+            Set psCaption to "Insert Header"
+            
+            Object oInsertGlobalItem is a cCJMenuItem
+                Set pbAddToDesignerMenu to True
+                Set psCaption   to "Global Header"
+                Set psToolTip to "Insert global header"
+                Set psDescription to "Insert global header into the current source"
+                Procedure OnExecute Variant vCommandBarControl
+                    Send InsertHeaderGlobal to (Focus(Self))
+                End_Procedure
+            End_Object
+            
+            Object oInsertCurrentItem is a cCJMenuItem
+                Set pbAddToDesignerMenu to True
+                Set psCaption       to "Current User"
+                Set psToolTip       to "Insert current user header"
+                Set psDescription   to "Insert current user header into the current source"
+                Set psImage         to "Header16.ico"
+                Procedure OnExecute Variant vCommandBarControl
+                    Send InsertHeaderUser to (Focus(Self))
+                End_Procedure
+            End_Object
+
+            Procedure OnPopupInit Variant vCommandBarControl Handle hCommandBarControls
+                Forward Send OnPopupInit vCommandBarControl hCommandBarControls
+                Set psCaption of oInsertCurrentItem to ("Current User:" * ToOem(gsUserName))
+                //
+                String  sTemplate
+                Integer iC iCount iWindows iItem 
+                Handle  hoSet
+                Handle[] hArrayOfWindows
+                Variant vItem
+                
+                // delete all windows actions and menu items. Assume we have an array of DF action objects for the windows
+                // also assume that destroying an action removes all menu instances of that action
+                Get phArrayOfWindows to hArrayOfWindows
+                Move (SizeOfArray(hArrayOfWindows)) to iWindows
+                For iC from 0 to (iWindows-1)
+                    If (hArrayOfWindows[iC]) ;
+                        Send Destroy of hArrayOfWindows[iC] // assume this removes all menu items of this action
+                Loop
+                Move (ResizeArray(hArrayOfWindows,0)) to hArrayOfWindows
+                //
+                Send CreateFiletemplateSet
+                //
+                Move 0 to iCount
+                Get phoTemplates to hoSet
+                If (hoSet) Begin
+                    Get Item_Count of hoSet to iCount 
+                    For iItem from 0 to (iCount-1)
+                        Get LongFileName of hoSet item iItem to sTemplate
+                        Get Create U_cCJHeaderMenuItem to hArrayOfWindows[iC]
+                        If (iItem=0) Set pbControlBeginGroup of hArrayOfWindows[iC] to True
+                        Set psTemplate          of hArrayOfWindows[iC] to sTemplate 
+                        Set psCaption           of hArrayOfWindows[iC] to sTemplate
+                        Set psDescription       of hArrayOfWindows[iC] to ("Insert '" - sTemplate - "' header.")
+                        Set piItemMessage       of hArrayOfWindows[iC] to Msg_DoInsertWorkspaceHeader
+                        Get AddDynamicControl   of hArrayOfWindows[iC] hCommandBarControls to vItem
+                    Loop
+                End
+                //
+                Set phArrayOfWindows to hArrayOfWindows
+                //
+            End_Procedure
+    
+            Function IsEnabled Returns Boolean
+                Handle hoCA hoID hoID2
+                Boolean bEnabled
+                Integer iFlag iDel
+                Get Client_Id to hoCA
+                Move (Focus(Desktop))                           to hoID
+                If hoID Begin
+                    Move (Parent(hoID))                         to hoID
+                    Get  Delegation_Mode of hoID                to iDel
+                    Set  Delegation_Mode of hoID                to no_delegate_or_error
+                    Get  GetEditViewID of hoID                  to hoID2
+                    Set  Delegation_Mode of hoID                to iDel
+                End
+                If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+                Else Move 0                                     to bEnabled
+                Function_Return bEnabled
+            End_Function
+            
+        End_Object // oToolsHeadersInsertMenuItem
+
+        Object oHeadersEditMenuItem is a cCJMenuItem
+            Property Handle[] phArrayOfWindows
+            Set peControlType to xtpControlPopup          
+            Set psCaption to "Edit Header"
+            
+            Object oCreateItem is a cCJMenuItem
+                Set pbAddToDesignerMenu to True
+                Set psCaption   to "Create Workspace Header"
+                Set psToolTip to "Create Workspace Header"
+                Set psDescription to "Create Workspace Header"
+                Set psImage to "CreateHeader16.ico"
+                Procedure OnExecute Variant vCommandBarControl
+                    Handle hoClient
+                    Get Client_Id to hoClient
+                    Send CAEditHeaderWorkspace of hoClient
+                End_Procedure
+            End_Object
+            
+            Object oEditGlobalItem is a cCJMenuItem
+                Set pbControlBeginGroup to True
+                Set pbAddToDesignerMenu to True
+                Set psCaption   to "Global Header"
+                Set psToolTip to "Edit global header"
+                Set psDescription to "Modify global header"
+                Procedure OnExecute Variant vCommandBarControl
+                    Handle hoClient
+                    Get Client_Id to hoClient
+                    Send CAEditHeaderGlobal of hoClient
+                End_Procedure
+            End_Object
+            
+            Object oEditCurrentItem is a cCJMenuItem
+                Set pbAddToDesignerMenu to True
+                Set psCaption   to "Current User"
+                Set psToolTip to "Edit current user header"
+                Set psDescription to "Modify current user header"
+                Procedure OnExecute Variant vCommandBarControl
+                    Handle hoClient
+                    Get Client_Id to hoClient
+                    Send CAEditHeaderUSer   of hoClient
+                End_Procedure
+            End_Object
+            
+            Procedure OnPopupInit Variant vCommandBarControl Handle hCommandBarControls
+                Forward Send OnPopupInit vCommandBarControl hCommandBarControls
+                Set psCaption of oEditCurrentItem to ("Current User:" * ToOem(gsUserName))
+                //
+                String  sTemplate
+                Integer iC iCount iWindows iItem 
+                Handle  hoSet
+                Handle[] hArrayOfWindows
+                Variant vItem
+                
+                // delete all windows actions and menu items. Assume we have an array of DF action objects for the windows
+                // also assume that destroying an action removes all menu instances of that action
+                Get phArrayOfWindows to hArrayOfWindows
+                Move (SizeOfArray(hArrayOfWindows)) to iWindows
+                For iC from 0 to (iWindows-1)
+                    If (hArrayOfWindows[iC]) ;
+                        Send Destroy of hArrayOfWindows[iC] // assume this removes all menu items of this action
+                Loop
+                Move (ResizeArray(hArrayOfWindows,0)) to hArrayOfWindows
+                //
+                Send CreateFiletemplateSet
+                //
+                Move 0 to iCount
+                Get phoTemplates to hoSet
+                If (hoSet) Begin
+                    Get Item_Count of hoSet to iCount 
+                    For iItem from 0 to (iCount-1)
+                        Get LongFileName of hoSet item iItem to sTemplate
+                        Get Create U_cCJHeaderMenuItem to hArrayOfWindows[iC]
+                        If (iItem=0) Set pbControlBeginGroup of hArrayOfWindows[iC] to True
+                        Set psTemplate          of hArrayOfWindows[iC] to sTemplate 
+                        Set psCaption           of hArrayOfWindows[iC] to sTemplate
+                        Set psDescription       of hArrayOfWindows[iC] to ("Modify '" - sTemplate - "' header.")
+                        Set piItemMessage       of hArrayOfWindows[iC] to Msg_DoEditWorkspaceHeader
+                        Get AddDynamicControl   of hArrayOfWindows[iC] hCommandBarControls to vItem
+                    Loop
+                End
+                //
+                Set phArrayOfWindows to hArrayOfWindows
+                //
+            End_Procedure
+
+        End_Object // oToolsHeadersInsertMenuItem
+
+        Procedure CreateFiletemplateSet
+            Handle hoID
+            Handle hoTemplates
+            String sPath
+            
+            Get phoTemplates to hoTemplates
+            If (hoTemplates<>0) Begin       // Destroy existing fileset if exists
+                Get Object_Id of hoTemplates to hoID
+                If (hoID) Begin
+                    Send Destroy of hoID
+                End
+                Set phoTemplates to 0
+            End
+            Get CurrentProgramPath of ghoWorkspaceHandlerEx to sPath
+            Get vFolderFormat sPath to sPath
+            Get Create U_cFolderSet to hoTemplates
+            If (hoTemplates) Begin
+                Send LoadBuffer of hoTemplates (sPath+"*.tpl")
+                Set phoTemplates to hoTemplates
+            End
+        End_Procedure // CreateFiletemplateSet
+
+    End_Object // oToolsHeadersMenuItem
+
+    Object oCodeListMenuItem is a cCJMenuItem
+        Set peControlType to xtpControlPopup          
+        Set psCaption to "Code Lists"
+        Set psImage to "CodeList16.ico"
+        
+        Object oClassesItem is a cCJMenuItem
+            Set psCaption   to "Classes"
+            Set psToolTip to "List Classes"
+            Set psDescription to "Show Classes Code List"
+            Set psShortcut to ""
+            Set psImage to "CLClass16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send ListClasses to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oObjectsItem is a cCJMenuItem
+            //Set psImage to "New16.bmp"
+            Set psCaption   to "Objects"
+            Set psToolTip to "List Objects"
+            Set psDescription to "Show Objects Code List"
+            Set psShortcut to ""
+            Set psImage to "CLObject16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send ListObjects to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oProceduresItem is a cCJMenuItem
+            Set psCaption   to "Procedures"
+            Set psToolTip to "List Procedures"
+            Set psDescription to "Show Procedures Code List"
+            Set psImage to "CLProcedure16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send listProcedures to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oFunctionsItem is a cCJMenuItem
+            Set psCaption   to "Functions"
+            Set psToolTip to "List Functions"
+            Set psDescription to "Show Functions Code List"
+            Set psShortcut to ""
+            Set psImage to "CLFunction16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send listFunctions to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oVariablesItem is a cCJMenuItem
+            Set psCaption   to "Local Variables"
+            Set psToolTip to "List Local Variables"
+            Set psDescription to "Show Local Variables Code List"
+            Procedure OnExecute Variant vCommandBarControl
+                Send listVars to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oStructsItem is a cCJMenuItem
+            Set psCaption   to "Structures"
+            Set psToolTip to "List Structures"
+            Set psDescription to "Show Structures Code List"
+            Set psImage to "CLStruct16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+            End_Procedure
+        End_Object
+        
+        Object oKeysItem is a cCJMenuItem
+            //Set psImage to "New16.bmp"
+            Set psCaption   to "Keys"
+            Set psToolTip to "List Keys"
+            Set psDescription to "Show Keys Code List"
+            Set psShortcut to ""
+            Set psImage to "ListKey16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send listKeys to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oTagsItem is a cCJMenuItem
+            Set psCaption   to "Studio/IDE Tags"
+            Set psToolTip to "List Tags"
+            Set psDescription to "Show IDE/Studio Tags Code List"
+            Set psImage to "CLTag16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send listIDETags to (Focus(Self))
+            End_Procedure
+        End_Object
+        
+        Object oCreateItem is a cCJMenuItem
+            Set pbControlBeginGroup to True
+            //Set psImage to "New16.bmp"
+            Set psCaption   to "Create Code List..."
+            Set psToolTip to "Create Code List"
+            Set psDescription to "Create Code List"
+            Set psShortcut to ""
+            Procedure OnExecute Variant vCommandBarControl
+                Send listCreator to (Focus(Self))
+            End_Procedure
+        End_Object
+
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+
+    End_Object // oToolsCodeListMenuItem
+
+    Object oMacroMenuItem is a cCJMenuItem
+        Set peControlType to xtpControlPopup          
+        Set psCaption to "Macros"
+        Set psToolTip to "Editor Macros Management"
+        Set psDescription to "Record and execute the code editor macro"
+        
+        Object oRecordItem is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Record Macro..."
+            Set psToolTip to "Record Macro"
+            Set psDescription to "Record Editor Macro"
+            Set psImage to "MacroRecord16.ico"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatRecordMacro to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsRecordingMacro of (Focus(Self)) to bEnabled
+                Function_Return (not(bEnabled))
+            End_Function
+        End_Object
+
+        Object oPlay1Item is a cCJMenuItem
+            Set pbControlBeginGroup to True
+            Set psCaption   to "Play Macro 1"
+            Set psToolTip to "Record Macro 1"
+            Set psDescription to "Play Editor Macro 1"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro1 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(0,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay2Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 2"
+            Set psToolTip to "Record Macro 2"
+            Set psDescription to "Play Editor Macro 2"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro2 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(1,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay3Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 3"
+            Set psToolTip to "Record Macro 3"
+            Set psDescription to "Play Editor Macro 3"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro3 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(2,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay4Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 4"
+            Set psToolTip to "Record Macro 4"
+            Set psDescription to "Play Editor Macro 4"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro4 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(3,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay5Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 5"
+            Set psToolTip to "Record Macro 5"
+            Set psDescription to "Play Editor Macro 5"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro5 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(4,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay6Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 6"
+            Set psToolTip to "Record Macro 6"
+            Set psDescription to "Play Editor Macro 6"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro6 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(5,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay7Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 7"
+            Set psToolTip to "Record Macro 7"
+            Set psDescription to "Play Editor Macro 7"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro7 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(6,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay8Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 8"
+            Set psToolTip to "Record Macro 8"
+            Set psDescription to "Play Editor Macro 8"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro8 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(7,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay9Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 9"
+            Set psToolTip to "Record Macro 9"
+            Set psDescription to "Play Editor Macro 9"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro9 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(8,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oPlay10Item is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set psCaption   to "Play Macro 10"
+            Set psToolTip to "Record Macro 10"
+            Set psDescription to "Play Editor Macro 10"
+            Procedure OnExecute Variant vCommandBarControl
+                Send FloatPlayMacro10 to (Focus(Self))
+            End_Procedure
+            Function IsEnabled Returns Boolean
+                Boolean bEnabled
+                Get CM_IsPlayingMacro of (Focus(Self)) to bEnabled
+                Move (not(bEnabled)) to bEnabled
+                If (CMGetMacro(9,0)=0) Move (False) to bEnabled
+                Function_Return bEnabled
+            End_Function
+        End_Object
+
+        Object oDeleteItem is a cCJMenuItem
+            Set pbAddToDesignerMenu to True
+            Set pbControlBeginGroup to True
+            Set psCaption   to "Delete All Macros"
+            Set psToolTip to "Delete All Macros"
+            Set psDescription to "Delete All Editor Macros"
+            Procedure OnExecute Variant vCommandBarControl
+                Handle hoClient
+                Get Client_Id to hoClient
+                Send FloatDeleteAllMacros of hoClient
+            End_Procedure
+        End_Object
+
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+
+    End_Object // oToolsMacroMenuItem
+
+    Object oInsertRevisionItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set pbControlBeginGroup to True
+        Set psCaption   to "Insert Revision Entry"
+        Set psToolTip to "Insert Revision Entry"
+        Set psDescription to "Inserts revision line into the header and source line"
+        Set psImage to "Comment16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Send InsertRevision to (Focus(Self))
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oToolsInsertColorMenuItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Insert Color Value"
+        Set psToolTip to "Insert Color Value"
+        Set psDescription to "Inserts RGB color value into the source"
+        Set psImage to "Color16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Send FloatInsertColor to (Focus(Self))
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Object oInsertPictureItem is a cCJMenuItem
+        Set pbAddToDesignerMenu to True
+        Set psCaption   to "Insert Picture Reference"
+        Set psToolTip to "Insert Picture Reference"
+        Set psDescription to "Inserts picture file name into the source"
+        Set psImage to "Picture16.ico"
+        Procedure OnExecute Variant vCommandBarControl
+            Send FloatInsertBitmap to (Focus(Self))
+        End_Procedure
+        Function IsEnabled Returns Boolean
+            Handle hoCA hoID hoID2
+            Boolean bEnabled
+            Integer iFlag iDel
+            Get Client_Id to hoCA
+            Move (Focus(Desktop))                           to hoID
+            If hoID Begin
+                Move (Parent(hoID))                         to hoID
+                Get  Delegation_Mode of hoID                to iDel
+                Set  Delegation_Mode of hoID                to no_delegate_or_error
+                Get  GetEditViewID of hoID                  to hoID2
+                Set  Delegation_Mode of hoID                to iDel
+            End
+            If hoID2 Move (isFileViewWindow(hoCA,hoID2))    to bEnabled
+            Else Move 0                                     to bEnabled
+            Function_Return bEnabled
+        End_Function
+    End_Object
+
+    Procedure OnPopupInit Variant vCommandBarControl Handle hCommandBarControls
+        Forward Send OnPopupInit vCommandBarControl hCommandBarControls
+        Set psCaption of oInsertCurrentItem to ("Current User:" * ToOem(gsUserName))
+        //
+        Send Create_CustomItems hCommandBarControls "TOOLS" Msg_Activate_oToolsMenuView
+        //
+        Send AddCJKeyStringToMenuItem (oInsertGlobalItem(Self))  CMD_ToolsInsertHeaderGlobal
+        Send AddCJKeyStringToMenuItem (oInsertCurrentItem(Self)) CMD_ToolsInsertHeaderUser
+        //
+    End_Procedure
+    
+End_Object // oToolsMenu

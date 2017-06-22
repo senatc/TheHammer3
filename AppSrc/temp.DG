@@ -1,0 +1,91 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2014  KURANT Project
+// All rights reserved.
+//
+// $FileName    : Temp.DG
+// $ProjectName : The Hammer 2.0
+// $Authors     : Wil van Antwerpen, Michael Kurz, Sergey V. Natarov, Bernhard Ponemayr
+// $Created     : 01.25.2014  01:08
+// $Type        : LGPL
+//
+// Contents: Create New Language
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+// Project Object Structure
+//   oNewLang is a dbModalPanel
+//     oOK is a Button
+//     oCancel is a Button
+//     oLang is a Form
+
+// Register all objects
+Register_Object oCancel
+Register_Object oLang
+Register_Object oNewLang
+Register_Object oOK
+
+
+
+
+
+
+CD_Popup_Object oNewLang is a dbModalPanel
+
+    Property Integer Invoking_Object_ID public 0
+
+    Set Label to "Create New Language"
+    Set Size to 58 187
+    Set Location to 6 79
+
+
+
+
+    Object oOK is a Button
+        Set Label to "&OK"
+        Set Location to 23 68
+
+        Procedure OnClick
+            Send mNewLang
+        End_Procedure
+
+    End_Object    // oOK
+
+    Object oCancel is a Button
+        Set Label to "&Cancel"
+        Set Location to 23 126
+
+        Procedure OnClick
+            Send Close_Panel
+        End_Procedure
+
+    End_Object    // oCancel
+
+    Object oLang is a Form
+        Set Label to "Language name:"
+        Set Size to 13 108
+        Set Location to 5 68
+    End_Object    // oLang
+
+
+    Procedure mNewLang
+        String  sLang
+        Integer iObj
+        Get Invoking_Object_ID To iObj
+        Get Value of (oLang(Current_Object)) item 0 to sLang
+        If ((iObj)and(sLang<>"")) Begin
+            Combo_Add_Item  of iObj sLang
+            Set Value       of iObj item 0 to sLang
+        End
+        Send Close_Panel
+    End_Procedure
+
+    Procedure Popup
+        Set Invoking_Object_ID To (Focus(Desktop))
+        Forward Send Popup
+    End_Procedure
+
+CD_End_Object    // oNewLang
+

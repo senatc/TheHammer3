@@ -1,0 +1,6 @@
+[Properties]
+Version=19.0
+[WorkspacePaths]
+ConfigFile=.\Programs\Config.ws
+[Projects]
+Project0=Hammer3.src

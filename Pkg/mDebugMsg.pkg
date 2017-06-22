@@ -1,0 +1,54 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications contact: <MichaelKurz@gmx.at>
+//
+// $FileName    : mDebugMsg.pkg
+// $ProjectName : Sharemd Methods
+// $Author      : Michael Kurz
+// $Created     : 20.09.2001  13:52
+//
+// Contents:
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+
+
+
+#IFDEF NO_DEBUG
+#ELSE
+//Use mFileTime.pkg
+Procedure DebugMessageBox Integer iLineNr
+    String sMessage sArg sName sExt
+    Integer iArg
+    For iArg From 2 To NUM_ARGUMENTS
+        Move iArg&  To sArg
+        Append sMessage sArg
+    End
+    Append sExt ".VD" (Left("!@",1))
+
+    Append sMessage "\n\n"
+    Append sMessage "------------------------------------------------------------------\n"
+    Get Module_Name To sName
+    Append sMessage "Program:\t\t" sName "\n"
+//    Append sMessage "Date:\t\t" (MKFileTimeString(Append(sName,sExt))) "\n"
+    Append sMessage "VDF Version:\t" (Insert(".","!@",2)) "\n"
+    Append sMessage "Line:\t\t" iLineNr "\n"
+    Memory iArg
+    Append sMessage "Free memory:\t" iArg "\n"
+
+
+    Move (Replaces("\t",sMessage,Character(9))) To sMessage
+    Get Message_Box sMessage ("Debug - "+sName) MB_OK MB_ICONEXCLAMATION To Windowindex
+End_Procedure
+#ENDIF
+
+#COMMAND DebugMsg
+    #IFDEF NO_DEBUG
+    #ELSE
+        Send DebugMessageBox (!a+1) !1 !2 !3 !4 !5 !6 !7 !8 !9
+    #ENDIF
+#ENDCOMMAND

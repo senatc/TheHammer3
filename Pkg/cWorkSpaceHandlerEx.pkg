@@ -1,0 +1,630 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : cWorkSpaceHandlerEx.Pkg
+// $ProjectName : The Hammer.
+// $Author      : Michael Kurz
+// $Created     : 22.03.2001  21:14
+//
+// Contents:
+//  Modifies the OpenPath with the WorkSpace settings regarding to a special WorkSpace
+//  of a special VDF version.
+//*****************************************************************************************
+//TH-RevisionStart
+// 22.06.2001 21:15  Added CurrenFileListPath              Mk     SERVER
+// 03.03.2003 **WvA
+//            The workspace handler class is completely revised to support all current
+//            versions of Visual DataFlex known if compiled with VDF7
+//
+//            psVersion - indicates the current version of VDF used
+//
+//            All properties prefixed with "Current" can be queried for the current workspace
+//            settings
+//
+//            psCurWrkSpace = holds the current workspace tag
+//
+//
+//
+//TH-RevisionEnd
+
+
+Use Windows.pkg
+Use cLineParser.pkg
+Use vWin32fh.pkg
+Use cRegistry.pkg
+Use cIniFile.pkg
+Use cWorkspaceHandlerBase.pkg
+Use cWorkspaceLibrary.pkg
+
+Use mProfile_StringVersion.pkg
+Use cFileBrowser.pkg
+Use cSearchPath.pkg
+Use set.pkg
+
+
+// Modifies the OpenPath with the WorkSpace settings regarding to a special WorkSpace
+// of a special VDF version.
+Class cWorkSpaceHandlerEx Is a cWorkspaceHandlerBase
+
+    Procedure Construct_Object
+      Forward Send construct_object
+
+      Set pbUpdateCurrentWorkspace    To  True // This will update the registry of the current workspace when set to true
+
+      Object oLibraries is a cWorkspaceLibrary // contains the studio workspace files of any library
+      End_Object
+    End_Procedure //  Construct_Object
+
+
+    Procedure Delete_Data
+      Handle hoID
+      
+      Forward Send Delete_Data
+      Get Object_ID Of oLibraries To hoID
+      If (hoID) Begin
+        Send Delete_Data To oLibraries
+      End
+    End_Procedure // Delete_Data
+
+
+    //
+    // Return the pkg folder for the currently selected runtime.
+    //
+    Function CurrentRuntimePkgPath Returns String
+      String sPath
+
+      Get psVdfRootDir        To sPath
+      Get vFolderFormat sPath To sPath
+      Move (sPath+"Pkg")      To sPath
+      Function_Return sPath
+    End_Function // CurrentRuntimePkgPath
+
+    // **WvA: 07-05-2005 Added for webapp debugger support
+    //
+    // Returns the URL as is defined in the webapp.cfg file
+    // for use with the debugger.
+    //
+    Function WebAppTestURL Returns String
+      String  sAppSrcPath
+      String  sPath
+      String  sFile
+      String  sLine
+      String  sTag
+      String  sTestURL
+      Integer iChannel
+      Boolean bExists
+
+      Move "" To sTestURL
+      Get CurrentAppSrcPath To sAppSrcPath
+      If (sAppSrcPath<>"") Begin
+        Get NextPathInFolder sAppSrcPath To sPath
+        // **WvA Use Get StripNextPath sPath sAppSrcPath To sPath
+        //           Get NextPathInFolder sAppSrc To sPath
+        //       to enumerate thru a list of paths. I only need this in the first folder now.
+        Get vFolderFormat sPath To sPath
+        Move (sPath+"webapp.cfg") To sFile
+        Get vFilePathExists sFile To bExists
+        If (bExists) Begin
+
+          //
+          // Read Workspace INI
+          // **WvA: ToDo Check for FREE channel!
+          //
+          Direct_Input sFile
+          While (Not(seqeof))
+            Readln sLine
+            Move (Trim(sLine)) To sLine
+            If (Pos("=",sLine)) Begin
+              Move (Trim(Left(sLine, (Pos("=", sLine)-1) ))) To sTag
+              Move (Replace(sTag, sLine, "")) To sLine
+              Move (Trim(Replace("=", sLine, ""))) To sLine
+              If (lowercase(sTag)="testurl") Move sLine To sTestURL
+            End
+          Loop
+          Close_Input
+        End
+        Else Begin
+          Send info_box ("WebApp Configuration file <"+sFile+"> not found.")
+        End
+      End
+      Else Begin
+        Send info_box ("AppSrcPath is not set.")
+      End
+      Function_Return sTestURL
+    End_Function // WebAppTestURL
+    
+    Procedure ReadLibrarySection String sSWSfile String sWSfile String sHome
+      Integer iCount
+      Integer iLib
+      Handle  hoIniFile
+      Boolean bExists
+      String  sLibrary
+      String  sPath
+      
+      Send Delete_Data Of oLibraries
+      Get vFilePathExists sSWSfile to bExists
+      If (bExists) Begin
+        Get Create U_cIniFile To hoIniFile
+        If (hoIniFile<>0) Begin
+          Set psFileName Of hoIniFile To sSWSfile
+          Get ParseFolderName sWSfile To sPath
+          Get SectionExists Of hoIniFile  "Libraries" To bExists
+          If (bExists) Begin
+            For iLib From 1 To 9
+              Get ReadString Of hoIniFile "Libraries" ("Lib"+trim(iLib)) "" To sLibrary
+              If (sLibrary<>"") Begin
+                Get AnsiNametoOemName sLibrary To sLibrary
+                //Get ParseFolderName   sLibrary To sLibrary
+                Get ConvertRelativePath sHome sLibrary sPath    To sLibrary
+                Get Item_Count Of oLibraries To iCount
+                Set Value Of oLibraries iCount To sLibrary
+              End
+            Loop
+          End
+            Send Destroy of hoIniFile
+        End
+      End
+    End_Procedure // ReadLibrarySection
+    
+    //
+    // Find the filename for the current workspace and libraries
+    //
+    Function FindFileForWorkspace String sFile Returns String
+       Boolean bExists
+       String  sFileName
+       String  sPaths
+       String  sPath
+       
+       // First check df_open_path, this will include files in the runtime pkg folder
+       // and base workspace folders
+       Get_File_Path sFile     to sFileName
+       If (sFileName="") Begin
+         Get LibraryAppSrcPaths of oLibraries to sPaths
+         If (sPaths<>"") Begin
+           While (Pos(";",sPaths))
+             Move (Left(sPaths,Pos(";",sPaths)-1)) to sPath
+             Move (Replace(sPath+";",sPaths,"")) to sPaths
+             Get vFolderFormat sPath to sPath
+             Get vFilePathExists (sPath+sFile) to bExists
+             If (bExists) Begin
+               Move (sPath+sFile) to sFileName
+               Move "" to sPaths // stop
+             End
+           Loop
+         End
+       End
+       Function_Return sFileName
+    End_Function
+
+
+    //
+    // Reads the contents of the workspace from sws and .ws file and adds the
+    // basic information into the workspace arrays.
+    //
+    Procedure AddWorkspaceFromSwsFile String sVersion String sFile
+      String  sWsFile
+      String  sName
+      Boolean bOk
+      Integer iWorkspaceCount
+
+      Get WorkspaceCount To iWorkspaceCount
+      Set WorkSpaceTag Item iWorkspaceCount To sFile
+      //Get RecentWorkspaceName sFile sVersion To sName
+      Get ConfigWsFile sFile sVersion To sWsFile
+      Get DoReadApplicationWorkspace sFile sVersion sWsFile false To bOk
+      If (bOk) Begin
+        Set psBufferWsConfigFile To sWsFile
+        Get psBufferDescription  To sName
+        If (sName="") Begin
+          Get DeriveDescriptionFromStudioFile sFile To sName
+          Set psBufferDescription To sName
+        End
+      End
+
+      If (sName<>"") Begin
+        Set WorkSpaceName Item iWorkspaceCount To sName
+        //Get psBufferWsConfigFile To sPath
+        Set WorkSpacePath Item iWorkSpaceCount To sWsFile
+      End
+    End_Procedure // AddWorkspaceFromSwsFile
+
+    //
+    // Reads the recent workspaces from the registry
+    // Where we used to work with so called workspace tags,
+    // we are now seeing the use of so called .sws files.
+    // These files contain a pointer to a workspace .ws file that
+    // contains the actual workspace info.
+    //
+    Procedure ReadRecentWorkspaces String sVersion
+      Handle  hoRegistry
+      Number  nVer
+      String  sKey
+      String  sValue
+      String  sFile
+      String  sPath
+      Boolean bOpen
+      Boolean bExist
+      Integer iCount
+      Integer iItem
+
+      Get StringVDfVersionToNum sVersion To nVer
+      If (nVer<180) Begin
+        Move (CS_SWDAWVDFTOOLS+sVersion+CS_BS+CS_STUDIO+"\RecentWorkspaces\")  To sKey
+      End
+      Else Begin
+        Move (CS_SWDAWDFTOOLS +sVersion+CS_BS+CS_STUDIO+"\RecentWorkspaces\")  To sKey
+      End
+
+      Get Create U_cRegistry To hoRegistry
+      If (hoRegistry) Begin
+        Set pfAccessRights Of hoRegistry To KEY_READ
+        Get OpenKey Of hoRegistry sKey To bOpen
+        If (bOpen) Begin
+          Get CountOfValues Of hoRegistry To iCount
+          For iItem From 1 To iCount
+            Move ("Recent"+trim(iItem)) To sValue
+            Get ValueExists Of hoRegistry sValue To bExist
+            If (bExist) Begin
+              Get ReadString Of hoRegistry sValue To sFile
+              Get vFilePathExists sFile To bExist
+              If ((sFile<>"") and (bExist)) Begin
+
+                Send AddWorkspaceFromSwsFile sVersion sFile
+              End
+            End
+          Loop
+          Send CloseKey Of hoRegistry
+        End
+        Send Destroy Of hoRegistry
+      End
+    End_Procedure // ReadRecentWorkspaces
+
+    //
+    // Reads the last used workspace folder from the registry
+    // This is the default place to open our new file open dialog
+    // when trying to browse for a project.
+    //
+    Function LastWorkspaceFolder Returns String
+      Handle  hoRegistry
+      Number  nVer
+      String  sKey
+      String  sValue
+      String  sPath
+      String  sVersion
+      Boolean bOpen
+      Boolean bExist
+
+      Get psVdfVersion To sVersion
+      Get StringVDfVersionToNum sVersion To nVer
+      If (nVer<180) Begin
+        Move (CS_SWDAWVDFTOOLS+sVersion+CS_BS+CS_STUDIOWORKSPACES+"\")  To sKey
+      End
+      Else Begin
+        Move (CS_SWDAWDFTOOLS+sVersion+CS_BS+CS_STUDIOWORKSPACES+"\")  To sKey
+      End
+      Move "" To sPath
+
+      Get Create U_cRegistry To hoRegistry
+      If (hoRegistry) Begin
+        Set pfAccessRights Of hoRegistry To KEY_READ
+        Get OpenKey Of hoRegistry sKey To bOpen
+        If (bOpen) Begin
+          Move ("LastWorkspaceFolder") To sValue
+          Get ValueExists Of hoRegistry sValue To bExist
+          If (bExist) Begin
+            Get ReadString Of hoRegistry sValue To sPath
+          End
+          Send CloseKey Of hoRegistry
+        End
+        Send Destroy Of hoRegistry
+      End
+      Function_Return sPath
+    End_Function // LastWorkspaceFolder
+
+
+    // Enumerates the list of workspaces for the version of Visual DataFlex supplied
+    // by the sVersion parameter.
+    // For VDF7 and lower this data is stored in the registry.
+    // For VDF8 and up this data is stored in a file called workspaces.ini which
+    // can be found in the rootfolder of the visual dataflex runtimer.
+    // Starting in VDF12 the use of the workspaces.ini file is deprecated and
+    // the Studio only keeps a list of recent workspaces in the registry.
+    // Post:
+    // Also sets the current psVdfRootFolder property
+    //
+    Procedure DoEnumerateWorkspaces String sVersion
+      String  sCur sKey
+      Integer hKeyWrkSpc
+      Number  nVer
+      Integer bExists  hoSelf
+      Integer iWrk iWorkspaceCount
+      String  sVDF sVDFRoot sWSName sWSPath sWStag sLine
+      String  sMessage
+
+      Set pbEnumerateWorkspaces To True
+
+      Send Delete_Data   // Clear the workspace data
+
+      Get fsCurrentWorkspace sVersion  To sCur
+
+      Get StringVDfVersionToNum sVersion To nVer
+      Get fsVdfRootFolder sVersion To sVdfRoot
+      Set psVdfRootDir To sVdfRoot
+
+      If (nVer<80) Begin
+        Get fsBaseKey sVersion  To sKey
+        Set psBufferVdfVersion  To sVersion // Function Reg_key_Enum needs to have this set on startup
+
+        Send StoreRegistryRoot
+        Set_Registry_Root To HKEY_CURRENT_USER  CS_SOFTWARE
+
+        REG_OPEN_KEY sKey   To hKeyWrkSpc
+        If hKeyWrkSpc Ne 0 Begin
+          Move Self To hoSelf
+          REG_ENUM_KEY_INFO hoSelf
+          REG_ENUM_KEY hKeyWrkSpc 0
+          REG_CLOSE_KEY hKeyWrkSpc
+        End
+
+        Set_Registry_Root To HKEY_LOCAL_MACHINE CS_SOFTWARE
+
+        REG_OPEN_KEY sKey   To hKeyWrkSpc
+        If hKeyWrkSpc Ne 0 Begin
+          Move Self To hoSelf
+          REG_ENUM_KEY_INFO hoSelf
+          REG_ENUM_KEY hKeyWrkSpc 0
+          REG_CLOSE_KEY hKeyWrkSpc
+        End
+        Send RestoreRegistryRoot
+      End
+      Else Begin
+
+        Move (sVDFRoot+"Bin\Workspaces.ini") To sVDFRoot
+        Get vFilePathExists sVDFRoot To bExists
+        If (bExists) Begin
+          Direct_Input sVDFRoot
+            While (Not(seqeof))
+              Readln sLine
+              Move (Trim(sLine)) To sLine
+              If (sLine<>"") Begin
+                If (Left(sLine,1)="[") Begin
+                  Get WorkspaceCount To iWorkspaceCount
+                  Move (Replace("[", sLine, ""))       To sLine
+                  Move (Trim(Replace("]", sLine, ""))) To sLine
+                  Set WorkSpaceTag Item iWorkspaceCount To sLine
+                End
+                If "DESCRIPTION" In (Uppercase(sLine)) Begin
+                  Move (Left(sLine, Pos("=", sLine))) To sWSName
+                  Move (Replace(sWSName, sLine, "")) To sLine
+                  Move (Trim(sLine)) To sWSName
+                  Set WorkSpaceName Item iWorkspaceCount To sWSName
+                End
+                If (Uppercase(Left(sLine,4))="PATH") Begin
+                  Move (Left(sLine, Pos("=", sLine))) To sWSPath
+                  Move (Replace(sWSPath, sLine, "")) To sLine
+                  Get vFolderFormat (Trim(sLine)) To sWSPath
+                  Set WorkSpacePath Item iWorkspaceCount To sWSPath
+                End
+              End
+            Loop
+          Close_Input
+        End // if file workspaces.ini exists
+        Else Begin
+          If (nVer<120) Begin
+            // When on VDF12+ it's fine if the workspaces.ini file is missing
+            // don't nag please.
+            Move ("The file '"+sVDFRoot+"', cannot be opened.") To sMessage
+            Error 352 sMessage
+          End
+        End
+        If (nVer>=120) Begin
+          Send ReadRecentWorkspaces sVersion
+        End
+      End
+
+      Set pbEnumerateWorkspaces To False
+    End_Procedure // DoEnumerateWorkspaces
+
+
+    Function AddPathToSearchPath String sNewPath String sSearchPath Returns String
+      String sResult
+
+      If (sNewPath <> '') Begin
+         Get vFolderFormat (trim(sNewPath))  to sNewPath
+         Move (sSearchPath + sNewPath + ";") to sResult
+      End
+      Else Begin
+         Move (trim(sSearchPath)) to sResult
+      End
+
+      Function_Return sResult
+    End_Function // AddPathToSearchPath
+
+    //
+    // Returns the dataflex search path
+    //
+    Function DFSearchPath Returns String
+      String  sWSSystemDFPath
+      String  sWSDataPath
+      String  sWSFileListPath
+      String  sDFPath
+      Integer iIndex
+      Handle  hoSearchPath
+
+      //
+      Move "" To sDFPath
+      Get CurrentSystemDFPath To sWSSystemDFPath
+      Get CurrentDataPath     To sWSDataPath
+      Get CurrentFileListPath To sWSFileListPath
+
+      // remove filelist.cfg (or similarly named filelist file) suffix from the path
+      Move (Left(sWSFileListPath, (rightpos( "\", sWSFileListPath))-1))  To sWSFileListPath
+      Get Create U_cSearchPath To hoSearchPath
+      If (hoSearchPath) Begin
+        Send AddPath Of hoSearchPath sWSDataPath
+        Send AddPath Of hoSearchPath sWSFileListPath
+        Send AddPath Of hoSearchPath sWSSystemDFPath
+        Get Path Of hoSearchPath To sDFPath
+      End
+
+      Function_Return sDFPath
+    End_Function // DFSearchPath
+
+
+    // The Following properties need to be filled before calling this method:
+    // psCurWrkSpace <- equal to what is passed in sWorkSpaceTag
+    // psVdfRootDir
+    // psVDFVersion
+    //
+    Procedure DoSetOpenPath String sWorkSpaceTag
+      String sFileList sDataPath sAppSrcPath sOpenPath sOpenPathAddOn
+      String sDDSrcPath sBmpPath sSysDfPath sSysMakePath sVer sWSPath
+      String sHelpPath sProgramPath sWorkSpaceDescription
+      String sAppHtmlPath sIdeSrcPath
+      String sLibraryPath
+      String sMessage
+      Integer iOk iWorkspace
+
+      Get psVDFVersion To sVer
+      Send DoEnumerateWorkspaces sVer
+      Get FindWorkspace sWorkSpaceTag To iWorkspace
+      If (iWorkSpace > -1) Begin
+        Get WorkSpacePath Item iWorkspace To sWSPath
+        Get DoReadApplicationWorkspace sWorkSpaceTag sVer sWSPath True To iOk
+        If (iOk=1) Begin
+          //Set_Registry_Root To HKEY_LOCAL_MACHINE CS_SOFTWARE
+          Get psBufferDescription To sWorkSpaceDescription
+          If (sWorkSpaceDescription="") Begin
+            Get DeriveDescriptionFromStudioFile sWorkSpaceTag To sWorkSpaceDescription
+          End
+          Get psBufferDataPath    To sDataPath
+          Get psBufferAppHtmlPath To sAppHtmlPath
+          Get psBufferAppSrcPath  To sAppSrcPath
+          Get psBufferDDSrcPath   To sDDSrcPath
+          Get psBufferIdeSrcPath  To sIdeSrcPath
+          Get psBufferBitmapPath  To sBmpPath
+          Get psBufferFileList    To sFileList
+          Get psBufferHelpPath    To sHelpPath
+          Get psBufferProgramPath To sProgramPath
+
+          If (Item_Count(oLibraries)>0) Begin
+            Move "" To sLibraryPath
+            //Get Value Of oLibraries Item 0 To sLibraryPath
+            //Move (sLibraryPath+"AppSrc;") To sLibraryPath
+            //If (Right(sAppSrcPath,1)) Ne ";" Append sAppSrcPath     ";"
+            //Append sAppSrcPath sLibraryPath
+          End
+
+          Set CurrentWorkSpaceName                            To sWorkSpaceTag
+          Set CurrentWorkSpaceDescription                     To sWorkSpaceDescription
+          Set CurrentAppHtmlPath                              To sAppHtmlPath
+          Set CurrentAppSrcPath                               To sAppSrcPath
+          Set CurrentDDSrcPath                                To sDDSrcPath
+          Set CurrentDataPath                                 To sDataPath
+          Set CurrentIdeSrcPath                               To sIdeSrcPath
+          Set CurrentBitmapPath                               To sBmpPath
+          Set CurrentFileListPath                             To sFileList
+          Set CurrentHelpPath                                 To sHelpPath
+          Set CurrentProgramPath                              To sProgramPath
+          Set CurrentSystemDFPath                             To sSysDfPath
+          //Set CurrentSystemMakePath                           To sSysMakePath
+
+          Get_Attribute df_Open_Path                          To sOpenPath
+          If (psOpenPathOld(Self)) Eq "" Set psOpenPathOld    To sOpenPath
+          Get psOpenPathOld                                   To sOpenPath
+
+          Move (Trim(sOpenPath))                              To sOpenPath
+          If sDataPath    Ne "" Append sOpenPathAddOn sDataPath    ";"
+          If sProgramPath Ne "" Append sOpenPathAddOn sProgramPath ";"
+          If sAppSrcPath  Ne "" Append sOpenPathAddOn sAppSrcPath  ";"
+          If sDDSrcPath   Ne "" Append sOpenPathAddOn sDDSrcPath   ";"
+
+          If (Right(sOpenPath,1)) Ne ";" Append sOpenPath     ";"
+          Append sOpenPath sOpenPathAddOn
+          Set_Attribute df_Open_Path                          To sOpenPath
+        End
+      End
+      Else Begin
+        Move ("Unable to find workspace '" + Trim(sWorkSpaceTag) + "' after enumerating workspaces for DF" + Trim(sVer)) to sMessage
+        Move (sMessage+"\nA possible cause for this error is that you have uninstalled the DataFlex version in question.\n") To sMessage
+        Move (sMessage+"Please select another DataFlex version in the workspace selector.") to sMessage
+        Error 354 sMessage
+      End
+    End_Procedure // DoSetOpenPath
+
+
+    //
+    // If The Hammer tries to open a non DataFlex driver for the first
+    // time while editing and then throwing up the auto-login prompt, there
+    // are drivers that then crash our editor.
+    // Triggering the auto-login prompt when opening the workspace is fine
+    // and subsequent opens on files do no longer crash the editor.
+    //
+    Procedure LoadNonEmbeddedDriverAutoLoginPrompt
+      Integer iFileNum
+      Boolean bHasDBDriver
+      Boolean bOpened
+      String  sOldFilelist
+      String  sFileList
+      String  sRootName
+      
+      Move False to bHasDBDriver
+      Get_Filelist sOldFileList
+      Get CurrentFileListPath to sFileList
+      If (sFileList<>"") Begin
+          Set_Filelist sFileList
+          Move 0 to iFileNum
+          Repeat
+            Get_Attribute DF_FILE_NEXT_USED of iFileNum to iFileNum
+            If (iFileNum<>0) Begin
+              Get_Attribute DF_FILE_ROOT_NAME of iFileNum to sRootName
+              If (Pos(":",sRootName) or Pos(".int",lowercase(sRootName))) Begin
+                Send Ignore_all to Error_Info_Object // errors here should not be fatal
+                Open iFileNum     // trigger autologin popup
+                Send Trap_All to Error_Info_Object
+                Get_Attribute DF_FILE_OPENED of iFileNum to bOpened
+                If (bOpened) Begin
+                  Close iFileNum  // also  close again as we do not want to keep the file open
+                End
+                Move True to bHasDBDriver
+                Move 0 to iFileNum
+              End
+            End
+          Until (iFileNum = 0)
+          Set_Filelist sOldFileList
+      End
+    End_Procedure // LoadNonEmbeddedDriverAutoLoginPrompt
+    
+    Procedure UnloadNonEmbeddedDrivers
+      Integer iDriver iDrivers iDriverCount iDriversToUnload
+      String  sName
+      String[] sDriversToUnload
+      
+      Get_Attribute DF_NUMBER_DRIVERS to iDriverCount
+      For iDriver from 1 to iDriverCount
+        Get_Attribute DF_DRIVER_NAME of iDriver to sName
+        If (sName <> "DATAFLEX") Begin
+          Move sName to sDriversToUnload[iDriversToUnload]
+          Increment iDriversToUnload
+        End
+      Loop
+      
+      Close DF_ALL      
+      For iDriver from 0 to (iDriversToUnload-1)
+        Unload_Driver sDriversToUnload[iDriver]
+      Loop
+    End_Procedure
+
+    Procedure End_Construct_Object
+      // As we should have only one workspace handler object per application we can set
+      // a global var to the Object ID for easy access.
+      If (ghoWorkspaceHandlerEx=0) Begin
+        // first one wins
+        Move Self to ghoWorkSpaceHandlerEx
+      End
+      Forward Send End_Construct_Object
+    End_Procedure // End_Construct_Object
+End_Class

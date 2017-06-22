@@ -1,0 +1,95 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : DFIDropSource.pkg
+// $ProjectName : Shared Classes - Com Wrapper
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 02-20-2001 @ 19:00
+//
+// Contents:
+//      Make calls with tis COM Interface and receive call notifications.
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+
+Use ComNotificationHandler.pkg
+Use DFIDataObject.pkg
+Use DFIEnum.pkg
+
+    // Cursor Effects.
+Define	DROPEFFECT_NONE	    For 0
+Define	DROPEFFECT_COPY	    For 1
+Define	DROPEFFECT_MOVE	    For 2
+Define	DROPEFFECT_LINK	    For 4
+Define	DROPEFFECT_SCROLL	For |CI$80000000
+
+
+
+    // Object for receiving Interface Calls.
+external_function Create_DFIDropSource      "Create_DFIDropSource"      COM_DLL Handle hwndNotify Handle hwnd Integer hoObjectID returns Integer
+external_function Destroy_DFIDropSource     "Destroy_DFIDropSource"     COM_DLL Pointer pObj returns Integer
+external_function Return_DFIDropSource      "Return_DFIDropSource"      COM_DLL Pointer pObj Integer iRetVal returns Integer
+
+    // Call an DropSource Interface Method.
+external_function DFIDropSource_GiveFeedback        "DFIDropSource_GiveFeedback"        COM_DLL Pointer pIF Dword dwEffect returns Integer
+external_function DFIDropSource_QueryContinueDrag   "DFIDropSource_QueryContinueDrag"   COM_DLL Pointer pIF Integer fEscapePressed Dword grfKeyState returns Integer
+
+
+
+
+    // IDropSource
+Class cDFIDropSource is a cDFIUnknown
+    register_Procedure onQueryContinueDrag
+    register_Procedure onGiveFeedback
+
+    Procedure Construct_Object
+        Forward send Construct_Object
+        set psInterFaceID   to IID_IDropSource
+    End_Procedure
+
+    Procedure Init
+        if (pInterFacePointer (Self)) eq 0 Begin
+            set pInterFacePointer    to (Create_DFIDropSource(Window_Handle(ghoComNotificationHandler),0,Self))
+        End
+    End_Procedure
+    Procedure End_Construct_Object
+        send Init
+        Forward send End_Construct_Object
+    End_Procedure
+    Procedure SetRetVal Integer iRetVal
+        Integer iRet
+        move (Return_DFIDropSource(pInterFacePointer(self),iRetVal))   to iRet
+    End_Procedure
+    Procedure Destroy_Object
+        Integer iRet
+        move (Destroy_DFIDropSource(pInterFacePointer(Self)))    to iRet
+        Forward send Destroy_Object
+    End_Procedure
+
+    Procedure onQueryContinueDrag Dword dwEffect
+    End_Procedure
+    Procedure onGiveFeedback Integer fEscapePressed Dword grfKeyState
+    End_Procedure
+
+        // Is called for every Message with its type and the ArrayID with the Parameters.
+    Procedure DecodeMessage Integer iType Integer hoParas
+        Integer iRet
+        if iType eq IDropSource_GiveFeedback        get Msg_onGiveFeedback        (Value(hoParas,0))                    to iRet
+        if iType eq IDropSource_QueryContinueDrag   get Msg_onQueryContinueDrag   (Value(hoParas,0)) (Value(hoParas,1)) to iRet
+        Procedure_Return iRet
+    End_Procedure
+
+        // Call Interfacefunctions
+    Function GiveFeedback Dword dwEffect returns Integer
+        Function_Return (DFIDropSource_GiveFeedback(pInterFacePointer(self),dwEffect))
+    End_Procedure
+    Function QueryContinueDrag Integer fEscapePredded Dword grfKeyState returns Integer
+        Function_Return (DFIDropSource_QueryContinueDrag(pInterFacePointer(self),fEscapePredded,grfKeyState))
+    End_Function
+
+End_Class
+

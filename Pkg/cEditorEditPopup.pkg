@@ -1,0 +1,210 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2003 Bernhard Ponemayr
+// All rights reserved.
+//
+// $FileName    : c:\vdf7\projects\hammer\Pkg\cEditorEditPopup.pkg
+// $ProjectName : The Hammer
+// $Author      : Bernhard Ponemayr
+// $Created     : 04.02.2003  15:01
+//
+// 04.02.2003 15:02  First release                         BP     APBP
+// Contents: Hold a global PopupMenu for all Edit-Windows in TheHammer
+//
+//*****************************************************************************************
+//TH-RevisionStart
+// 04.02.2003 15:02  First release                         BP     APBP
+// 10.07.2003 WvA    Disabled displaying bitmaps in the "Insert Specials"
+//                   submenu. This caused a GPF under Windows 9x
+//TH-RevisionEnd
+
+Use PopupMenu.pkg
+
+Register_Procedure CASwitchToNextView
+Register_Procedure CASwitchToPreviousView
+
+Class cEditorPopupMenu Is a cPopupMenu
+    Procedure end_Construct_Object
+        Forward Send end_Construct_Object
+        Send add_item msg_Floatcut " Cut"
+        Set Bitmap To "PMCut.Bmp"
+        Send add_item msg_Floatcopy " Copy"
+        Set Bitmap To "PMCopy.Bmp"
+        Send add_item msg_Floatpaste " Paste"
+        Set Bitmap To "PMPaste.Bmp"
+        Send add_item msg_none ""
+        Send add_item msg_Find " Find..."
+        Set Bitmap To "PMFInd.Bmp"
+        Send add_item msg_Replace " Replace..."
+        Set Bitmap To "PMReplace.Bmp"
+        Send add_item msg_none ""
+        Send add_item msg_FloatToggleWhitespace " Show Whitespace"
+        Send add_item msg_FloatMakeUppercase " Make Uppercase"
+        Send add_item msg_FloatMakeLowercase " Make Lowercase"
+        Send add_item msg_ToggleComment " Comment/UnComment"
+        Send add_item msg_MarkScopeBlock " Mark Scope Block for current Line"
+        Send add_item msg_OpenFileUnderCursor " Open File under Cursor"
+        Object oInsertFloat Is a cPopupMenu
+            Set psLabel To " Insert Specials"
+            Send add_item msg_InsertHeaderUser  " Insert Header"
+//            Set Bitmap To "PMHdr.Bmp"
+            Send add_item msg_InsertRevision    " Insert Revision Entry"
+//            Set Bitmap To "PMRev.Bmp"
+            Send add_item msg_FloatInsertColor  " Insert Color Value..."
+//            Set Bitmap To "PMColor.Bmp"
+            Send add_item msg_FloatInsertBitmap " Insert Bitmap Reference..."
+//            Set Bitmap To "PMBmp.Bmp"
+        End_Object
+        Send add_item msg_none ""
+        Object oBookMarkFloat Is a cPopupMenu
+            Set psLabel To " Bookmarks"
+            Send add_item msg_FloatBookmarkToggle "Toggle Bookmark"
+            Send add_item msg_FloatBookmarkClearAll "Clear all Bookmarks"
+            Send add_item msg_FloatBookmarkFirst "Jump to first Bookmark"
+            Send add_item msg_FloatBookmarkNext "Jump to next Bookmark"
+            Send add_item msg_FloatBookmarkPrevious "Jump to previous Bookmark"
+            Send add_item msg_FloatBookmarkLast "Jump to last Bookmark"
+        End_Object
+        Object oGotoFloat Is a cPopupMenu
+            Set psLabel To " Goto"
+            Send add_item msg_GotoLine "Line..."
+            Send add_item msg_FloatGotoIndentation "Indentation"
+            Send add_item msg_FloatGotoMatchBrace "Match Brace"
+        End_Object
+        Object oShowFloat Is a cPopUpMenu
+            Set psLabel To " Autosuggestion Lists"
+            Send add_item msg_ListClasses "Classes"
+            Send add_item msg_ListObjects "Objects"
+            Send add_item msg_listProcedures "Procedures"
+            Send add_item msg_listFunctions "Functions"
+            Send add_item msg_listVars "Local variables"
+            Send add_item msg_listKeys "Keys"
+            Send add_item msg_listIDETags "IDE Tags"
+            Send add_item msg_none ""
+            Send add_item msg_listCreator "Creator"
+
+        End_Object
+        Object oWindowFloat Is a cPopUpMenu
+            Set psLabel To " Window"
+            Send add_item msg_SyncCodeView "Synchronize Code View"
+            Send add_item msg_CASwitchToNextView "Switch to next File"
+            Send add_item msg_CASwitchToPreviousView "Switch to previous File"
+        End_Object
+        Object oMacroFloat Is a cPopUpMenu
+            Set psLabel To " Macro"
+            Send add_item msg_FloatRecordMacro "Record Macro"
+            Send add_item msg_None             ""
+            Send Add_Item msg_FloatPlayMacro1  "Play macro 1"
+            Send Add_Item msg_FloatPlayMacro2  "Play macro 2"
+            Send Add_Item msg_FloatPlayMacro3  "Play macro 3"
+            Send Add_Item msg_FloatPlayMacro4  "Play macro 4"
+            Send Add_Item msg_FloatPlayMacro5  "Play macro 5"
+            Send Add_Item msg_FloatPlayMacro6  "Play macro 6"
+            Send Add_Item msg_FloatPlayMacro7  "Play macro 7"
+            Send Add_Item msg_FloatPlayMacro8  "Play macro 8"
+            Send Add_Item msg_FloatPlayMacro9  "Play macro 9"
+            Send Add_Item msg_FloatPlayMacro10 "Play macro 10"
+        End_Object
+
+        Object oConvertFloat Is a cPopUpMenu
+            Set psLabel To " Convert"
+            Send add_item msg_FloatToggle_OnItem_AddItem    "On_Item To Send Add_Item and back"
+            Send add_item msg_FloatConvertCStructToVDF      "C Structure to VDF TYPE Syntax"
+            Send add_item msg_FloatConvertCDllCallToVDF     "C Dll call to VDF format (external_function)"
+            Send add_item msg_FloatConvertVDFTypeToHandler  "VDF TYPE structure into a Handler class"
+        End_Object
+
+        Send add_item msg_none ""
+        Send add_item msg_FloatUndo " Undo"
+        Set Bitmap To "PMUndo.Bmp"
+        Send add_item msg_FloatRedo " Redo"
+        Set Bitmap To "PMRedo.Bmp"
+        Send add_item msg_none ""
+        Send add_item msg_properties " Properties..."
+        Set Bitmap To "PMProp.Bmp"
+    End_Procedure
+
+    Procedure popUp
+        Integer iCanCopy iC
+        Move (CM_CANCOPY(phoServedObject(Self))) To iCanCopy
+        Set shadow_state Item 0 To (Not(CM_CANCUT(phoServedObject(Self))))
+        Set shadow_state Item 1 To (Not(iCanCopy))
+        Set shadow_state Item 2 To (Not(CM_CANPASTE(phoServedObject(Self))))
+
+        Set select_state Item 7 To (CM_IsWhiteSpaceDisplayEnabled(phoServedObject(Self)))
+        Set Shadow_state Item 8 To (Not(iCanCopy))
+        Set Shadow_state Item 9 To (Not(iCanCopy))
+
+        Set shadow_state Item 22 To (Not(CM_CANUNDO(phoServedObject(Self))))
+        Set shadow_state Item 23 To (Not(CM_CANREDO(phoServedObject(Self))))
+
+        Set Shadow_State Of (oMacroFloat(Self)) Item 0      To (CM_IsRecordingMacro(phoServedObject(Self)))
+        For iC From 2 To 11
+            Set Shadow_State Of (oMacroFloat(Self)) Item iC To (CM_IsPlayingMacro(phoServedObject(Self)))
+            If (CMGetMacro(iC-2,0)) Eq 0 Set Shadow_State Of (oMacroFloat(Self)) Item iC    To True
+        End
+
+//        Show assigned Keys for commands...
+        Send AddKeyStringToMenuItem Self                    0 CMD_CUT
+        Send AddKeyStringToMenuItem Self                    1 CMD_COPY
+        Send AddKeyStringToMenuItem Self                    2 CMD_PASTE
+        Send AddKeyStringToMenuItem Self                    4 CMD_FIND
+        Send AddKeyStringToMenuItem Self                    5 CMD_REPLACE
+//             Bookmark
+        Send AddKeyStringToMenuItem (oBookMarkFloat(Self))  0 CMD_BOOKMARKTOGGLE
+        Send AddKeyStringToMenuItem (oBookMarkFloat(Self))  1 CMD_BOOKMARKCLEARALL
+        Send AddKeyStringToMenuItem (oBookMarkFloat(Self))  2 CMD_BOOKMARKJUMPTOFIRST
+        Send AddKeyStringToMenuItem (oBookMarkFloat(Self))  3 CMD_BOOKMARKNEXT
+        Send AddKeyStringToMenuItem (oBookMarkFloat(Self))  4 CMD_BOOKMARKPREV
+        Send AddKeyStringToMenuItem (oBookMarkFloat(Self))  5 CMD_BOOKMARKJUMPTOLAST
+//             Goto
+        Send AddKeyStringToMenuItem (oGotoFloat(Self))      0 CMD_GOTOLINE
+        Send AddKeyStringToMenuItem (oGotoFloat(Self))      1 CMD_GOTOINDENTATION
+        Send AddKeyStringToMenuItem (oGotoFloat(Self))      2 CMD_GOTOMATCHBRACE
+//             Lists
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      0 CMD_ListClasses
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      1 CMD_ListObjects
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      2 CMD_ListProcedures
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      3 CMD_ListFunctions
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      4 CMD_ListVars
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      5 CMD_ListKeys
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      6 CMD_ListIDETags
+
+        Send AddKeyStringToMenuItem (oShowFloat(Self))      8 CMD_ListCreator
+//             Window
+        Send AddKeyStringToMenuItem (oWindowFloat(Self))    0 CMD_WindowSyncCodeView
+        Send AddKeyStringToMenuItem (oWindowFloat(Self))    1 CMD_WindowNextView
+        Send AddKeyStringToMenuItem (oWindowFloat(Self))    2 CMD_WindowPreviousView
+//             Macro
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     0 CMD_RECORDMACRO
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     2 CMD_PLAYMACRO1
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     3 CMD_PLAYMACRO2
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     4 CMD_PLAYMACRO3
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     5 CMD_PLAYMACRO4
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     6 CMD_PLAYMACRO5
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     7 CMD_PLAYMACRO6
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     8 CMD_PLAYMACRO7
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))     9 CMD_PLAYMACRO8
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))    10 CMD_PLAYMACRO9
+        Send AddKeyStringToMenuItem (oMacroFloat(Self))    11 CMD_PLAYMACRO10
+//             Convert
+        Send AddKeyStringToMenuItem (oConvertFloat(Self))   0 CMD_ConvertOnItemToAddItem
+        Send AddKeyStringToMenuItem (oConvertFloat(Self))   1 CMD_ConvertCStructToVDF
+        Send AddKeyStringToMenuItem (oConvertFloat(Self))   2 CMD_ConvertCDllCallToVDF
+        Send AddKeyStringToMenuItem (oConvertFloat(Self))   3 CMD_ConvertVDFTypeToHandler
+
+        Send AddKeyStringToMenuItem Self                    8 CMD_UPPERCASESELECTION
+        Send AddKeyStringToMenuItem Self                    9 CMD_LOWERCASESELECTION
+        Send AddKeyStringToMenuItem Self                   10 CMD_ToggleComment
+        Send AddKeyStringToMenuItem Self                   11 CMD_MarkScopeBlock
+        Send AddKeyStringToMenuItem Self                   12 CMD_OpenFileUnderCursor
+        Send AddKeyStringToMenuItem (oInsertFloat(Self))    0 CMD_ToolsInsertHeaderUser
+        Send AddKeyStringToMenuItem (oInsertFloat(Self))    1 CMD_InsertRevisionMark
+        Send AddKeyStringToMenuItem (oInsertFloat(Self))    2 CMD_InsertColor
+        Send AddKeyStringToMenuItem Self                   22 CMD_UNDO
+        Send AddKeyStringToMenuItem Self                   23 CMD_REDO
+
+        Forward Send popUp
+    End_Procedure
+End_Class
+

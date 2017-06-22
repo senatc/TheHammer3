@@ -1,0 +1,122 @@
+//***********************************************************************************************
+//* SystemInfo.Pkg
+//*
+//*
+//* Inhalt:
+//*     Besorgt alle Information die mit API: "GetVersionEx" geholt werden kînnen.
+//*     fÅr einfachen Zugriff zusÑtzlich:
+//*         Function isWindowsNT for Desktop        // Liefert True wenn Windows NT
+//*         Function isWindows9x for Desktop        // Liefert True wenn Windows 95/98
+//*         Function isWindows31 for Desktop        // Liefert True wenn Windows 31 Win32s
+//*
+//*         Function sWindowsVersion for Desktop    // Liefert String mit der VersionsNummer
+//*
+//*         Procedure SetNumlock integer iFlag      // Passt zwar nicht ganz dazu, aber man kann damit zumindest diese Taste gut setzen!
+//*
+//* Michael Kurz 10.08.2000  mail: mkurz@sbox.tu-graz.ac.at
+//***********************************************************************************************
+
+Use Windows
+
+external_function GetVersionEx "GetVersionExA" KERNEL32.DLL Pointer pVersion returns Integer
+
+
+//____Codes_for_dwPlatformId...___________
+#REPLACE VER_PLATFORM_WIN32s             0
+#REPLACE VER_PLATFORM_WIN32_WINDOWS      1
+#REPLACE VER_PLATFORM_WIN32_NT           2
+
+TYPE tOSVERSIONINFO
+    FIELD tOSVERSIONINFO.dwOSVersionInfoSize     as Dword
+    FIELD tOSVERSIONINFO.dwMajorVersion          as Dword
+    FIELD tOSVERSIONINFO.dwMinorVersion          as Dword
+    FIELD tOSVERSIONINFO.dwBuildNumber           as Dword
+    FIELD tOSVERSIONINFO.dwPlatformId            as Dword
+    FIELD tOSVERSIONINFO.szCSDVersion            as CHAR 128
+END_TYPE
+
+
+Class cOsVersionInfo is a Message
+    Procedure FillMembers
+        String  sVersion
+        Pointer pVersion
+        Integer iSize         // Grîsse der Struktur
+        Integer iRet
+        String  sRet
+        Zerotype tOSVERSIONINFO          to sVersion
+        move (Length(sVersion))         to iSize
+        put iSize                       to sVersion at tOSVERSIONINFO.dwOSVersionInfoSize
+        GetAddress of sVersion          to pVersion
+        move (GetVersionEx(pVersion))   to iRet     // Aufruf der API Funktion
+
+        // Werte aus der Structure holen und in den Properties speichern
+        GetBuff         from sVersion at tOSVERSIONINFO.dwMajorVersion   to iRet
+        set                                           pdwMajorVersion   to iRet
+        GetBuff         from sVersion at tOSVERSIONINFO.dwMinorVersion   to iRet
+        set                                           pdwMinorVersion   to iRet
+        GetBuff         from sVersion at tOSVERSIONINFO.dwBuildNumber    to iRet
+        set                                           pdwBuildNumber    to iRet
+        GetBuff         from sVersion at tOSVERSIONINFO.dwPlatformId     to iRet
+        set                                           pdwPlatformId     to iRet
+        GetBuff_String  from sVersion at tOSVERSIONINFO.szCSDVersion     to sRet
+        set                                           pszCSDVersion     to (Cstring(sRet))
+    End_Procedure
+    Procedure Construct_Object
+        Forward send Construct_Object
+        Property Integer pdwOSVersionInfoSize     Public 0
+        Property Integer pdwMajorVersion          Public 0
+        Property Integer pdwMinorVersion          Public 0
+        Property Integer pdwBuildNumber           Public 0
+        Property Integer pdwPlatformId            Public 0
+        Property String  pszCSDVersion            Public ""
+        send FillMembers
+    End_Procedure
+End_Class
+
+Integer oOsVersionInfo_ID                         // Damit muss man das PKG nicht unbedingt am Desktop einbinden..
+Object oOsVersionInfo is a cOsVersionInfo
+    move Self   to oOsVersionInfo_ID
+End_Object
+
+
+    // Betriebssystemtypen eruieren...
+Function isWindowsNTor2000 For Desktop returns Integer
+    Function_Return (pdwPlatformId(oOsVersionInfo_ID) eq VER_PLATFORM_WIN32_NT)
+End_Function
+Function isWindowsNT For Desktop returns Integer
+    Function_Return
+    if (pdwPlatformId(oOsVersionInfo_ID) eq VER_PLATFORM_WIN32_NT)
+End_Function
+Function isWindows9x For Desktop returns Integer
+    Function_Return (pdwPlatformId(oOsVersionInfo_ID) eq VER_PLATFORM_WIN32_WINDOWS)
+End_Function
+Function isWindows31 For Desktop returns Integer
+    Function_Return (pdwPlatformId(oOsVersionInfo_ID) eq VER_PLATFORM_WIN32s)
+End_Function
+
+    // Liefert einen string mit der Windowsversionsnummer...
+Function sWindowsVersion For Desktop returns String
+    String sVer
+    Append sVer (pdwMajorVersion(oOsVersionInfo_ID)) "." (pdwMinorVersion(oOsVersionInfo_ID))
+    Function_Return sVer
+End_Function
+
+    // Liefert einen String mit den Systeminformationen und "\n" als Umbruch.
+Function sFullInformation For Desktop  returns String
+    String sRet
+    if (isWindowsNTor2000(Desktop)) Begin
+        if (pdwMajorVersion(oOsVersionInfo_ID)) ge 5 Append sRet "Windows 2000"
+        Else                                         Append sRet "Windows NT"
+        Append sRet "\n" (sWindowsVersion(Desktop)) "." (pdwBuildNumber(oOsVersionInfo_ID))
+    End
+    if (isWindows9X(Desktop)) Begin
+        if (Low(pdwBuildNumber(oOsVersionInfo_ID))) eq 1998 Append sRet "Windows 98"
+        Else                                                Append sRet "Windows 95"
+        Append sRet "\n" (sWindowsVersion(Desktop)) "." (Low(pdwBuildNumber(oOsVersionInfo_ID))) " " (hi(pdwBuildNumber(oOsVersionInfo_ID)))
+    End
+    Append sRet (pszCSDVersion(oOsVersionInfo_ID))
+    Function_Return sRet
+End_Function
+
+
+

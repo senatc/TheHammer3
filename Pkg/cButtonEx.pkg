@@ -1,0 +1,208 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : cButtonEx.pkg
+// $ProjectName : Shared Classes
+// $Author      : Michael Kurz
+// $Created     : 09.05.2001  08:46
+//
+// Contents:
+//  Subclass for the Windows BUTTON class, supports all features like a std.DF button does.
+//  Only on_item command does not work within it.
+//
+// Sample of Usage:
+//    Object oButton Is a cButton
+//        Set Location            To 0  0
+//        Set size                To 45 80
+//        Set piMultiLineState    To True                   // Wrap Text when to long.
+//        Set piJustificationMode To (Jmode_left+jmode_top) // Supports: Jmode_Left | Jmode_Right | Jmode_Center | Jmode_Top | Jmode_Bottom | Jmode_VCenter
+//        Set Label To "Testa assa as asas asa asa s"       // Label as usual, but "\n" for beginning a new line is supported (only if piMultiline_State=TRUE)
+//        Set Bitmap To "Panel32.bmp"                       // You can either use a Bitmap
+//        Set Icon to "Editor.Ico"                          // or an Icon
+//        Set Object_Shadow_State to TRUE | FALSE           // Shadowing is also supported.
+//
+//        Procedure onClick
+//            Send Info_Box "Test"
+//        End_Procedure
+//    End_Object
+//
+
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+//____Button_Styles..._____________________
+Define BS_PUSHBUTTON       For |CI$00000000
+Define BS_DEFPUSHBUTTON    For |CI$00000001
+Define BS_CHECKBOX         For |CI$00000002
+Define BS_AUTOCHECKBOX     For |CI$00000003
+Define BS_RADIOBUTTON      For |CI$00000004
+Define BS_3STATE           For |CI$00000005
+Define BS_AUTO3STATE       For |CI$00000006
+Define BS_GROUPBOX         For |CI$00000007
+Define BS_USERBUTTON       For |CI$00000008
+Define BS_AUTORADIOBUTTON  For |CI$00000009
+Define BS_OWNERDRAW        For |CI$0000000B
+Define BS_LEFTTEXT         For |CI$00000020
+Define BS_TEXT             For |CI$00000000
+Define BS_ICON             For |CI$00000040
+Define BS_BITMAP           For |CI$00000080
+Define BS_LEFT             For |CI$00000100
+Define BS_RIGHT            For |CI$00000200
+Define BS_CENTER           For |CI$00000300
+Define BS_TOP              For |CI$00000400
+Define BS_BOTTOM           For |CI$00000800
+Define BS_VCENTER          For |CI$00000C00
+Define BS_PUSHLIKE         For |CI$00001000
+Define BS_MULTILINE        For |CI$00002000
+Define BS_NOTIFY           For |CI$00004000
+Define BS_FLAT             For |CI$00008000
+Define BS_RIGHTBUTTON      For BS_LEFTTEXT
+
+//____Btn_Notification_Messages..._________
+Define BN_CLICKED          For 0
+Define BN_PAINT            For 1
+Define BN_HILITE           For 2
+Define BN_UNHILITE         For 3
+Define BN_DISABLE          For 4
+Define BN_DOUBLECLICKED    For 5
+Define BN_PUSHED           For BN_HILITE
+Define BN_UNPUSHED         For BN_UNHILITE
+Define BN_DBLCLK           For BN_DOUBLECLICKED
+Define BN_SETFOCUS         For 6
+Define BN_KILLFOCUS        For 7
+
+//____Button Control Messages...______
+Define BM_GETCHECK        For |CI$00F0
+Define BM_SETCHECK        For |CI$00F1
+Define BM_GETSTATE        For |CI$00F2
+Define BM_SETSTATE        For |CI$00F3
+Define BM_SETSTYLE        For |CI$00F4
+Define BM_CLICK           For |CI$00F5
+Define BM_GETIMAGE        For |CI$00F6
+Define BM_SETIMAGE        For |CI$00F7
+
+Define BST_UNCHECKED      For |CI$0000
+Define BST_CHECKED        For |CI$0001
+Define BST_INDETERMINATE  For |CI$0002
+Define BST_PUSHED         For |CI$0004
+Define BST_FOCUS          For |CI$0008
+
+Use mBitmapStuff.pkg
+
+Class cButtonEx Is a DFControl
+    Register_Procedure onMouseMove
+    Procedure Construct_Object
+        Set external_class_name "DFBUTTONExr"       To "BUTTON"
+        Set external_message WM_MOUSEMOVE           To msg_onMouseMove
+
+        Property Integer piShadowState          Public 0
+        Property Integer piMultiLineState       Public false
+        Property Integer piJustificationMode    Public (jmode_center+jmode_vcenter)
+        Property Integer piBitmapHandle         Public 0
+        Property Integer piIconHandle           Public 0
+        Property Integer piTransparentState     Public 0    // For Bitmaps and Icons.
+        Property Integer piFlatState            Public 0    // Flat State
+
+        Set Typeface To (TypeFace(Self))        // Dont know why, but this is needed!
+        Forward Send Construct_Object
+    End_Procedure
+        // For setting the value.
+    Procedure Set Label String sLabel
+        String sCR
+        Append sCR (Character(13)) (Character(10))
+        Move (Replaces("\n",sLabel,sCR))    To sLabel
+        Set value Item 0                    To sLabel
+    End_Procedure
+        // Sets all Styles and other necc. things.
+    Procedure page Integer iFlag
+        Integer iRet
+        Handle hwnd
+        If (piMultiLineState(Self))                             Set Window_Style BS_MULTILINE   To True
+        If (piFlatState(Self))                                  Set Window_Style BS_FLAT        To True
+        If (piJustificationMode(Self) Iand jmode_right)         Set Window_Style BS_RIGHT       To True
+        Else If (piJustificationMode(Self) Iand jmode_center)   Set Window_Style BS_CENTER      To True
+        Else                                                    Set Window_Style BS_LEFT        To True
+
+        If (piJustificationMode(Self) Iand jmode_Bottom)        Set Window_Style BS_BOTTOM      To True
+        Else If (piJustificationMode(Self) Iand jmode_Top)      Set Window_Style BS_TOP         To True
+        Else                                                    Set Window_Style BS_VCENTER     To True
+        If (piBitmapHandle(Self))                               Set Window_Style BS_BITMAP      To True
+        If (piIconHandle(Self))                                 Set Window_Style BS_ICON        To True
+
+        Forward Send page iFlag
+        Get Window_Handle To hwnd
+        Move (GetWindow(hwnd,GW_CHILD)) To hwnd
+
+        If (piBitmapHandle(Self)) Move (SendMessage(hwnd,BM_SETIMAGE,IMAGE_BITMAP,piBitmapHandle(Self))) To iRet
+        If (piIconHandle(Self))   Move (SendMessage(hwnd,BM_SETIMAGE,IMAGE_ICON,piIconHandle(Self)))     To iRet
+        Move (EnableWindow(hwnd,(Not(piShadowState(Self)))))  To iRet
+    End_Procedure
+        // Shadowing Object.
+    Procedure Set Object_Shadow_State Integer iFlag
+        Integer iRet
+        Set piShadowState   To iFlag
+        If (Focus_Mode(Self)) Ne pointer_only Begin
+            If iFlag Set Focus_Mode      To nonfocusable
+            Else     Set Focus_Mode      To focusable
+        End
+        If (Window_Handle(Self)) Move (EnableWindow(Window_Handle(Self),(Not(piShadowState(Self)))))  To iRet
+    End_Procedure
+        // If somebody likes to get this ShadowState.
+    Function Object_Shadow_State Returns Integer
+        Function_Return (piShadowState(Self))
+    End_Function
+        // Also implement the old Shadow_State property, some old code pieces could use
+        // it up to now.
+    Procedure Set Shadow_State Integer iItem Integer iFlag
+        Set Object_Shadow_State To iFlag
+    End_Procedure
+    Function Shadow_State Integer iItem Returns Integer
+        Function_Return (Object_Shadow_State(Self))
+    End_Function
+
+        // Should allow Bitmaps.
+    Procedure Set Bitmap String sBmp
+        Handle hBmp
+        Integer iRet
+        If (piBitmapHandle(Self)) Move (DeleteObject(piBitmapHandle(Self))) To iRet
+        Move (LoadBitmap(sBMP,0,0,piTransparentState(Self)))                To hBmp
+        Set piBitmapHandle                                                  To hBmp
+    End_Procedure
+        // Should allow Icons.
+    Procedure Set Icon String sIcon
+        Handle hBmp
+        Integer iRet
+        If (piIconHandle(Self)) Move (DeleteObject(piIconHandle(Self))) To iRet
+        Move (LoadIcon(sIcon,0,0,piTransparentState(Self)))             To hBmp
+        Set piIconHandle                                                To hBmp
+    End_Procedure
+        // Simulates a click on the Btn.
+    Procedure DoClick
+        Integer iRet
+        If (Window_Handle(Self)) Move (SendMessage(Window_Handle(Self),BM_CLICK,0,0))   To iRet
+    End_Procedure
+        // Is sent when button is clicked.
+    Procedure onClick
+    End_Procedure
+        // Should send the specific Notification Message.
+    Procedure command Integer wPara Integer lPara
+        Integer iNotifyCode
+        Move (Hi(wPara))    To iNotifyCode
+        If iNotifyCode Eq BN_CLICKED Send onClick
+    End_Procedure
+        // Is sent when the Mouse moves.
+    Procedure onMouseMove Integer wParam Integer lParam
+    End_Procedure
+        // Destroy Resources.
+    Procedure destroy_object
+        Integer iRet
+        If (piIconHandle(Self)) Move (DeleteObject(piIconHandle(Self)))     To iRet
+        If (piBitmapHandle(Self)) Move (DeleteObject(piBitmapHandle(Self))) To iRet
+        Forward Send destroy_object
+    End_Procedure
+End_Class

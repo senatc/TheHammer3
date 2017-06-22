@@ -1,0 +1,156 @@
+//*****************************************************************************************
+// Copyright (c)  2001 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : D:\Entwicklung\SharedClasses\cGridForm.pkg
+// $ProjectName :
+// $Author      : Mk on SERVER
+// $Created     : 28.04.2001  18:48
+//
+// Contents:
+//
+// $Rev History
+//
+//*****************************************************************************************
+//TH-RevisionStart
+// 31.01.2003 14:50  piMaxItems property introduced to maintain the number  Ad
+//                   of items programmatically.
+//TH-RevisionEnd
+
+
+Use cLineParser.pkg
+
+// Visual DataFlex 14.0 Migration Utility, added July 2, 2008: 11:51:08
+#IF (!@ >= 120)
+{ OverrideProperty=Enabled_State InitialValue=True }
+{ OverrideProperty=Enabled_State EnumList="True, False" }
+#ENDIF
+Class cGridForm Is a Grid
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String  psSepCharacter  Public ","
+        Property Integer piColumns       Public 1
+// 31.01.2003 14:50  piMaxItems property introduced to maintain the number  Ad
+//                   of items programmatically.
+        Property Integer piMaxItems      Public 49
+        Send Reset
+        Set gridline_mode To GRID_VISIBLE_VERT
+
+        Object oColumnPromptObjects Is an Array
+        End_Object
+        On_Key KPROMPT Send Prompt
+    End_Procedure
+
+        // Should call a column prompt.
+    Procedure Prompt
+        Integer iCol hoId
+        Move (Mod(Current_Item(Self),piColumns(Self)))      To iCol
+        Get value Of (oColumnPromptObjects(Self)) Item iCol To hoId
+        If hoId Send Popup  To hoId
+    End_Procedure
+    Procedure Set Column_Prompt_Object Integer iCol Integer hoID
+        Integer iC
+        Set value Of (oColumnPromptObjects(Self)) Item iCol To hoId
+        For iC From 0 To (Item_Count(Self)-1)
+            Set Form_Button         Item (iC+iCol)  To form_button_prompt
+            Set form_button_value   Item (iC+iCol)  To "..."
+            Increment iC
+        End
+    End_Procedure
+    Procedure form_button_mouse_down Integer iItem
+        Send Prompt
+    End_Procedure
+    Procedure header_mouse_click Integer item_num
+        Forward Send header_mouse_click item_num
+        Send Prompt
+    End_Procedure
+
+        // Columns.
+    Procedure Set Columns Integer iCol
+        Set piColumns   To iCol
+        Set Line_Width To iCol 0
+    End_Procedure
+    Procedure Reset
+        Integer iC
+        Send Delete_Data
+        For iC From 0 To (piMaxItems(Self))
+            Send add_Item msg_none ""
+            Send add_Item msg_none ""
+        End
+    End_Procedure
+    Procedure ResetCol Integer iCol
+        Integer iC
+        For iC From 0 To (Item_Count(Self)-1)
+            Set value Item (iC+iCol)    To ""
+            Move (iC+piColumns(Self)-1) To iC
+        End
+    End_Procedure
+
+    Function GetValue Returns String
+        Integer iC
+        String  sRet
+        For iC From 0 To (Item_Count(Self)-1)
+            If (Value(Self,iC)) Eq "" Break
+            Else Begin
+                If sRet Ne "" Append sRet (psSepCharacter(Self))
+                Append sRet (Value(Self,iC))
+            End
+        End
+        Function_Return sRet
+    End_Function
+
+        // Get the value of a column.
+    Function GetValueColumn Integer iCol Returns String
+        Integer iC
+        String  sRet
+        For iC From 0 To (Item_Count(Self)-1)
+            If (Value(Self,iC+iCol)) Eq "" Break
+            Else Begin
+                If sRet Ne "" Append sRet (psSepCharacter(Self))
+                Append sRet (Value(Self,iC+iCol))
+            End
+            Move (iC+piColumns(Self)-1)   To iC
+        End
+        Function_Return sRet
+    End_Function
+
+    Procedure SetValue String sVal
+        Integer hoID iC
+        String sSep
+        Get psSepCharacter  To sSep
+        Send Reset
+        Object oParser Is a cLineParser
+            Set psSepCharacter  To sSep
+            Move Self   To hoID
+        End_Object
+        Send ParseLine To hoID sVal
+        For iC From 0 To (Item_Count(hoID)-1)
+            Set value Item iC To (Value(hoID,iC))
+        End
+        Send Destroy_Object To hoID
+    End_Procedure
+
+    Procedure SetValueColumn Integer iCol String sVal
+        Integer hoID iC iC2
+        String sSep
+        Get psSepCharacter      To sSep
+        Send ResetCol iCol
+        Object oParser Is a cLineParser
+            Set psSepCharacter  To sSep
+            Move Self           To hoID
+        End_Object
+        Send ParseLine          To hoID sVal
+        Move iCol               To iC2
+        For iC From 0 To (Item_Count(hoID)-1)
+            Set value Item iC2          To (Value(hoID,iC))
+            Move (piColumns(Self)+iC2)  To iC2
+        End
+        Send Destroy_Object     To hoID
+    End_Procedure
+End_Class
+
+
+
+
+

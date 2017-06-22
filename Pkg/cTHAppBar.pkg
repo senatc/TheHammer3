@@ -1,0 +1,668 @@
+// cAppBar class definition. Version 1.0.
+// $Type$     Package
+// $Authors$  Michael Kurz, Sergey V. Natarov
+// $Revision: 1.2 $ 2.0.1 beta
+// $Date: 2003-12-01 12:43:05+03 $     May 22, 2001
+// $Updated$  November 12, 2001
+//
+// $History$
+// 2.0.1b Button patterns.
+// 2.0.1b Color Schemes.
+// 1.0.2b Resizable components 
+ 
+// cAppBar Buttons class definition
+// Public interface:
+//    Set psBitmap  To "tvAsp32.bmp"
+//    Set psLabel   To "The Hammer 1.0 Source Editor"
+//    Set piMessage To Msg_DoItNow
+//
+
+Register_Object oBarPageScrollUp
+Register_Object oBarPageScrollDown
+
+Use cRealToolbar.pkg
+Use mPointer.pkg
+Use ctButton.pkg
+Use DrgNDrop.pkg
+
+Define CAPPBAR_PAGE_GUIHEIGHT   for 20 //25 // 19
+Define CAPPBAR_BUTTON_GUIHEIGHT for 36 //66
+Define CAPPBAR_BUTTON_GUIWIDTH  for 1620 //69
+
+Class cABImageList is a cImageList32 //cABBaseImageList
+    Procedure OnCreate
+        String sBmp
+        Integer iTrClr
+        Integer iVoid
+        Delegate Get Button_Bitmap To sBmp
+        Delegate Get Button_Transparency to iTrClr
+        Get AddImage sBmp to iVoid
+        //Get AddTransparentImage sBmp iTrClr To iVoid // 4
+    End_Procedure
+End_Class
+
+Class cABButton Is a cToolbarButton
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set psLabel To "Not Defined"
+        Set pbAutoSize To False
+        Set psTooltip To ''
+        Set psStatusHelp To ''
+        Set piImage To 0
+    End_Procedure
+    Procedure OnClick
+        Delegate Send OnClick
+    End_Procedure
+End_Class
+
+Class cAppBarButton Is a cRealToolBar
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property String  Button_Bitmap          ""
+        Property Integer Button_Transparency    clFuchsia
+        Property Integer Button_Message         0
+        Property Integer piButtonData           0
+        Set Size              to 20 198
+        Set peAlign           to alNone
+        Set peAnchors         to anLeftRight
+        Set pbNoDivider       To True
+        Set pbInMdiPanel      To False
+        Set pbShowLabels      To True 
+        Set pbList            to True //False
+        Set piTextRowsMax     To 3
+        Set piButtonHeight    To 220
+        Set piButtonWidth     To CAPPBAR_BUTTON_GUIWIDTH
+        Set piButtonWidthMax  To CAPPBAR_BUTTON_GUIWIDTH
+        // Color Schemes for the Buttons Border...
+        Set piclrBtnHighlight To clWHite
+        Set piclrBtnShadow    To clBlack
+        Set piTextColor       to clWhite
+        Object oButton        Is a cABButton
+        End_Object
+    End_Procedure
+
+    Import_Class_Protocol cDragAndDrop_mx
+
+    Function DragAndDrop_DataType Returns String
+        Function_Return "DD_CLASS"
+    End_Function
+
+    Function DragAndDrop_GetData Returns String 
+        Integer iData
+        String  sData
+        Get piButtonData    to iData
+        Delegate Get ButtonTemplate iData to sData
+        Function_Return sData
+    End_Function
+
+    Procedure Set piMessage Integer iMsg
+        Set Button_Message To iMsg
+    End_Procedure
+    Function piMessage Returns Integer
+        Function_Return (Button_Message(oButton(Self)))
+    End_Function
+
+    Procedure Set Bitmap String sBitmap Integer iColor
+        Set Button_Bitmap To sBitmap
+        Set Button_Transparency To iColor
+    End_Procedure
+    Function Bitmap Returns String
+        Function_Return (Button_Bitmap(oButton(Self)))
+    End_Function
+
+    Procedure Set Label String sLabel
+        Set psLabel Of (oButton(Self)) To sLabel
+    End_Procedure
+    Function Label Returns String
+        Function_Return (psLabel(oButton(Self)))
+    End_Function
+
+    Procedure Set ToolTip String sLabel
+        Set psToolTip Of (oButton(Self)) To sLabel
+    End_Procedure
+    Function ToolTip Returns String
+        Function_Return (psToolTip(oButton(Self)))
+    End_Function
+
+    Procedure Set StatusHelp String sStatus
+        Set psStatusHelp Of (oButton(Self)) To sStatus
+    End_Procedure
+    Function StatusHelp Returns String
+        Function_Return (psStatusHelp(oButton(Self)))
+    End_Function
+
+    Procedure OnClick
+        Integer iMsg iData
+        Get piButtonData    to iData
+        Get Button_Message  to iMsg
+        Delegate Send iMsg iData
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Integer iHL iSH iTXT iHLTXT iClr iFntWght iFntHght iFntIt iFntUnd iBtnClr
+        String  sBmp sFont
+        Forward Send End_Construct_Object
+        Object oImages Is a cABImageList
+        End_Object
+        If (Not(ImageCount(oImages(Self)))) Begin
+            Send Destroy To (oImages(Self))
+            Object oImages Is a cABImageList
+            End_Object
+        End
+        Set phoImageList    To (oImages(Self))
+        Set phoImageListHot To (oImages(Self))
+        Delegate Get Button_Color                To iBtnClr                      
+        Delegate Get Button_Highlight_Color      To iHL
+        Delegate Get Button_Shadow_Color         To iSh
+        Delegate Get Button_Text_Color           to iTXT
+        Delegate Get Button_Text_HighLight_Color To iHLTXT
+        Delegate Get Button_Pattern              To sBmp
+        Delegate Get Button_FontWeight           To iFntWght
+        Delegate Get Button_FontHeight           To iFntHght
+        Delegate Get Button_FontItalics          To iFntIt
+        Delegate Get Button_FontUnderline        To iFntUnd
+        Delegate Get Button_TypeFace             To sFont
+        Delegate Get Color                       To iClr
+        Set piTextColor to iTXT
+        Set ColorScheme to iHL iSH
+        If (sBmp<>"") Begin
+            Set piBkColor To iClr
+            Set psBkPatternBmp To sBmp
+        End
+        If (iBtnClr<>CLR_DEFAULT) Set piBkColor To iBtnClr
+        If ((sFont<>"")And(sFont<>"MS Sans Serif")) Set TypeFace To sFont
+        If (iFntWght)   Set FontWeight            To iFntWght
+        If (iFntHght)   Set FontSize              To iFntHght 0
+        If (iHLTXT<>-1) Set piTextHighlightColor  To iHLTxt
+        If (iFntIt)     Set FontItalics           To True
+        If (iFntUnd)    Set FontUnderline         To True
+    End_Procedure
+
+End_Class
+
+Class cBarPageScrollUp Is a ctButton
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Visible_State To False
+        Set Bitmap        to "up.bmp"
+        Set Size          To 8 10
+        Set Location      To 14 63
+    End_Procedure
+    
+    Procedure Set Visible_State Integer bState
+        Set Border_Style To Border_Dialog
+        Forward Set Visible_State To bState
+    End_Procedure
+
+    Procedure OnClick
+        Local Integer iPage iObj
+        Delegate Get Current_Page   To iPage
+        Delegate Get Bar_Page iPage To iObj
+        Send Scroll_Buttons_Up      To iObj 
+    End_Procedure
+End_Class
+
+Class cBarPageScrollDown Is a ctButton
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Visible_State To False
+        Set Bitmap        to "down.bmp"
+        Set Size          To 8 10
+        Set Location      To 179 63
+    End_Procedure
+
+    Procedure Set Visible_State Integer bState
+        Set Border_Style To Border_Dialog
+        Forward Set Visible_State To bState
+    End_Procedure
+
+    Procedure OnClick
+        Integer iPage iObj
+        Delegate Get Current_Page   To iPage
+        Delegate Get Bar_Page iPage To iObj
+        Send Scroll_Buttons_Down    To iObj 
+    End_Procedure
+End_Class
+
+Class cPageLabel Is a Textbox
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Set Label              To "Page 0 (Default)"
+        //
+        Set FontWeight         to 800
+        //
+        Set Auto_Size_State    to False
+        Set Transparent_State  to True
+        Set Location           to -1 2
+        Set Size               To 10 70
+        Set Justification_Mode to JMode_Left //(jMode_Center Ior jMode_vCenter)
+    End_Procedure
+    
+    Procedure Mouse_Up Integer iWnd
+        Delegate Send Mouse_Up iWnd
+    End_Procedure
+    Procedure OnResize
+        Integer cxy cx cy
+        Delegate Get GUISize To cxy // Size of Page
+        Move (Hi(cxy))       To cy
+        Move (Low(cxy))      To cx
+        // Set TextColor To clNavy
+        Set GUISize          To (CAPPBAR_PAGE_GUIHEIGHT-3) (cx-9) 
+        Send Adjust_Logicals
+        Set Label To (Label(Self)) // refresh label
+    End_Procedure
+End_Class
+
+Class cBarPage Is a Container3d
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Integer Bar_Page_Number Public 0       // Page Number inside the Bar
+        
+        Property Integer Top_Button      Public 0       // INTERNAL USE ONLY!
+        Property Integer Disabled_State  Public False   // INTERNAL USE ONLY!
+        
+        Set Bitmap to "AppBarPageBG.bmp"
+        Set Bitmap_Style to Bitmap_Tile //Bitmap_Stretch
+        
+        Set Border_Style to Border_StaticEdge
+        
+        Set Size                         to 12 77 // 12 81
+        Set GUILocation                  To 0 0
+        Send Adjust_Logicals
+
+        Object Page_Button_Id            Is an Array
+        End_Object
+        Object oPageLabel                Is a cPageLabel
+        End_Object
+    End_Procedure
+
+    // Get/Set Page Button via button number. Accept/Returns Object_Id.
+    Procedure Set Page_Button Integer iBtn Integer iObj
+        Set Value Of (Page_Button_Id(Self)) Item iBtn To iObj
+    End_Procedure
+    Function Page_Button Integer iBtn Returns Integer
+        Function_Return (Value(Page_Button_Id(Self),iBtn))
+    End_Function
+    
+    // Get/Set Page Label
+    Procedure Set psLabel String sLabel
+        Set Label Of (oPageLabel(Self)) To sLabel
+    End_Procedure
+    Function psLabel Returns String
+        Function_Return (Label(oPageLabel(Self)))
+    End_Procedure
+    
+    Procedure Init_Bar_Page
+        Integer iPgNo iObj
+        Move Self To iObj
+        Get Register_Page Of (Parent(Self)) iObj To iPgNo
+        Set Bar_Page_Number                      To iPgNo
+    End_Procedure
+    
+    Procedure Mouse_Up Integer iWnd
+        Integer iPage iBtns
+        If (Not(Enabled_State(Self))) Procedure_Return
+        Get Bar_Page_Number  To iPage
+        Send Show_Page       To (Parent(Self)) iPage
+        Forward Send Mouse_Up iWnd
+    End_Procedure
+    
+    // Internal methods to hide/show page buttons. Ususally you should not use it.
+    Procedure Hide_Page_Buttons
+        Integer iBtn iObj
+        If (Item_Count(Page_Button_Id(Self))=0) Procedure_Return
+        For iBtn From 0 To (Item_Count(Page_Button_Id(Self))-1)
+            Get Value Of (Page_Button_Id(Self)) Item iBtn To iObj
+            If (iObj) Set Visible_state Of iObj To False
+        Loop
+    End_Procedure
+    Procedure Show_Page_Buttons
+        Integer iBtn iObj iAllowed iBtns iCnt iPage
+        Delegate Get Page_Buttons_Number            To iAllowed
+        Move (Item_Count(Page_Button_Id(Self)))     To iBtns
+        Get Bar_Page_Number                         To iPage
+    
+        If (iBtns>iAllowed) Move iAllowed           To iCnt
+        Else                Move iBtns              To iCnt
+    
+        If (iCnt>0) Begin
+            For iBtn From 0 To (iCnt-1)
+                Get Value of (Page_Button_Id(Self)) item iBtn to iObj
+                Set Visible_state Of iObj           To True
+                // Set Location Of iObj                To (13+(12*(iPage+1))+(iBtn*55)) 1
+                If (iBtn=0) Set GUILocation Of iObj To (17+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iBtn*CAPPBAR_BUTTON_GUIHEIGHT)) 1 //(22+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iBtn*81)) 1
+                Else        Set GUILocation of iObj to (17+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iBtn*CAPPBAR_BUTTON_GUIHEIGHT)) 1 //*83
+            Loop
+        End
+    
+        // Adjust scroll buttons
+        Set Visible_State Of oBarPageScrollUp        To False
+        If (iBtns>iAllowed) Set Visible_State Of oBarPageScrollDown To True
+        Else Set Visible_State Of oBarPageScrollDown To False
+        Set Top_Button To 0
+    End_Procedure
+    
+    // To Disable/Enable all buttons on the page. Usage:
+    // Set Page_Disabled_State to True
+    Procedure Set Page_Disabled_State Integer bState
+        Integer iBtn iObj
+        If (Item_Count(Page_Button_Id(Self))>0) Begin
+            For iBtn From 0 To (Item_Count(Page_Button_Id(Self))-1)
+                Get Value Of (Page_Button_Id(Self)) Item iBtn To iObj
+                Set pbEnabled Of iObj To (Not(bState))
+            Loop
+        End
+        Set Disabled_State To bState
+        Set Enabled_State To (Not(bState))
+    End_Procedure
+    Function Page_Disabled_State Returns Integer
+        Function_Return (Disabled_State(Self))
+    End_Function
+
+    Procedure Scroll_Buttons_Down
+        Integer iTop iBtns iVsbl iBtn iPage iObj iCnt iLim
+
+        Get Top_Button                           To iTop
+        Get Item_Count Of (Page_Button_Id(Self)) To iBtns
+        Get Bar_Page_Number                      To iPage
+        Delegate Get Page_Buttons_Number         To iVsbl
+        Decrement iVsbl
+        Increment iTop
+
+        Move (iVsbl+iTop) To iLim
+        If (iLim>(iBtns-1)) Move (iBtns-1) To iLim
+
+        If (iBtns>iLim) Begin
+          Send Hide_Page_Buttons
+          Move 0 To iCnt
+          For iBtn From iTop To iLim
+            Get Value Of (Page_Button_Id(Self)) Item iBtn To iObj
+            Set Visible_state Of iObj           To True
+            //Set GUILocation Of iObj             To (22+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iCnt*83)) 1
+            Set GUILocation Of iObj             To (17+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iCnt*CAPPBAR_BUTTON_GUIHEIGHT)) 1
+            Increment iCnt
+            Set Top_Button To iTop
+          Loop
+        End
+        If ((iBtns-1)=iLim) Set Visible_State Of oBarPageScrollDown To False
+        If (iTop>0) Set Visible_State Of oBarPageScrollUp To True
+    End_Procedure
+    Procedure Scroll_Buttons_Up
+        Integer iTop iBtns iVsbl iBtn iPage iObj iCnt iLim
+
+        Get Top_Button                           To iTop
+        Get Item_Count Of (Page_Button_Id(Self)) To iBtns
+        Get Bar_Page_Number                      To iPage
+        Delegate Get Page_Buttons_Number         To iVsbl
+        Decrement iVsbl
+        Decrement iTop
+
+        Move (iVsbl+iTop) To iLim
+        If (iLim>(iBtns-1)) Move (iBtns-1) To iLim
+
+        If (iBtns>iLim) Begin
+          Send Hide_Page_Buttons
+          Move 0 To iCnt
+          For iBtn From iTop To iLim
+            Get Value Of (Page_Button_Id(Self)) Item iBtn To iObj
+            Set Visible_state Of iObj           To True
+            //Set GUILocation Of iObj             To (22+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iCnt*83)) 1
+            Set GUILocation Of iObj             To (17+(CAPPBAR_PAGE_GUIHEIGHT*(iPage+1))+(iCnt*CAPPBAR_BUTTON_GUIHEIGHT)) 1
+            Increment iCnt
+            Set Top_Button To iTop
+          Loop
+        End
+        If ((iBtns-1)>iLim) Set Visible_State Of oBarPageScrollDown To True
+        If (iTop=0)         Set Visible_State Of oBarPageScrollUp   To False
+    End_Procedure
+
+    Procedure OnResize
+        Integer cxy 
+        Delegate Get GUISize To cxy // Size of Bar
+        Set GUISize To CAPPBAR_PAGE_GUIHEIGHT (Low(cxy)-2)
+        Send Adjust_Logicals
+    End_Procedure
+
+End_Class
+
+Class cAppBar Is a Container3d
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        // Total pages placed on the Bar
+        Property Integer Button_Highlight_Color  Public clNavy //clWhite
+        Property Integer Button_Shadow_Color     Public clNavy //clBlack
+        Property Integer Button_Text_Color       Public clBlack
+        Property Integer Button_Text_HighLight_Color Public -1
+        Property Integer Button_Color            Public CLR_DEFAULT
+        Property String  Button_TypeFace         Public "MS Sans Serif"
+        Property Integer Button_FontWeight       Public 0
+        Property Integer Button_FontHeight       Public 0
+        Property Integer Button_FontItalics      Public False
+        Property Integer Button_FontUnderline    Public False
+        Property String  Button_Pattern          Public ""
+        
+        Property Integer Total_Pages  Public 0  // INTERNAL USE ONLY!
+        Property Integer Current_Page Public 0  // INTERNAL USE ONLY!
+    
+        Object Bar_Pages_Id       Is an Array
+        End_Object
+        Object oBarPageScrollUp   Is a cBarPageScrollUp
+        End_Object        
+        Object oBarPageScrollDown Is a cBarPageScrollDown
+        End_Object
+        
+        Set Size                  To 250 70
+        Set Location              To -2 0
+        Set Color                 To clBtnFace
+        Set Border_Style          To Border_StaticEdge //Border_ClientEdge
+
+    End_Procedure
+
+    // Internal property to assign/retrieve page object ID to internal page store.
+    // INTERNAL USE ONLY!
+    Procedure Set Bar_Page Integer iPage Integer iObj
+        Set Value Of (Bar_Pages_Id(Self)) Item iPage To iObj
+    End_Procedure
+    Function Bar_Page Integer iPage Returns Integer
+        Function_Return (Value(Bar_Pages_Id(Self),iPage))
+    End_Function
+    
+    // Public interface to register page within cAppBar.
+    // Function returns page number of registered object
+    Function Register_Page Integer iObj Returns Integer
+        Integer iPage
+        Get Item_Count Of (Bar_Pages_Id(Self)) To iPage
+        Set Bar_Page iPage To iObj
+        Set Total_Pages To iPage
+        Function_Return iPage
+    End_Function
+
+    // Removes the specified bar page and all buttons related to
+    Procedure Remove_Page Integer iPage
+        Integer iPages iBtn iBtns iPgObj iBtObj iItm
+        Get Item_Count Of (Bar_Pages_Id(Self)) To iPages
+        Decrement iPages
+        If (Not(iPage<=iPages)) Procedure_Return
+        Get Value Of (Bar_Pages_Id(Self)) Item iPage To iPgObj
+        If (iPgObj) Begin
+            Send Hide_Page_Buttons To iPgObj
+            Get Item_Count Of (Page_Button_Id(iPgObj)) To iBtns
+            For iBtn From 0 To iBtns
+                Get Value Of (Page_Button_Id(iPgObj)) Item iBtn To iBtObj
+                If (iBtObj) Send Destroy To iBtObj
+            Loop
+            Send Destroy To iPgObj
+            Send Delete_Item Of (Bar_Pages_Id(Self)) iPage
+        End
+        Set Current_Page To 0
+        Set Total_Pages To (Total_pages(Self)-1)
+        // Adjust page numbers
+        For iItm From iPage To (Total_Pages(Self))
+            Get Value Of (Bar_Pages_Id(Self)) Item iItm To iPgObj
+            If (iPgObj) Set Bar_Page_Number Of iPgObj To (Bar_Page_Number(iPgObj)-1)
+        Loop
+        Send Refresh_Bar
+    End_Procedure
+    
+    // Placed here for resize purposes. After cAppBar resizing,
+    // do not forget send this message.
+    Procedure Refresh_Bar
+        Integer iCurPage
+        Get Current_Page To iCurPage
+        Send Show_Page (Total_Pages(Self)) //0
+        Send Show_Page iCurPage
+    End_Procedure
+
+    Procedure Remove_Page_Button Integer iPage Integer iBtn
+        Integer iPgObj iObj
+        Get Bar_Page iPage To iPgObj
+        If (Not(iPgObj)) Procedure_Return
+        Get Value Of (Page_Button_Id(iPgObj)) Item iBtn To iObj
+        If (Not(iObj)) Procedure_Return
+        Send Delete_Item To (Page_Button_Id(iPgObj)) iBtn
+        Send Destroy     To iObj
+    End_Procedure
+        
+    // "Opens" page on the Bar by internal Page number.
+    Procedure Show_Page Integer iPage
+        Integer iCurPage iObj iItm iCnt iCnt1 iPages iDnPages iFrst
+        Integer cxy cx cy
+
+        Get Total_Pages             To iPages
+        If (iPages<=0) Procedure_Return
+
+        Send OnOpenPage iPage
+        Get Current_Page            To iCurPage
+        Get Bar_Page       iCurPage To iObj
+        
+        Move (iPages-iPage) To iDnPages
+
+        If (iPage<>0) Send Hide_Page_Buttons To iObj
+        Else          Send Hide_All_Buttons  To iObj
+
+        Get Bar_Page 0 To iFrst
+        If (iFrst) Set GUILocation Of iFrst To 0 0
+
+        If ((iObj)And(iCurPage<>iPage)) Begin
+    
+            // Move all pages up above selected.
+            If (iPage>0) Begin
+                For iItm From 0 To iPage
+                    Get Bar_Page iItm    To iObj
+                    Set GUILocation Of iObj To (iItm*CAPPBAR_PAGE_GUIHEIGHT) 0
+                Loop
+            End
+    
+            // Move all pages down below selected.
+            If (iDnPages>0) Begin
+                Get  GUISize             To cxy
+                Move (Hi(cxy))           To cy
+                Move (Low(cxy))          To cx
+    
+                Move iPages              To iCnt
+                Move 1                   To iCnt1
+                For iItm From (iPage+1)  To iPages
+                    Get Bar_Page iCnt    To iObj
+                    Set GUILocation Of iObj To (cy-(iCnt1*CAPPBAR_PAGE_GUIHEIGHT)-2) 0 //-4
+                    Increment iCnt1
+                    Decrement iCnt
+                Loop
+            End
+    
+            Get Bar_Page iPage           To iObj
+            Set Current_Page             To iPage
+        End
+        Send Show_Page_Buttons       To iObj
+        Send Adjust_Scroll_Buttons
+    End_Procedure
+    
+    // INTERNAL USE ONLY!
+    // Used for relocation of scroll buttons on the page.
+    Procedure Adjust_Scroll_Buttons
+        Integer iPage iPages iLoc
+        Integer cxyUp cxyDn cxy cxyBn
+        Get Total_Pages                       To iPages
+        Get Current_Page                      To iPage
+        Get GUILocation Of oBarPageScrollUp   To cxyUp
+        Get GUILocation Of oBarPageScrollDown To cxyDn
+    
+        // How many pages below selected.
+        Move (iPages-iPage)                   To iLoc
+        Get GUISize                           To cxy     // Client size
+        Get GUISize Of oBarPageScrollDown     To cxyBn   // Down Button size
+    
+        Set GUILocation Of oBarPageScrollUp      To (((iPage+1)*CAPPBAR_PAGE_GUIHEIGHT)+4) (Low(cxy)-Low(cxybn)-8) 
+        Set GUILocation Of oBarPageScrollDown    To (Hi(cxy)-(iLoc*CAPPBAR_PAGE_GUIHEIGHT)-Hi(cxybn)-8) (Low(cxy)-Low(cxybn)-8)
+    End_Procedure
+    
+    // How many buttons could be located on every page.
+    // Returns number of buttons.
+    Function Page_Buttons_Number Returns Integer
+        Integer iPages iSpace iButtons cxy BnCxy
+        Move 0 To iButtons
+        Get Total_Pages                   To iPages
+        Get GUISize                       To cxy
+        Get GUISize Of oBarPageScrollDown To BnCxy
+    
+        Move (Hi(cxy)-(iPages*CAPPBAR_PAGE_GUIHEIGHT)-(2*Hi(BnCxy))-23) To iSpace
+        Move (iSpace/(CAPPBAR_BUTTON_GUIHEIGHT+2))                          To iButtons // /81
+    
+        Function_Return iButtons
+    End_Function
+                                                      
+    Function Create_Bar_Button Integer iMsg String sLbl String sBmp Integer iData Returns Integer
+        Integer iRet
+        Object OSB_Button Is a cAppBarButton
+            Set piMessage       to iMsg
+            Set Label           to sLbl
+            Set Bitmap  sBmp    to clWhite
+            Set piButtonData    to iData
+            Move Self           to iRet
+        End_Object
+        Function_Return      iRet
+    End_Function
+    
+    Function Create_Bar_Page String sLbl Returns Integer
+        Integer iRet
+        Object OSB_Page   Is a cBarPage
+            Set psLabel   to sLbl
+            Send Init_Bar_Page
+            Move Self     To iRet
+        End_Object
+        Function_Return   iRet
+    End_Function
+    
+    Procedure Set GUISize Integer iY Integer iX
+        Forward Set GUISize To iY iX
+        Broadcast Recursive Send OnResize
+    End_Procedure
+    
+    Procedure Hide_All_Buttons
+        Integer iPage iPages iObj
+        Get Total_Pages To iPages
+        If (iPages=0) Procedure_Return
+        For iPAge From 0 To iPages
+            Get Bar_Page iPage To iObj
+            Send Hide_Page_Buttons To iObj
+        Loop
+    End_Procedure
+    
+    Procedure OnCreateBar
+    End_Procedure
+
+    Procedure OnOpenPage Integer iPage
+    End_Procedure
+    
+    // This cancels all activate routines
+    Procedure activate
+    End_Procedure
+    Procedure mouse_down Integer i1
+    End_Procedure  
+    
+    Procedure End_Construct_Object 
+        Send OnCreateBar
+        Forward Send End_Construct_Object 
+        Send Show_Page 0
+    End_Procedure
+
+End_Class

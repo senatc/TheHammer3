@@ -1,0 +1,12 @@
+// TH3HelpMenu.mn
+
+Object oHelpMenu is a cCJMenuItem
+    Set peControlType to xtpControlPopup    
+    Set psCaption to "&Help"
+    Set psDescription to "Access Information for learning and using The Hammer 3.0 application."
+    Set psToolTip to "Help"
+
+    Object oAboutMenuItem is a cCJAboutMenuItem
+    End_Object
+
+End_Object

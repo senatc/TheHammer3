@@ -1,0 +1,640 @@
+// TH3Workspace.pkg
+// By Sergey V. Natarov
+// Created: 11/03/2017
+// This file defines TH3 Workspace (HWS extension)
+// HWS includes information about The Hammer Workspace
+// It is based on the Project workspace, but can be amended
+// by Developer
+
+Use Tools\TH3Workspace.h
+Use THColorer.h
+Use Flexml.pkg
+
+// 2001-01-09 -RvdW
+#Replace CURRENT$WORKSPACE   "Hammer"
+
+// 2001-01-09 -RvdW
+// *** Add Appication Object for vdf8, The hole workspace stuff need clean up...
+Use cApplicationEx.pkg
+Use Startup.pkg                              //@
+Object Splash_Screen is a SplashScreenPanel  //@
+    Set Bitmap to "LOGO.BMP"                 //@
+    Send Activate                            //@
+End_Object                                   //@
+
+Object oApplication is a cApplicationEx
+    Property Integer piWrkSpcNewFile                Public False
+    Property Integer piWrkSpcSetVersion             Public False
+    Property Integer piWrkSpcRegister               Public False
+    Property String  psWrkSpcOpenFileName           Public ""
+
+    Set piCmdLineSupport    to True                 // Use it for CommandLine Parameters.
+    Set psCompany           to CTH_Project_Name
+    Set psProduct           to CTH_Programm_Name
+    Set psVersion           to CTH_Version_No
+    Set peHelpType          to htHtmlHelp
+
+    //Set pbPreserveEnvironment To False // This will stop the program reading/writing its settings to the registry
+    //Set psHelpFile To "HelpName.hlp" // Please provide the name of your Windows help file.
+    //Set pbEnterKeyAsTabKey To True // Will make the enter key act like the tab key
+
+        // Propeties to store some global flags.
+    Object oWrkSpcOpenFileNames is an Array
+    End_Object
+        // Sends the given Message to the given Object with all given
+        // Parameters.
+    Procedure WrkSpcDoForAllFiles Integer iMsg Integer hoDest
+        Integer hoID iC
+        String  sFile
+        Move (oWrkSpcOpenFileNames(Self)) to hoID
+        For iC from 0 to (Item_Count(hoID)-1)
+            Get value of hoID item iC   to sFile
+            If sFile Ne "" If iMsg If hoDest Begin
+                Send iMsg to hoDest sFile
+            End
+        End
+    End_Procedure
+
+        // Procedure which are called when the CommandLineParameters are received.
+    Procedure WrkSpcRegister
+    	Set piWrkSpcRegister	to True
+    End_Procedure
+
+    Procedure WrkSpcOpenFile String sFile
+        Integer iArg
+        String  sArg
+        Set psWrkSpcOpenFileName    to sFile
+        Send Delete_Data            to (oWrkSpcOpenFileNames(Self))
+        For iArg from 1 to NUM_Arguments
+            Movestr iArg&   to sArg
+            If (Trim(sArg)) Ne "" Begin
+                Set value of (oWrkSpcOpenFileNames(Self)) item (Item_Count(oWrkSpcOpenFileNames(Self))) to sArg
+            End
+        End
+    End_Procedure
+
+    Procedure WrkSpcNewFile
+        Set piWrkSpcNewFile         to True
+    End_Procedure
+
+    Procedure WrkSpcSetVersion
+        Set piWrkSpcSetVersion      to True
+    End_Procedure
+
+        // Commands which should been handled from the CmdLine:
+    Send RegisterCommand "-REGISTER"    Msg_WrkSpcRegister      0 "Associates all VDF Filetypes to the Hammer."
+    Send RegisterCommand "-OPEN"        Msg_WrkSpcOpenFile      0 "Opens the given file."
+    Send SetDefaultCommand              // -OPEN is the default Command.
+    Send RegisterCommand "-NEW"         Msg_WrkSpcNewFile       0 "Opens a empty file view."
+    Send RegisterCommand "-SETVERSION"  Msg_WrkSpcSetVersion    0 "Opens the Version/ Workspace dialog on startup"
+
+    Procedure OnCreate
+        Send DoOpenWorkspace (CURRENT$WORKSPACE)
+    End_Procedure
+
+End_Object // oApplication
+
+Function THWinRegClassesRootValue String sBranch String sKey Returns String
+    Handle hCurrentRoot
+    String sCurrentPath
+    String sRetVal sValue 
+    UInteger hKey
+    Integer iSize iError hRootKey
+    Pointer psValue piSize pKey
+    Get_Registry_Root to hCurrentRoot sCurrentPath
+    Move 0 to hKey   
+    GetAddress of hKey to pKey
+    Move (RegOpenKeyEx(HKEY_CLASSES_ROOT, ToAnsi(sBranch), 0, KEY_READ, pKey)) to iError
+    If (hKey<>0) Begin
+        Move 100 to iSize
+        ZeroString iSize to sValue 
+        GetAddress of sValue to psValue
+        GetAddress of iSize to piSize
+        Move (RegQueryValueEx(hKey, sKey, 0, 0, AddressOf(sValue), AddressOf(iSize))) to iError
+        Move (CString(sValue)) to sRetVal
+        Move (RegCloseKey(hKey)) to iError
+    End
+    Set_Registry_Root to hCurrentRoot sCurrentPath
+    Function_Return sRetVal
+End_Function
+
+// Provided as a list of Event IDs (but seems like not required)
+Function THCompilerEventID String sVersion Returns String
+    If (sVersion="12.0") Function_Return "{E4C3F246-8F3B-49C6-88E9-3BE282B6990A}"
+    If (sVersion="12.1") Function_Return "{6621490D-0725-44D0-ACF5-86B42A4718F9}"
+    If (sVersion="14.0") Function_Return "{72F51D9A-D76E-474F-8ACE-3276FD7E9D61}"
+    If (sVersion="14.1") Function_Return "{B4F4CE77-4CCB-4B64-9297-7A83484EAD0F}"
+    If (sVersion="15.0") Function_Return "{2C4E9D67-AB48-4F73-8BF2-A837723F150B}"
+    If (sVersion="15.1") Function_Return "{01367077-9E13-458E-B393-936C8DBF6BD2}"
+    If (sVersion="16.0") Function_Return "{765949AB-411F-47B6-9DC8-CC2934DD6C93}"
+    If (sVersion="16.1") Function_Return "{7EF7BDFC-193D-4852-BD42-8F29D8E13558}"
+    If (sVersion="17.0") Function_Return "{DAA0B8DD-A193-4B44-89A4-0FD195158897}"
+    If (sVersion="17.1") Function_Return "{05A055A7-F12E-4B10-A878-0CB4B1B91AF4}"
+    If (sVersion="18.0") Function_Return "{D2508C70-B95A-4B3A-86C5-C043DE93A1CD}"
+    If (sVersion="18.1") Function_Return "{A218E494-0D49-4FBC-B883-54C8312AB504}"
+    If (sVersion="18.2") Function_Return "{3788BA01-C926-4B82-A3BD-936E67E00C54}"
+    If (sVersion="19.0") Function_Return "{2C22F54E-164C-4B28-A089-5357B54A2371}"
+    If (sVersion="19.1") Function_Return ""
+    Function_Return ""
+End_Function
+
+Procedure THEnumerateBuiltInCompilers
+    Integer iVersion iVersionStart iVersionStop iSubVersion iSubVersions iCompiler
+    String  sCompiler sVersion sResult sProgID sEventID
+    Move 12 to iVersionStart 
+    Move 25 to iVersionStop
+    Move  3 to iSubVersions
+    For iVersion from iVersionStart to iVersionStop
+        For iSubVersion from 0 to iSubVersions
+            Move (String(iVersion)+"."+String(iSubVersion)) to sVersion
+            Move ("vdfcompctl.VDFCompiler."+sVersion) to sCompiler
+            Move (THWinRegClassesRootValue(Self, sCompiler, "")) to sResult
+            If (Uppercase(sResult)="VDFCOMPILER OBJECT") Begin
+                // Looks like it works perfectly without Event ID
+//                Get  THCompilerEventID sVersion     to sEventID
+//                If (sEventID<>"") Begin
+                    Move (SizeOfArray(gtTHCompilers))                       to iCompiler
+                    Move sVersion                                           to gtTHCompilers[iCompiler].sVersion
+                    Get  THWinRegClassesRootValue (sCompiler+"\CLSID") ""   to sProgID
+                    Move sProgID                                            to gtTHCompilers[iCompiler].sProgID
+                    Move sEventID                                           to gtTHCompilers[iCompiler].sEventId
+//                End // EventID
+            End // Compiler Object
+        Loop
+    Loop
+End_Procedure
+Send THEnumerateBuiltInCompilers
+
+Function THFindBuiltInCompiler String sVersion Returns Integer
+    tTHCompiler ltTHCompiler
+    Move sVersion to ltTHCompiler.sVersion
+    Function_Return (SearchArray(ltTHCompiler, gtTHCompilers))
+End_Function
+
+Function THFindWorkspaceFile String sPath String sType Returns String
+    String sWSFile
+    Direct_Input ("DIR:"+sPath+"*."+sType)
+    While (not(SeqEof))
+        Readln sWSFile
+        If (sWSFile<>"") Break
+    Loop
+    Close_Input
+    Function_Return sWSFile
+End_Function
+
+Function THNewWorkspaceName String sPath Returns String
+    String sWSFile
+    // Try to find DataFlex Workspace
+    Get THFindWorkspaceFile sPath "SWS" to sWSFile
+    If (sWSFile<>"") Move (Left(sWSFile, Length(sWSFile)-3)) to sWSFile
+    Else Move "Project" to sWSFile
+    //
+    Function_Return (sWSFile+"hws")
+End_Function
+
+Function THWorkspaceName String sPath Integer ByRef bNew Integer ByRef iType Returns String
+    String sWSFile
+    Direct_Input ("DIR:"+sPath+'*.hws')
+    While (not(SeqEof))
+        Readln sWSFile
+        If (sWSFile<>"") Break
+    Loop
+    Close_Input
+    If (sWSFile="") Begin
+        Get THNewWorkspaceName sPath to sWSFile
+        If (sWSFile="") Move "Project.hws" to sWSFile
+        Else Move 1 to iType // DataFlex Workspace
+        Move 1 to bNew
+    End
+    Function_Return sWSFile
+End_Function
+
+// *** Load Language from Studio 12+ (Used by THParameters Dialog)
+// Loading from the Current Workspace Version
+Procedure LoadLanguageTokens String sLanguage String sElement Handle hoTokens Integer iList tTHLanguage ByRef ltTHLanguage
+    Handle hoToken
+    String sToken sStrings
+    Integer iScopeStart iScopeStop iKeyword iOperator
+    Move (Uppercase(sLanguage)) to sLanguage
+    Get FirstChild of hoTokens to hoToken
+    While (hoToken <> 0)
+        Get psText of hoToken "" "" to sToken
+        //
+        Move (SizeOfArray(ltTHLanguage.saKeywords))     to iKeyword
+        Move (SizeOfArray(ltTHLanguage.saScopeStart))   to iScopeStart
+        Move (SizeOfArray(ltTHLanguage.saScopeStop))    to iScopeStop
+        Move (SizeOfArray(ltTHLanguage.saOperators))    to iOperator
+        //
+        If ((sElement="BLOCKCOMMENTS")and(iList=0)) Move sToken to ltTHLanguage.sMultiLineCommentStart
+        If ((sElement="BLOCKCOMMENTS")and(iList=1)) Move sToken to ltTHLanguage.sMultiLineCommentStop
+        If ((sElement="1001")and(iList=0)) Move sToken to ltTHLanguage.sMetaStart
+        If ((sElement="1001")and(iList=1)) Move sToken to ltTHLanguage.sMetaStop
+        If (sElement="LINECOMMENTS") Move sToken to ltTHLanguage.sLineComments
+        If (sElement="1002") Move sToken to ltTHLanguage.saKeywords[iKeyword] // Use|#Include
+        If ((sElement="DEFINITIONBLOCKS")and(iList=0)) Move sToken to ltTHLanguage.saScopeStart[iScopeStart]
+        If ((sElement="DEFINITIONBLOCKS")and(iList=1)) Move sToken to ltTHLanguage.saScopeStop[iScopeStop]
+        If ((sElement="SCOPEKEYWORDS")and(iList=0)) Move sToken to ltTHLanguage.saScopeStart[iScopeStart]
+        If ((sElement="SCOPEKEYWORDS")and(iList=1)) Move sToken to ltTHLanguage.saScopeStop[iScopeStop]
+        If (sElement="KEYWORDS") Move sToken to ltTHLanguage.saKeywords[iKeyword]
+        If (sElement="OPERATORS") Begin
+            Move (Replace("&lt;&gt;", sToken, "<>")) to sToken
+            Move (Replace("&lt;", sToken, "<")) to sToken
+            Move (Replace("&gt;", sToken, ">")) to sToken
+            Move (Replace("&amp;", sToken, "&")) to sToken
+            Move sToken to ltTHLanguage.saOperators[iOperator]
+        End
+        If ((sElement="RESOURCEBLOCK")and(iList=0)) Move sToken to ltTHLanguage.saScopeStart[iScopeStart]
+        If ((sElement="RESOURCEBLOCK")and(iList=1)) Move sToken to ltTHLanguage.saScopeStop[iScopeStop]
+        If ((sElement="STRINGS")and(iList=0)) Begin
+            Move ltTHLanguage.sStringDelimiter to sStrings
+            If (sStrings="") Move sToken to sStrings
+            Else Move (sStrings+"\n"+sToken) to sStrings
+            Move sStrings to ltTHLanguage.sStringDelimiter
+        End
+        //
+        Get NextNode of hoToken to hoToken
+    Loop
+    Send Destroy to hoTokens
+End_Procedure
+Function LoadLanguage String sLanguage Returns tTHLanguage
+    tTHLanguage ltTHLanguage
+    String      sVdfConfig
+    String      sPath
+    String      sFile
+    String      sValue
+    Integer     bOK
+    Handle      hoXML
+    Handle      hoRoot
+    Handle      hoTokenSet
+    Handle      hoTokens
+    If ((Uppercase(sLanguage)="VDF")or(sLanguage=""))   Move "DataFlex" to sLanguage
+    If (Uppercase(sLanguage) contains "SQL")            Move "SQL" to sLanguage
+    Get psVdfRootDir    of ghoWorkSpaceHandlerEx to sVdfConfig
+    Get PathAtIndex     of (phoWorkspace(ghoApplication)) sVdfConfig 1 to sPath
+    Move (sPath+"\Lib\"+sLanguage+".lng") to sFile
+    Get Create (RefClass(cXMLDOMDocument)) to hoXML
+    If (hoXML) Begin
+        Set psDocumentName  of hoXML to sFile
+        Get LoadXMLDocument of hoXML to bOK
+        If (bOK) Begin
+            Get DocumentElement of hoXML to hoRoot // Language
+            If (hoRoot) Begin
+                Move 1 to ltTHLanguage.iProcedural
+                Get AttributeValueNS of hoRoot "" "name" to ltTHLanguage.sName
+                Get AttributeValueNS of hoRoot "" "casesensitive" to sValue
+                If (Uppercase(sValue)<>"NO") Move 1 to ltTHLanguage.iCaseSensitive
+                Get FirstChild of hoRoot to hoTokenSet
+                If hoTokenSet Begin
+                    While (hoTokenSet<>0)
+                        Get AttributeValueNS of hoTokenSet "" "id" to sValue
+                        Move (Uppercase(sValue)) to sValue
+                        // Token List 1
+                        Get ChildElementNS of hoTokenSet "" "tokens"   to hoTokens
+                        If hoTokens ;
+                            Send LoadLanguageTokens sLanguage sValue hoTokens 0 (&ltTHLanguage)
+                        // Token List 2
+                        Get ChildElementNS of hoTokenSet "" "tokens2"  to hoTokens
+                        If hoTokens ;
+                            Send LoadLanguageTokens sLanguage sValue hoTokens 1 (&ltTHLanguage)
+                        //
+                        Get NextNode of hoTokenSet to hoTokenSet
+                    Loop // hoTokenSet
+                End
+                Send Destroy to hoRoot
+            End // hoRoot
+        End // LoadXMLDocument OK
+        Send Destroy of hoXML
+    End // hoXML
+    Function_Return ltTHLanguage
+End_Function
+
+Procedure THWorkspaceDataFlexDefaults String sHome
+    Integer iExt
+    // General
+    Move "DataFlex"                     to gtTHWorkspace.sSchema
+    Get psBufferWsName ;
+        of ghoWorkSpaceHandlerEx        to gtTHWorkspace.sName
+    // Folders
+    Move sHome                          to gtTHWorkspace.saFolders[0]
+    // Files
+    Move "SRC"                          to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Project (Program)"   to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "PKG"                          to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Package"             to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "INC"                          to gtTHWorkspace.saFiles[iExt]
+    Move "Include File"                 to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "DD"                           to gtTHWorkspace.saFiles[iExt]
+    Move "Data Dictionary"              to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "MN"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Menu (obsolete)"     to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "H"                            to gtTHWorkspace.saFiles[iExt]
+    Move "Header"                       to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "BP"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Business Process"    to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "UTL"                          to gtTHWorkspace.saFiles[iExt]
+    Move "Sture's Utility"              to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "DG"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Dialog"              to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "SL"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Selection List"      to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "VW"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex View"                to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "RV"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Report View"         to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "WO"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Web Object"          to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "HTM"                          to gtTHWorkspace.saFiles[iExt]
+    Move "HyperText Markup Language"    to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "HTML"                         to gtTHWorkspace.saFiles[iExt]
+    Move "HyperText Markup Language"    to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "ASP"                          to gtTHWorkspace.saFiles[iExt]
+    Move "Active Server Page"           to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "JS"                           to gtTHWorkspace.saFiles[iExt]
+    Move "JavaScript"                   to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "WS"                           to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Workspace"           to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "SWS"                          to gtTHWorkspace.saFiles[iExt]
+    Move "DataFlex Studio Workspace"    to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "INI"                          to gtTHWorkspace.saFiles[iExt]
+    Move "Configuration File"           to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "CSS"                          to gtTHWorkspace.saFiles[iExt]
+    Move "Cascading Style Sheet"        to gtTHWorkspace.saFileDesc[iExt]
+    Increment iExt
+    Move "INT"                          to gtTHWorkspace.saFiles[iExt]
+    Move "Database Intermediate File"   to gtTHWorkspace.saFileDesc[iExt]
+End_Procedure
+
+Function THWorkspaceHome Returns String
+    String sHome sPath sSubFolder
+    Get psBufferProgramPath   of ghoWorkSpaceHandlerEx   to sPath
+    While (sPath contains "\")
+        Move (Left(sPath, Pos('\', sPath))) to sSubFolder
+        Move (Replace(sSubFolder, sPath, "")) to sPath
+        Move (sHome+sSubFolder) to sHome
+    Loop
+    Function_Return sHome
+End_Function
+
+Procedure THDoReadWorkspace String sWSFile
+    Integer  bNew iType
+    String   sFile sHome sDescription
+    Handle   hoWorkspace
+    //
+    String sVersion sSize sTmp
+    Integer iFolder iFolders iFile iFiles iExclude iExcludes
+    Integer iSize
+    tTHWorkspace ltTHWorkspace
+    //
+    If (num_arguments>0) Move sWSFile to sFile
+    If (sFile="") Begin
+        // Assume it is DataFlex Project by Default
+        Get THWorkspaceHome to sHome
+    End
+    If (Right(sHome, 1)<>'\') Move (sHome+'\') to sHome
+    Get THWorkspaceName sHome (&bNew) (&iType) to sFile
+    // 1. Clear Repository
+    Move ltTHWorkspace to gtTHWorkspace
+    // 2. Set Workspace (HWS) File
+    Move (sHome+sFile) to gtTHWorkspace.sFullName
+    // 3. Read Options or Create HWS Template (if New)
+    If (bNew) Begin
+        Move 1 to gtTHWorkspace.iShowPaths
+        If (iType=1) Begin
+            // DataFlex Defaults
+            Send THWorkspaceDataFlexDefaults sHome
+        End
+        Send THDoWriteWorkspace gtTHWorkspace.sFullName
+    End
+    Else Begin
+        // Read HWS file if found
+        Direct_Input ("Binary:"*sHome+sFile)
+        // Header
+        Readln sVersion
+        Move (Left(sVersion, 7)) to sVersion
+        If (Left(sVersion, 3)<>"HWS") Begin
+            Close_Input
+            Procedure_Return // Not a HWS file
+        End
+        // General
+        Get WSReadStr2      to gtTHWorkspace.sName
+        Get WSReadStr2      to gtTHWorkspace.sSchema
+        Get WSReadInt1      to gtTHWorkspace.iShowPaths
+        Get WSReadStr2      to gtTHWorkspace.sStudio
+        Get WSReadStr2      to gtTHWorkspace.sCompiler
+        Get WSReadStr2      to gtTHWorkspace.sDBEditor
+        Get WSReadStr2      to gtTHWorkspace.sDBViewer
+        // Folders
+        Get WSReadInt2      to iFolders
+        For iFolder from 0  to (iFolders-1)
+            Get WSReadStr2  to gtTHWorkspace.saFolders[iFolder]
+        Loop
+        // Files
+        Get WSReadInt2      to iFiles
+        For iFile from 0    to (iFiles-1)
+            Get WSReadStr2  to gtTHWorkspace.saFiles[iFile]
+            Get WSReadStr2  to gtTHWorkspace.saFileDesc[iFile]
+        Loop
+        // Excludes
+        Get WSReadInt2      to iExcludes
+        For iExclude from 0 to (iExcludes-1)
+            Get WSReadStr2  to gtTHWorkspace.saExclude[iExclude]
+        Loop
+        // Sources
+        Get WSReadInt2      to iFiles
+        For iFile from 0    to (iFiles-1)
+            Get WSReadStr2  to gtTHWorkspace.taSources[iFile].sFile
+            Get WSReadStr4  to gtTHWorkspace.taSources[iFile].sBookmarks
+            Get WSReadInt2  to gtTHWorkspace.taSources[iFile].iBookmarkCount
+            Get WSReadInt2  to gtTHWorkspace.taSources[iFile].iCursorColumn
+            Get WSReadInt2  to gtTHWorkspace.taSources[iFile].iCursorLine
+        Loop
+        // Find in Files
+        Get WSReadStr2  to gtTHWorkspace.sFFText
+        Get WSReadStr2  to gtTHWorkspace.sFFTypes
+        Get WSReadStr2  to gtTHWorkspace.sFFPath
+        Get WSReadInt1  to gtTHWorkspace.iFFMatchWord
+        Get WSReadInt1  to gtTHWorkspace.iFFMatchCase
+        Get WSReadInt1  to gtTHWorkspace.iFFSubFolders
+        Get WSReadInt1  to gtTHWorkspace.iFFShowAll
+        Get WSReadInt1  to gtTHWorkspace.iFFRegExp
+        // Opened Files
+        Get WSReadInt2      to iFiles
+        For iFile from 0    to (iFiles-1)
+            Get WSReadStr2  to gtTHWorkspace.saOpened[iFile]
+        Loop
+        Close_Input
+    End
+End_Procedure
+
+Procedure THDoWriteWorkspace String sFile
+    Integer iFolder iFolders iFile iFiles iExclude iExcludes
+    Move sFile to gtTHWorkspace.sFullName
+    Direct_Output sFile
+        // Header
+        Writeln "HWS0300, (C) 2017, KURANT Project"
+        //
+        Send WSWriteStr2 gtTHWorkspace.sName
+        Send WSWriteStr2 gtTHWorkspace.sSchema
+        Write (Character(gtTHWorkspace.iShowPaths))
+        Send WSWriteStr2 gtTHWorkspace.sStudio
+        Send WSWriteStr2 gtTHWorkspace.sCompiler
+        Send WSWriteStr2 gtTHWorkspace.sDBEditor
+        Send WSWriteStr2 gtTHWorkspace.sDBViewer
+        // Folders
+        Move (SizeOfArray(gtTHWorkspace.saFolders)) to iFolders
+        Write (SHORTtoBytes(iFolders))
+        For iFolder from 0 to (iFolders-1)
+            Send WSWriteStr2 gtTHWorkspace.saFolders[iFolder]
+        Loop
+        // Files
+        Move (SizeOfArray(gtTHWorkspace.saFiles)) to iFiles
+        Write (SHORTtoBytes(iFiles))
+        For iFile from 0 to (iFiles-1)
+            Send WSWriteStr2 gtTHWorkspace.saFiles[iFile]
+            Send WSWriteStr2 gtTHWorkspace.saFileDesc[iFile]
+        Loop
+        // Excludes
+        Move (SizeOfArray(gtTHWorkspace.saExclude)) to iExcludes
+        Write (SHORTtoBytes(iExcludes))
+        For iExclude from 0 to (iExcludes-1)
+            Send WSWriteStr2 gtTHWorkspace.saExclude[iExclude]
+        Loop
+        // File Information
+        Move (SizeOfArray(gtTHWorkspace.taSources)) to iFiles
+        Write (SHORTtoBytes(iFiles))
+        For iFile from 0 to (iFiles-1)
+            Send WSWriteStr2 gtTHWorkspace.taSources[iFile].sFile
+            Send WSWriteStr4 gtTHWorkspace.taSources[iFile].sBookmarks
+            Write (SHORTtoBytes(gtTHWorkspace.taSources[iFile].iBookmarkCount))
+            Write (SHORTtoBytes(gtTHWorkspace.taSources[iFile].iCursorColumn))
+            Write (SHORTtoBytes(gtTHWorkspace.taSources[iFile].iCursorLine))
+        Loop
+        // Find in Files
+        Send WSWriteStr2 gtTHWorkspace.sFFText
+        Send WSWriteStr2 gtTHWorkspace.sFFTypes
+        Send WSWriteStr2 gtTHWorkspace.sFFPath
+        Write (Character(gtTHWorkspace.iFFMatchWord)) // 0|1
+        Write (Character(gtTHWorkspace.iFFMatchCase))
+        Write (Character(gtTHWorkspace.iFFSubFolders))
+        Write (Character(gtTHWorkspace.iFFShowAll))
+        Write (Character(gtTHWorkspace.iFFRegExp))
+        // Opened Files
+        Move (SizeOfArray(gtTHWorkspace.saOpened)) to iFiles
+        Write (SHORTtoBytes(iFiles))
+        For iFile from 0 to (iFiles-1)
+            Send WSWriteStr2 gtTHWorkspace.saOpened[iFile]
+        Loop
+    Close_Output
+End_Procedure
+
+// This Procedure should no longer be neccessary.
+// MK 27.06.2001 21:41
+// This Procedure still required as TH3 loses standard DF packages visibility
+// SN 29.03.2017 13:12
+Procedure AddToOpenPath String ByRef sOpenPath String ByRef sPath
+    String sTmp
+    If (sPath="") Procedure_Return
+    If ((Pos(';', sPath)=0) and (Uppercase(sOpenPath) contains Uppercase(sPath))) Procedure_Return
+    If (Pos(';', sPath)=0) Begin
+        Move (sOpenPath+";"+sPath) to sOpenPath
+        Procedure_Return
+    End
+    While (Pos(';', sPath))
+        Move (Left(sPath, Pos(';', sPath))) to sTmp
+        Move (Replace(sTmp, sPath, "")) to sPath
+        If (sTmp<>".;") ;
+            Move (Replace(';', sTmp, "")) to sTmp
+        If (not(Uppercase(sOpenPath) contains Uppercase(sTmp))) Begin
+            If (sTmp=".;") ;
+                Move (Replace(';', sTmp, "")) to sTmp
+            Move (sOpenPath +';'+sTmp) to sOpenPath
+        End
+    Loop
+    If (sPath<>"") Begin
+        If (not(Uppercase(sOpenPath) contains Uppercase(sPath))) ;
+            Move (sOpenPath + ";" + sPath) to sOpenPath
+    End
+End_Procedure
+
+Procedure IncludeMakePath
+    String sMake sMake2 sOpenPath
+    Get_Attribute DF_OPEN_PATH          to sOpenPath
+    Get_Profile_String "DFCOMP" ;
+                       "MakePath"       to sMake
+    Send AddToOpenPath (&sOpenPath) (&sMake)
+    Get_Profile_String "WorkSpaces" ;
+                       "SystemMakePath" to sMake2
+    Send AddToOpenPath (&sOpenPath) (&sMake2)
+    Set_Attribute DF_OPEN_PATH          to sOpenPath
+End_Procedure
+Send IncludeMakePath
+
+// Source File
+Function THWS_FindFile String sFile Returns Integer
+    tTHSource ltaSource
+    Move (Uppercase(sFile)) to ltaSource.sFile
+    Function_Return (SearchArray(ltaSource, gtTHWorkspace.taSources))
+End_Function
+Function THWS_FileIndex String sFile Returns Integer
+    tTHSource ltaSource
+    Integer iFile
+    Move sFile                                                  to ltaSource.sFile
+    Move (SearchArray(ltaSource, gtTHWorkspace.taSources))      to iFile
+    If (iFile=-1) Move (SizeOfArray(gtTHWorkspace.taSources))   to iFile
+    Function_Return iFile
+End_Function
+Procedure THWS_SaveBookmarks String sFile String sBookmarks Integer iCount
+    Integer iFile
+    If ((iCount=0) and (sBookmarks<>"")) ;
+        Move (Length(sBookmarks)/12)    to iCount
+    Move (Uppercase(Trim(sFile)))       to sFile
+    Get THWS_FileIndex sFile            to iFile
+    Move sFile                          to gtTHWorkspace.taSources[iFile].sFile
+    Move sBookmarks                     to gtTHWorkspace.taSources[iFile].sBookmarks
+    Move iCount                         to gtTHWorkspace.taSources[iFile].iBookmarkCount
+End_Procedure
+Procedure THWS_SaveCursorPosition String sFile Integer iLine Integer iColumn
+    Integer iFile
+    Move (Uppercase(Trim(sFile)))       to sFile
+    Get THWS_FileIndex sFile            to iFile
+    Move sFile                          to gtTHWorkspace.taSources[iFile].sFile
+    Move iLine                          to gtTHWorkspace.taSources[iFile].iCursorLine
+    Move iColumn                        to gtTHWorkspace.taSources[iFile].iCursorColumn
+    Send THDoWriteWorkspace                gtTHWorkspace.sFullName
+End_Procedure
+
+// Opened files
+Procedure THWS_SaveOpened String sFile
+    If (SearchArray(sFile, gtTHWorkspace.saOpened)<0) Begin
+        Move sFile              to gtTHWorkspace.saOpened[SizeOfArray(gtTHWorkspace.saOpened)]
+        Send THDoWriteWorkspace    gtTHWorkspace.sFullName
+    End
+End_Procedure
+Procedure THWS_DeleteOpened String sFile
+    Integer iFile
+    Move (SearchArray(sFile, gtTHWorkspace.saOpened)) to iFile
+    If (iFile>=0) Begin
+        Move (RemoveFromArray(gtTHWorkspace.saOpened, iFile)) to gtTHWorkspace.saOpened
+        Send THDoWriteWorkspace gtTHWorkspace.sFullName
+    End
+End_Procedure

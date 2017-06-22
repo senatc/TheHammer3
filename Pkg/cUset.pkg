@@ -1,0 +1,35 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2006 Antwise Solutions
+// All rights reserved.
+//
+// $FileName    : cWxUset.pkg
+// $ProjectName : cWx Framework
+// $Authors     : Wil van Antwerpen
+// $Created     : 23.04.2006  15:22
+// $Type        : LGPL
+//
+// Contents:
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+
+// Case insensitive set class
+Class cUSet is a Set
+  Function Find_Element string ElemStr returns integer
+    Integer ndx retVal ArrMax
+    String ArrVal
+    get item_count to ArrMax
+    move -1 to retVal
+    move 0 to ndx
+    while (ndx < ArrMax AND retVal = -1)
+      Get array_value item ndx to ArrVal
+      If (Uppercase(ArrVal) eq Uppercase(ElemStr)) move ndx to retVal
+      calc (ndx + 1) to ndx
+    Loop
+    function_return retVal
+  End_Function // Find_Element
+End_Class // cUSet
+

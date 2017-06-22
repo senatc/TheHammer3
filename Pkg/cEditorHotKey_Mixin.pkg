@@ -1,0 +1,225 @@
+#IFDEF TH_SCINTILLA
+Use cSciLexer.h
+#ELSE
+Use cCodeMax.h
+#ENDIF
+
+Register_Procedure CME_Find
+Register_Procedure CME_FindNext
+Register_Procedure CME_FindPrevious
+Register_Procedure CME_FindReplace
+Register_Procedure CME_GotoLine
+Register_Procedure CME_SelectAll
+Register_Function phoEditorEditView Returns Integer // it's actually a property, but this should do
+
+//
+// The hotkeys have to be defined in any object that is part of the main Editor view and as
+// such it is best declared in a mixin, so that it becomes easy to include.
+//
+Class cEditorHotKey_Mixin is a Mixin
+    
+    Procedure Define_cEditorHotKey_Mixin
+      Send Define_EditorHotKeys
+    End_Procedure
+  
+
+    Procedure DefineOnKey Integer iCmd Integer iMsg
+      Integer iPos
+      Integer iKeys
+      String  sKey
+      String  sFirstKey
+      String  sSecondKey
+      String  sThirdKey
+      String  sExpression
+      String  sResult
+      
+      Get CMCommandToHotKeyStr iCmd To sKey
+      If (sKey<>"") Begin
+#IFDEF TH_SCINTILLA
+
+        If (phoEditorEditView(Self)=Self) Begin // only run in EditorEditView
+          Handle hoEdit
+          Integer iDfKey
+          tSciCommandHotKey Command
+          
+          Get phoCodeMaxEditor To hoEdit
+          If (hoEdit) Begin
+            // if we define a new keybinding, then we need to remove any old keybinding also
+            // as otherwise you end up with both actions.
+            Send RegisterKeyBindingToClear of hoEdit sKey
+          End
+        End
+        Get FindCommand of oSciCommandHotKeys iCmd to Command
+        If (Command.iCmd=iCmd) Begin
+          If (SizeOfArray(Command.HotKey.VKcode)>0) Begin
+            Get DataFlexOnKey of oSciCommandHotKeys Command.HotKey  to iDfkey
+            On_Key iDFKey Send iMsg
+          End
+          If (SizeOfArray(Command.HotKey2.VKcode)>0) Begin
+            Get DataFlexOnKey of oSciCommandHotKeys Command.HotKey2 to iDfkey
+            On_Key iDFKey Send iMsg
+          End
+        End
+#ELSE
+        Move "" To sFirstKey
+        Move "" To sSecondKey
+        Move "" To sThirdKey
+        Move (Pos(",",sKey)) To iPos
+        If (iPos<>0) Begin  // If 2 definitions, simply take the first and ignore the 2nd
+          Move (Left(sKey,iPos-1)) To sKey
+        End
+        Move 0 To iPos
+        Move (Pos("+",sKey)) To iPos
+        If (iPos<>0) Begin
+          Move (Left(sKey,iPos-1)) To sFirstKey
+          Move (Mid(sKey,length(sKey)-iPos,iPos+1)) To sSecondKey
+        End
+        Else Move sKey To sFirstKey
+        
+        Move (Pos("+",sSecondKey)) To iPos
+        If (iPos<>0) Begin
+          Move (Mid(sSecondKey,Length(sSecondKey)-iPos,iPos+1)) To sThirdKey
+          Move (Left(sSecondKey,iPos-1)) To sSecondKey
+        End
+
+        If (sSecondKey="") Begin
+          Move ("Key_"+sFirstKey) To sExpression
+        End
+        Else Begin
+          If (sThirdKey="") Begin
+            Move ("Key_"+sFirstKey+"+Key_"+sSecondKey) To sExpression
+          End
+          Else Begin
+            Move ("Key_"+sFirstKey+"+Key_"+sSecondKey+"+Key_"+sThirdKey) To sExpression
+          End
+        End
+        Move (Eval(sExpression)) To iKeys
+        If (iKeys<>0 and iMsg<>0) Begin
+          On_Key iKeys Send iMsg
+        End
+#ENDIF
+      End
+    End_Procedure // DefineOnKey
+    
+#IFDEF TH_SCINTILLA
+    Procedure onPreHotKey Integer iCmd
+      Boolean bHasAlt
+      
+      Get HotKeyHasAlt of oSciCommandHotKeys iCmd to bHasAlt
+      If (bHasAlt) Begin
+        Send DispatchHotkey
+      End
+    End_Procedure
+    
+    // HKSC => Hot Key SCintilla
+    Procedure HKSC_Properties
+      Send onPreHotKey CMD_PROPERTIES
+      Send Properties
+    End_Procedure
+    
+    Procedure HKSC_LineCut
+      Send SC_LineCut
+    End_Procedure
+    
+    Procedure HKSC_LowercaseSelection
+      Send SC_LowercaseSelection
+    End_Procedure
+    
+    Procedure HKSC_UppercaseSelection
+      Send SC_UppercaseSelection
+    End_Procedure
+    
+    Procedure HKSC_BookmarkToggle
+      Send onPreHotKey CMD_BOOKMARKTOGGLE
+      Send BookmarkToggle
+    End_Procedure
+    
+    Procedure HKSC_BookmarkNext
+      Send onPreHotKey CMD_BOOKMARKNEXT
+      Send BookmarkNext
+    End_Procedure
+    
+    Procedure HKSC_BookmarkPrevious
+      Send onPreHotKey CMD_BOOKMARKPREV
+      Send BookmarkPrevious
+    End_Procedure
+    
+    Procedure HKSC_BookmarkClearAll
+      Send onPreHotKey CMD_BOOKMARKCLEARALL
+      Send BookmarkClearAll
+    End_Procedure
+    
+    Procedure HKSC_BookmarkJumpToFirst
+      Send onPreHotKey CMD_BOOKMARKJUMPTOFIRST
+      Send BookmarkJumpToFirst
+    End_Procedure
+    
+    Procedure HKSC_BookmarkJumpToLast
+      Send onPreHotKey CMD_BOOKMARKJUMPTOLAST
+      Send BookmarkJumpToLast
+    End_Procedure
+    
+    Procedure HKSC_MoveLineUp
+      Send onPreHotKey CMD_MOVELINEUP
+      Send MoveLineUp
+    End_Procedure
+    
+    Procedure HKSC_MoveLineDown
+      Send onPreHotKey CMD_MOVELINEDOWN
+      Send MoveLineDown
+    End_Procedure
+    
+    Procedure HKSC_DuplicateSelection
+      Send onPreHotKey CMD_DUPLICATESELECTION
+      Send DuplicateSelection
+    End_Procedure
+#ENDIF
+    
+    Procedure DefinePredefinedHotKeys
+      Integer iKey
+      
+      //For iKey from CMD_FIRST To CMD_OVERTYPEOFF
+      //  Get CM_ExecuteCmd CMD_GOTOLINE iNr  To iRet
+      //Loop
+      Send DefineOnKey CMD_FIND                (RefProc(CME_Find))
+#IFDEF TH_SCINTILLA
+      // if used in normal codemax control gets executed 2 times, eeks
+      Send DefineOnKey CMD_FindNext            (RefProc(CME_FindNext))
+      Send DefineOnKey CMD_FINDPREV            (RefProc(CME_FindPrevious))
+      // In codemax these on_key assignments already exist (this will become a long list over time)
+      Send DefineOnKey CMD_PROPERTIES          (RefProc(HKSC_Properties))
+      Send DefineOnKey CMD_LINECUT             (RefProc(HKSC_LineCut))
+      Send DefineOnKey CMD_LOWERCASESELECTION  (RefProc(HKSC_LowercaseSelection))
+      Send DefineOnKey CMD_UPPERCASESELECTION  (RefProc(HKSC_UppercaseSelection))
+      Send DefineOnKey CMD_BOOKMARKTOGGLE      (RefProc(HKSC_BookmarkToggle))
+      Send DefineOnKey CMD_BOOKMARKNEXT        (RefProc(HKSC_BookmarkNext))
+      Send DefineOnKey CMD_BOOKMARKPREV        (RefProc(HKSC_BookmarkPrevious))
+      Send DefineOnKey CMD_BOOKMARKCLEARALL    (RefProc(HKSC_BookmarkClearAll))
+      Send DefineOnKey CMD_BOOKMARKJUMPTOFIRST (RefProc(HKSC_BookmarkJumpToFirst))
+      Send DefineOnKey CMD_BOOKMARKJUMPTOLAST  (RefProc(HKSC_BookmarkJumpToLast))
+      Send DefineOnKey CMD_MOVELINEUP          (RefProc(HKSC_MoveLineUp))
+      Send DefineOnKey CMD_MOVELINEDOWN        (RefProc(HKSC_MoveLineDown))
+      Send DefineOnKey CMD_DUPLICATESELECTION  (RefProc(HKSC_DuplicateSelection))
+#ENDIF
+      Send DefineOnKey CMD_FindReplace         (RefProc(CME_FindReplace))
+      Send DefineOnKey CMD_GOTOLINE            (RefProc(CME_GotoLine))
+      Send DefineOnKey CMD_SELECTALL           (RefProc(CME_SelectAll))
+      
+    End_Procedure // DefinePredefinedHotkeys
+    
+    // This defines the on_key commands via editor hotkeys
+    Procedure Define_EditorHotKeys
+      
+//    Can't set the definition here as the message isn't known in the subclass
+//      Send DefineOnKey CMD_FileNewFile msg_CANewFile
+
+      If (phoEditorEditView(Self)=Self) Begin
+        // Calls method in clientArea object to then execute the above DefineOnKey
+        Delegate Send Define_EditViewHotkeys Self
+      End
+      //
+      Send DefinePredefinedHotkeys
+      //
+    End_Procedure // Define_EditorHotKeys
+  
+End_Class

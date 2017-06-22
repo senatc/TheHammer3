@@ -1,0 +1,28 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz 
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at> 
+//
+// $FileName    : mVerifyVDFVersion.pkg
+// $ProjectName : Shared Methods.
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 01-25-2001 @ 19:00
+//
+// Contents:
+//      Set an indicator wheter 
+//          -VDF7   : isVersionVDF7
+//          -VDF456 : isVersionVDF456
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+#IF (!@=144)
+    INDICATOR isVersionVDF456
+#ELSE
+    #IF (!@>69)
+        INDICATOR isVersionVDF7
+    #ELSE 
+        INDICATOR isVersionVDF456
+    #ENDIF    
+#ENDIF

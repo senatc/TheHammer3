@@ -1,0 +1,128 @@
+Use Windows.pkg
+Use cCJStandardMenuItemClasses.pkg
+Use cCJDeoMenuItemClasses.pkg
+
+Object oFileContextMenu is a cCJContextMenu
+    Property Integer piFileTabMenu 0
+    Property String psFileName ""
+
+    Object oFileItem is a cCJMenuItem
+        Set psCaption   to "Edit File"
+        Set psToolTip to "Open file in Editor"
+        Set psDescription to "Open file in Editor"
+        Set psImage to "ActionOpenInEditor16.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Send CAOpenFile of (oClientArea(oMain(Self))) (psFileName(Self))
+        End_Procedure
+    End_Object
+    
+    Object oFolderItem is a cCJMenuItem
+        Set psCaption   to "Open Containing Folder"
+        Set psToolTip to "Open Containing Folder"
+        Set psDescription to "Open Containing Folder"
+        Set psImage to "ActionOpen.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            // open explorer in default style at correct path, with filename selected.
+            Runprogram background "Explorer" ("/e,/select,"+psFileName(Self))
+        End_Procedure
+    End_Object
+    
+    Object oCommandItem is a cCJMenuItem
+        Set psCaption   to "Open Command Window"
+        Set psToolTip to "Open Command Window"
+        Set psDescription to "Open Command Window"
+        Set psImage to "ActionConsole16.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            String  sFileName
+            String  sPath sOldPath
+            Integer iVoid  
+            Boolean bExists
+            Get psFileName to sFileName
+            Get ParseFolderName sFileName to sPath
+            If (sPath<>"") Begin
+                Get vFolderExists sPath to bExists
+                If (bExists) Begin
+                    Get_Current_Directory to sOldPath
+                    Set_Directory sPath
+                    Move (WinExec("CMD.EXE",SW_NORMAL)) to iVoid
+                    Set_Directory sOldPath       
+                End  
+                Else Begin
+                    Send Stop_Box ("Unable to set path"+sPath+"\nWindows claims it does not exist.")
+                End
+            End
+        End_Procedure
+    End_Object
+    
+    Object oOpenAppItem is a cCJMenuItem
+        Set psCaption   to "Open with Default Application"
+        Set psToolTip to "Open with default application"
+        Set psDescription to "Open with default application"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Send vShellExecute "OPEN" (psFileName(Self)) "" ""
+        End_Procedure
+    End_Object
+
+    Object oNewItem is a cCJMenuItem
+        Set pbControlBeginGroup to True
+        Set psCaption   to "New File"
+        Set psToolTip to "Create new file in Editor"
+        Set psDescription to "Create new file in Editor"
+        Set psImage to "ActionNew.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Send CANewFile of (oClientArea(oMain(Self)))
+        End_Procedure
+    End_Object
+
+    Object oCloseItem is a cCJMenuItem
+        Set pbControlBeginGroup to True
+        Set psImage to "Close16.ico"
+        Set psCaption   to "Close"
+        Set psToolTip to "Close current opened file"
+        Set psDescription to "Close source file"
+        Procedure OnExecute Variant vCommandBarControl
+            String sFileName
+Showln "BUG: Can not close current tab, non-current is working fine"
+            Get psFileName to sFileName
+            Send CAOpenFile   to (oClientArea(oMain(Self))) sFileName
+            Send CACloseFile  of (oClientArea(oMain(Self)))
+        End_Procedure
+    End_Object
+
+    Object oCloseAllItem is a cCJMenuItem
+        Set psCaption   to "Close All"
+        Set psToolTip to "Close all currently opened files"
+        Set psDescription to "Close All Files"
+        Procedure OnExecute Variant vCommandBarControl
+            Send CACloseAllFiles to (oClientArea(oMain(Self)))
+        End_Procedure
+    End_Object
+
+    Object oPropertiesItem is a cCJMenuItem
+        Set pbControlBeginGroup to True
+        Set psCaption   to "File Properties..."
+        Set psToolTip to "File Properties"
+        Set psDescription to "File Properties"
+        Set psImage to "Properties16.ico"
+        Set psCategory to C_$CategoryFile
+        Procedure OnExecute Variant vCommandBarControl
+            Send SHPropertiesFile (psFileName(Self))
+        End_Procedure
+    End_Object
+
+    Procedure OnPopupInit Variant vCommandBarControl Handle hoCommandBarControls
+        String sFile
+        Get psFileName to sFile
+        If (sFile<>"") ;
+            Set psCaption of oCloseItem to ("Close"*'<'+sFile+'>')
+        Set ComVisible of oFileItem     to (not(piFileTabMenu(Self)))
+        Set ComVisible of oCloseItem    to (piFileTabMenu(Self))
+        Set ComVisible of oCloseAllItem to (piFileTabMenu(Self))
+    End_Procedure
+    
+End_Object

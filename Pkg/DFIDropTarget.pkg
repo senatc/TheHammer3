@@ -1,0 +1,196 @@
+//*****************************************************************************************
+// Copyright (c) 2000 Michael Kurz
+// All rights reserved.
+// If you want to use this source in your applications conatct: <MichaelKurz@gmx.at>
+//
+// $FileName    : DFIDropTarget.pkg
+// $ProjectName : Shared Classes - Com Wrapper
+// $Author      : Michael Kurz <MichaelKurz@gmx.at>
+// $Created     : 02-20-2001 @ 19:00
+//
+// Contents:
+//      Make calls with tis COM Interface and receive call notifications.
+//
+// $Rev History
+//
+//*****************************************************************************************
+
+
+Use ComNotificationHandler.pkg
+Use DFIDataObject.pkg
+Use DFIEnum.pkg
+
+
+    // ClipBoardFormats.
+Define CF_EMBEDSOURCE           For "Embed Source"
+Define CF_EMBEDDEDOBJECT        For "Embedded Object"
+Define CF_LINKSOURCE            For "Link Source"
+Define CF_CUSTOMLINKSOURCE      For "Custom Link Source"
+Define CF_OBJECTDESCRIPTOR      For "Object Descriptor"
+Define CF_LINKSRCDESCRIPTOR     For "Link Source Descriptor"
+Define CF_OWNERLINK             For "OwnerLink"
+Define CF_FILENAME              For "FileName"
+
+external_function RegisterClipboardFormat "RegisterClipboardFormatA" USER32.DLL String sFormat returns Integer
+external_function GetClipboardFormatNameE  "GetClipboardFormatNameA"  USER32.DLL Integer iClip Pointer pStr Integer iL returns Integer
+Function GetClipboardFormatName Global Integer iFormat returns String
+    Integer iRet
+    Local_Buffer sStr pStr 201
+    move (GetClipboardFormatNameE(iFormat,pStr,200))    to iRet
+    move (CString(sStr))                                to sStr
+    Function_Return sStr
+
+End_Function
+
+
+    // Cursor Effects.
+Define	DROPEFFECT_NONE	    For 0
+Define	DROPEFFECT_COPY	    For 1
+Define	DROPEFFECT_MOVE	    For 2
+Define	DROPEFFECT_LINK	    For 4
+Define	DROPEFFECT_SCROLL	For |CI$80000000
+
+
+
+    // Object for receiving Interface Calls.
+external_function Create_DFIDropTarget      "Create_DFIDropTarget"      COM_DLL Handle hwndNotify Handle hwnd Integer hoObjectID returns Integer
+external_function Destroy_DFIDropTarget     "Destroy_DFIDropTarget"     COM_DLL Pointer pObj returns Integer
+external_function Return_DFIDropTarget      "Return_DFIDropTarget"      COM_DLL Pointer pObj Integer iRetVal returns Integer
+
+    // Call an DropTarget Interface.
+external_function DFIDropTarget_DragEnter   "DFIDropTarget_DragEnter"   COM_DLL Pointer pIF Pointer pDataObj Dword grfKeyState Integer iX Integer iY Pointer pdwEffect returns Integer
+external_function DFIDropTarget_DragOver    "DFIDropTarget_DragOver"    COM_DLL Pointer pIF Dword grfKeyState Integer iX Integer iY Pointer pdwEffect returns Integer
+external_function DFIDropTarget_DragLeave   "DFIDropTarget_DragLeave"   COM_DLL Pointer pIF returns Integer
+external_function DFIDropTarget_Drop        "DFIDropTarget_Drop"        COM_DLL Pointer pIF Pointer pDataObj Dword grfKeyState Integer iX Integer iY Pointer pdwEffect returns Integer
+
+    // Functions to register a Window as an DropTarget.
+external_function RegisterDragDrop          "RegisterDragDrop"          OLE32.DLL Handle hwnd Pointer pIDropTarget returns Integer
+external_function RevokeDragDrop            "RevokeDragDrop"            OLE32.DLL Handle hwnd returns Integer
+external_function CoLockObjectExternal      "CoLockObjectExternal"      OLE32.DLL Pointer pIF Integer iLock Integer iReleaseAll returns Integer
+
+
+
+	// Constants to transfer IDropTarget calls.
+Define IDropTarget_DragEnter		For 1000
+Define IDropTarget_DragOver 		For 1001
+Define IDropTarget_DragLeave		For 1002
+Define IDropTarget_Drop			    For 1003
+
+
+Class cDFIDropTarget is a cDFIUnknown
+    register_procedure onDragEnter
+    register_procedure onDragOver
+    register_procedure onDragLeave
+    register_procedure onDrop
+
+    Procedure Construct_Object
+        Forward send Construct_Object
+        set psInterFaceID   to IID_IDropTarget
+    End_Procedure
+
+    Procedure Init
+        if (pInterFacePointer (Self)) eq 0 Begin
+            set pInterFacePointer    to (Create_DFIDropTarget(Window_Handle(ghoComNotificationHandler),0,Self))
+        End
+    End_Procedure
+    Procedure End_Construct_Object
+        send Init
+        Forward send End_Construct_Object
+    End_Procedure
+    Procedure SetRetVal Integer iRetVal
+        Integer iRet
+        move (Return_DFIDropTarget(pInterFacePointer(self),iRetVal))   to iRet
+    End_Procedure
+
+
+    Procedure Destroy_Object
+        Integer iRet
+        move (Destroy_DFIDropTarget(pInterFacePointer(Self)))    to iRet
+        Forward send Destroy_Object
+    End_Procedure
+
+    Procedure onDragEnter Pointer pDataObj Dword grfKeyState Integer iX Integer iY Pointer pdwEffect
+        Local_Buffer  sFormatEtc pFormatEtc (tFormatEtc_Size*20)
+        Local_Buffer  sDW pDW 4
+        Pointer iRet
+        SETDefFormatEtc sFormatEtc 51607     TYMED_HGLOBAL
+        //GetAddress of sFormatEtc    to pFormatEtc
+        Local_Buffer sPtr pPtr 4
+        move (DFIDataObject_EnumFormatEtc(pDataObj,1,pPtr))       to iRet
+        if (iRet eq 0) Begin
+//            move (BytesToDWord(sPtr,1))                           to pPtr
+//            move (DFIEnum_Reset(pPtr))                            to iRet
+//            move (DFIEnum_Next(pPtr,1,pFormatEtc,pDW))            to iRet
+//            Debug.ShowFORMATETC sFormatEtc
+//            move (DFIEnum_Next(pPtr,1,pFormatEtc,pDW))            to iRet
+//            Debug.ShowFORMATETC sFormatEtc
+//            move (DFIEnum_Next(pPtr,1,pFormatEtc,pDW))            to iRet
+//            Debug.ShowFORMATETC sFormatEtc
+//            move (DFIEnum_Next(pPtr,1,pFormatEtc,pDW))            to iRet
+//            Debug.ShowFORMATETC sFormatEtc
+        End
+//        move (DFIDataObject_QueryGetData(pDataObj,pFormatEtc))  to iRet
+//        showln
+//        showln "Ret: " iRet
+        //send DWordValueToPointer pdwEffect DROPEFFECT_NONE
+        //showln "onDragEnter " pDataObj " " grfKeyState " " iX " " iY " " pdwEffect
+        Procedure_Return 0
+    End_Procedure
+    Procedure onDragOver Dword grfKeyState Integer iX Integer iY Pointer pdwEffect
+        //send DWordValueToPointer pdwEffect 4
+        //showln "onDragOver: " grfKeyState " " iX " " iY " " pdwEffect
+        Procedure_Return 0
+    End_Procedure
+    Procedure onDragLeave
+        //showln "onDragLeave"
+        Procedure_Return 2
+    End_Procedure
+    Procedure onDrop Pointer pDataObj Dword grfKeyState Integer iX Integer iY Pointer pdwEffect
+        //showln "onDrop " pDataObj " " grfKeyState " " iX " " iY " " pdwEffect
+        Procedure_Return 0
+    End_Procedure
+
+
+        // Is called for every Message with its type and the ArrayID with the Parameters.
+    Procedure DecodeMessage Integer iType Integer hoParas
+        Integer iRet
+        if iType eq IDropTarget_DragEnter   get Msg_onDragEnter    (Value(hoParas,0)) (Value(hoParas,1)) (Value(hoParas,2)) (Value(hoParas,3)) (Value(hoParas,4)) to iRet
+        if iType eq IDropTarget_DragOver    get Msg_onDragOver     (Value(hoParas,0)) (Value(hoParas,1)) (Value(hoParas,2)) (Value(hoParas,3)) to iRet
+        if iType eq IDropTarget_DragLeave   get Msg_onDragLeave    to iRet
+        if iType eq IDropTarget_Drop        get Msg_onDrop         (Value(hoParas,0)) (Value(hoParas,1)) (Value(hoParas,2)) (Value(hoParas,3)) (Value(hoParas,4)) to iRet
+        Procedure_Return iRet
+    End_Procedure
+
+    Function DragEnter Pointer pDataObj Dword grfKeyState Integer iX Integer iY Pointer pdwEffect returns Integer
+        Function_Return (DFIDropTarget_DragEnter(pInterFacePointer(self) ,pDataObj,grfKeyState,iX,iY,pdwEffect))
+    End_Procedure
+    Function DragOver Dword grfKeyState Integer iX Integer iY Pointer pdwEffect returns Integer
+        Function_Return (DFIDropTarget_DragOver(pInterFacePointer(self),grfKeyState,iX,iY,pdwEffect))
+    End_Function
+    Function DragLeave
+        Function_Return (DFIDropTarget_DragLeave(pInterFacePointer(self)))
+    End_Function
+    Function Drop Pointer pDataObj Dword grfKeyState Integer iX Integer iY Pointer pdwEffect returns Integer
+        Function_Return (DFIDropTarget_Drop(pInterFacePointer(self) ,pDataObj,grfKeyState,iX,iY,pdwEffect))
+    End_Procedure
+End_Class
+
+    // Creates a IDropInterface and Registers an Object as a Drop Target.
+#COMMAND ENABLE_AS_OLE_DROPTARGET
+    Object oDFIDropTarget is a cDFIDropTarget   // Creates a IDropTarget Interface.
+    End_Object
+    Procedure Page_Object Integer iFlag
+        Integer iRet hwnd pIF iErr
+        Forward send Page_Object iFlag
+        get Window_Handle                   to hwnd
+        get ICom of (oDFIDropTarget(Self))  to pIF
+        if iFlag Begin
+            move (DFIUnknown_AddRef(pIF))                       to iRet
+            move (CoLockObjectExternal(pIF,TRUE,FALSE))         to iRet // is suggested by MS sample to prevent StubProxy from beeing unloaded.
+            move (RegisterDragDrop(hwnd,pIF))                   to iRet
+        End
+        Else Begin
+            move (RevokeDragDrop(Window_Handle(Self)))          to iRet
+        End
+    End_Procedure
+#ENDCOMMAND

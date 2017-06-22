@@ -1,0 +1,509 @@
+//TH-Header
+//*****************************************************************************************
+// Copyright (c)  2003 Bernhard Ponemayr
+// All rights reserved.
+//
+// $FileName    : C:\VDF7\Projects\hammer\Pkg\cCodelist.pkg
+// $ProjectName : Listview API
+// $Author      : Bernhard Ponemayr
+// $Created     : 20.01.2003  16:07
+//
+// Contents: Wrapper class for the Codelist Object from CodeSense
+//
+//*****************************************************************************************
+//TH-RevisionStart
+//TH-RevisionEnd
+
+Use cImagelistEx
+
+Define LVM_FIRST                                FOR |CI$1000      // ListView messages
+Define LVM_SETIMAGELIST                         FOR (LVM_FIRST + 3)
+Define LVM_GETITEMCOUNT                         FOR (LVM_FIRST + 4)
+Define LVM_GETITEM                              FOR (LVM_FIRST + 5)
+Define LVM_INSERTITEM                           FOR (LVM_FIRST + 7)
+Define LVM_DELETEITEM                           FOR (LVM_FIRST + 8)
+Define LVM_DELETEALLITEMS                       FOR (LVM_FIRST + 9)
+Define LVM_GETNEXTITEM                          FOR (LVM_FIRST + 12)
+Define LVM_FINDITEM                             FOR (LVM_FIRST + 13)
+Define LVM_ENSUREVISIBLE                        FOR (LVM_FIRST + 19)
+Define LVM_DELETECOLUMN                         FOR (LVM_FIRST + 28)
+Define LVM_SETITEMSTATE                         FOR (LVM_FIRST + 43)
+Define LVM_SETEXTENDEDLISTVIEWSTYLE             FOR (LVM_FIRST + 54)
+Define LVM_GETEXTENDEDLISTVIEWSTYLE             FOR (LVM_FIRST + 55)
+Define LVM_GETTOOLTIPS                          FOR (LVM_FIRST + 78)
+
+Define LVIF_TEXT               FOR |CI$0001
+Define LVIF_IMAGE              FOR |CI$0002
+Define LVIF_PARAM              FOR |CI$0004
+Define LVIF_STATE              FOR |CI$0008
+Define LVIF_INDENT             FOR |CI$0010
+Define LVIF_NORECOMPUTE        FOR |CI$0800
+
+Define LVS_ICON                FOR |CI$0000
+Define LVS_REPORT              FOR |CI$0001
+Define LVS_SMALLICON           FOR |CI$0002
+Define LVS_LIST                FOR |CI$0003
+Define LVS_TYPEMASK            FOR |CI$0003
+Define LVS_SINGLESEL           FOR |CI$0004
+Define LVS_SHOWSELALWAYS       FOR |CI$0008
+Define LVS_SORTASCENDING       FOR |CI$0010
+Define LVS_SORTDESCENDING      FOR |CI$0020
+Define LVS_SHAREIMAGELISTS     FOR |CI$0040
+Define LVS_NOLABELWRAP         FOR |CI$0080
+Define LVS_AUTOARRANGE         FOR |CI$0100
+Define LVS_EDITLABELS          FOR |CI$0200
+Define LVS_OWNERDATA           FOR |CI$1000
+Define LVS_NOSCROLL            FOR |CI$2000
+
+Define LVS_TYPESTYLEMASK       FOR |CI$fc00
+
+Define LVS_ALIGNTOP            FOR |CI$0000
+Define LVS_ALIGNLEFT           FOR |CI$0800
+Define LVS_ALIGNMASK           FOR |CI$0c00
+Define LVS_OWNERDRAWFIXED      FOR |CI$0400
+Define LVS_NOCOLUMNHEADER      FOR |CI$4000
+Define LVS_NOSORTHEADER        FOR |CI$8000
+
+Define LVS_EX_GRIDLINES        FOR |CI$00000001
+Define LVS_EX_SUBITEMIMAGES    FOR |CI$00000002
+Define LVS_EX_CHECKBOXES       FOR |CI$00000004
+Define LVS_EX_TRACKSELECT      FOR |CI$00000008
+Define LVS_EX_HEADERDRAGDROP   FOR |CI$00000010
+Define LVS_EX_FULLROWSELECT    FOR |CI$00000020 // applies to report mode only
+Define LVS_EX_ONECLICKACTIVATE FOR |CI$00000040
+Define LVS_EX_TWOCLICKACTIVATE FOR |CI$00000080
+Define LVS_EX_FLATSB           FOR |CI$00000100
+Define LVS_EX_REGIONAL         FOR |CI$00000200
+Define LVS_EX_INFOTIP          FOR |CI$00000400 // listview does InfoTips for you
+Define LVS_EX_UNDERLINEHOT     FOR |CI$00000800
+Define LVS_EX_UNDERLINECOLD    FOR |CI$00001000
+Define LVS_EX_MULTIWORKAREAS   FOR |CI$00002000
+
+Define LVNI_ALL                FOR |CI$0000
+Define LVNI_FOCUSED            FOR |CI$0001
+Define LVNI_SELECTED           FOR |CI$0002
+Define LVNI_CUT                FOR |CI$0004
+Define LVNI_DROPHILITED        FOR |CI$0008
+
+Define LVNI_ABOVE              FOR |CI$0100
+Define LVNI_BELOW              FOR |CI$0200
+Define LVNI_TOLEFT             FOR |CI$0400
+Define LVNI_TORIGHT            FOR |CI$0800
+
+Define LVIS_FOCUSED            FOR |CI$0001
+Define LVIS_SELECTED           FOR |CI$0002
+Define LVIS_CUT                FOR |CI$0004
+Define LVIS_DROPHILITED        FOR |CI$0008
+Define LVIS_ACTIVATING         FOR |CI$0020
+
+Define LVIS_OVERLAYMASK        FOR |CI$0F00
+Define LVIS_STATEIMAGEMASK     FOR |CI$F000
+
+Define LVFI_PARAM              FOR |CI$0001
+Define LVFI_STRING             FOR |CI$0002
+Define LVFI_PARTIAL            FOR |CI$0008
+Define LVFI_WRAP               FOR |CI$0020
+Define LVFI_NEARESTXY          FOR |CI$0040
+
+Define LVSIL_NORMAL            FOR 0
+Define LVSIL_SMALL             FOR 1
+Define LVSIL_STATE             FOR 2
+
+TYPE LVITEM
+    Field LVITEM.mask as Integer
+    Field LVITEM.iItem as Integer
+    Field LVITEM.iSubItem as Integer
+    Field LVITEM.state as Integer
+    Field LVITEM.stateMask as Integer
+    Field LVITEM.pszText as Pointer
+    Field LVITEM.cchTextMax as Integer
+    Field LVITEM.iImage as Integer
+    Field LVITEM.lParam as Integer
+    Field LVITEM.iIndent as Integer
+END_TYPE
+
+TYPE LVFINDINFO
+    Field LVFINDINFO.flags as Integer
+    Field LVFINDINFO.psz as Pointer
+    Field LVFINDINFO.lParam as Integer
+    Field LVFINDINFO.pt.x as Integer
+    Field LVFINDINFO.pt.y as Integer
+    Field LVFINDINFO.vkDirection as Integer
+END_TYPE
+
+Function ListView_InsertItem GLOBAL Handle hWnd Pointer pItem Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_INSERTITEM,0,pItem)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_SetExtendedListviewStyle GLOBAL Handle hWnd Integer iStyles Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_SETEXTENDEDLISTVIEWSTYLE,0,iStyles)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_SetExtendedListviewStyleEx GLOBAL Handle hWnd Integer iMask Integer iStyles Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_SETEXTENDEDLISTVIEWSTYLE,iMask,iStyles)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_GetExtendedListviewStyle GLOBAL Handle hWnd Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_GETEXTENDEDLISTVIEWSTYLE,0,0)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_GetNextItem GLOBAL Handle hWnd Integer iStart Integer iFlags Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_GETNEXTITEM,iStart,iFlags)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_GetItem GLOBAL Handle hWnd Pointer pItem Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_GETITEM,0,pItem)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_DeleteAllItems Global Handle hWnd Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_DELETEALLITEMS,0,0)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_DeleteItem global Handle hWnd Integer iItem Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_DELETEITEM,iItem,0)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_DeleteColumn global Handle hWnd Integer iCol Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_DELETECOLUMN,iCol,0)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_FindItem global Handle hWnd Integer iStart Pointer pFindInfo Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_FINDITEM,iStart,pFindInfo)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_SetItemState global Handle hWnd Integer iItem Pointer pItem Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_SETITEMSTATE,iItem,pItem)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_EnsureVisible global Handle hWnd Integer iItem Integer bPartial Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_ENSUREVISIBLE,iItem,bPartial)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_SetImageList global Handle hWnd Handle hImageList Integer iType Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_SETIMAGELIST,iType,hImageList)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_GetItemCount global Handle hWnd Returns Integer
+    Integer iRet
+    Move (SendMessage(hWnd,LVM_GETITEMCOUNT,0,0)) to iRet
+    Function_Return iRet
+End_Function
+
+Function ListView_GetToolTips global Handle hWnd Returns Handle
+    Handle hRetWnd
+    Move (SendMessage(hwnd,LVM_GETTOOLTIPS,0,0)) to hRetWnd
+    Function_Return hRetWnd
+End_Function
+
+
+Class cCodelist is a Array
+    Procedure Construct_Object
+        Forward Send Construct_Object
+        Property Handle  phoCodelist PUBLIC 0
+        Property Integer phoImageList PUBLIC 0
+        Property Integer pbUseBitmaps PUBLIC TRUE
+        Property Integer piRefValue PUBLIC 0
+        Property Handle  phLastUsedFont PUBLIC 0
+
+        Object oCodelistImagelist is a cImagelistEx
+            Set bitmap_size to 16 16
+        End_Object
+        Set phoImageList to (oCodelistImagelist(self))
+    End_Procedure
+
+    Procedure Codelist_Connect Handle hCodelist Integer bUseBitmaps
+        Integer iRet
+        Set phoCodelist to hCodelist
+        If ( (phoImageList(self)) And (bUseBitmaps) ) Begin
+            Move (Listview_setImageList(hCodeList,(phImageList(phoImageList(self))),LVSIL_SMALL)) to iRet
+            Set pbUseBitmaps to TRUE
+        End
+        Else Begin
+            Move (Listview_setImageList(hCodeList,-1,LVSIL_SMALL)) to iRet
+            Set pbUseBitmaps to FALSE
+        End
+    End_Procedure
+
+    Procedure Codelist_Disconnect
+        Send Codelist_delete_data               // Remove all Items from list
+        Set phoCodelist to 0
+    End_Procedure
+
+    Function Codelist_Add_Item String sText String sBitmap Integer iRefValue Returns Integer
+        String sItem sLvItem
+        Pointer pItem pLvItem
+        Integer iRet iBitmap iRemoveDummy
+
+        If (phoCodelist(self)) Eq 0 Function_Return -1
+        Move (sText + (Character(0))) to sItem
+        getaddress Of sItem to pItem
+        Move (OemToAnsi(pItem,pItem)) to iRet
+
+        zerotype LVITEM to sLvItem
+        getaddress Of sLvItem to pLvItem
+
+        put (LVIF_TEXT Ior LVIF_PARAM) to sLVItem at LVITEM.MASK
+        put 0 to sLvItem at LVITEM.iItem
+        put iRefValue to sLvItem at LVITEM.lParam
+        put pItem to sLvItem at LVITEM.pszText
+        If ( (pbUseBitmaps(self)) And (sBitmap Eq "") ) Move "default.bmp" to sBitmap
+        If sBitmap Ne "" Begin
+            Get msg_ImageListex_add Of (phoImagelist(self)) sBitmap -1 to iBitmap
+            put (LVIF_TEXT Ior LVIF_IMAGE Ior LVIF_PARAM) to sLVItem at LVITEM.MASK
+            put iBitmap to sLvItem at LVITEM.iImage
+        End
+
+        Move (Listview_InsertItem(phoCodelist(self),pLvItem)) to iRet
+        Function_Return iRet
+    End_Function
+
+    Procedure Codelist_delete_data
+        Integer iRet hWnd hFont hFont2
+        If (phoCodelist(self)) Eq 0 Procedure_Return
+        Move (Listview_deleteAllItems(phoCodelist(self))) to iRet
+    End_Procedure
+
+    Procedure Codelist_delete_item Integer iItem
+        Integer iRet
+        If (phoCodelist(self)) Eq 0 Procedure_Return
+        Move (ListView_DeleteItem(phoCodelist(self),iItem)) to iRet
+    End_Procedure
+
+    Function Codelist_value Integer iItem Returns String
+        String sText sLvItem
+        Pointer pText pLvItem
+        Integer iRet iRefVal
+
+        If (phoCodelist(self)) Eq 0 Function_Return ""
+
+        zerostring 1024 to sText
+        getaddress Of sText to pText
+
+        zerotype LVITEM to sLvItem
+        getaddress Of sLvItem to pLvItem
+
+        put (LVIF_TEXT Ior LVIF_PARAM) to sLvItem at LVITEM.MASK
+        put iItem to sLvItem at LVITEM.iItem
+        put pText to sLvItem at LVITEM.pszText
+        put 1024 to sLvItem at  LVITEM.cchTextMax
+
+        Move (Listview_GetItem(phoCodeList(self),pLvItem)) to iRet
+        If (Not(iRet)) Function_Return ""
+        Move (AnsiToOem(pText,pText)) to iRet
+        Move (cString(sText)) to sText
+        getbuff From sLvItem at LVITEM.lParam to iRefVal
+        Set piRefValue to iRefVal
+        Function_Return sText
+    End_Function
+
+    Function Codelist_current_item Returns Integer
+        Integer iItem
+        If (phoCodelist(self)) Eq 0 Function_Return -1
+
+        Move (Listview_GetNextItem(phoCodeList(self),-1,LVIS_SELECTED)) to iItem
+        Function_Return iItem
+    End_Function
+
+    Procedure Set Codelist_style Integer iStyle
+        Integer iRet
+        If (phoCodelist(self)) Eq 0 Procedure_Return
+        Move (ListView_SetExtendedListviewStyleEx(phoCodeList(self),iStyle,iStyle)) to iRet
+    End_Procedure
+
+    Procedure Set Codelist_font Integer hFont
+        Integer iRet
+        Move (SendMessage(phoCodelist(self),WM_SETFONT,hFont,TRUE)) to iRet
+    End_Procedure
+
+    Function Codelist_SelectClosestItem String sText Returns Integer
+        String sFindInfo sVal sLvItem
+        Pointer pFindInfo pVal pLvItem
+        Integer iRet iItem
+        If (phoCodelist(self)) Eq 0 Function_Return -1
+        Move (sText + (Character(0))) to sVal
+        getaddress Of sVal to pVal
+        Move (OemToAnsi(pVal,pVal)) to iRet
+
+        zerotype LVFINDINFO to sFindInfo
+        getaddress Of sFindInfo to pFindInfo
+
+        put LVFI_PARTIAL to sFindInfo at LVFINDINFO.flags
+        put pVal to sFindInfo at LVFINDINFO.psz
+
+        Move (ListView_FindItem(phoCodelist(self),-1,pFindInfo)) to iItem
+        If iItem Eq -1 Function_Return iItem
+
+        zerotype LVITEM to sLvItem
+        getaddress Of sLvItem to pLvItem
+
+        put LVIF_STATE to sLvItem at LVITEM.mask
+        put iItem to sLvItem at LVITEM.iItem
+        put (LVIS_SELECTED Ior LVIS_FOCUSED) to sLvItem at LVITEM.state
+        put (LVIS_SELECTED Ior LVIS_FOCUSED) to sLvItem at LVITEM.stateMask
+
+        Move (ListView_SetItemState(phoCodelist(self),iItem,pLvItem)) to iRet
+        If (Not(iRet)) Function_Return -1
+        Move (ListView_EnsureVisible(phoCodelist(self),iItem,FALSE)) to iRet
+        Function_Return iItem
+    End_Function
+
+    Function Codelist_Item_count Returns Integer
+        If (phoCodelist(self)) Eq 0 Function_Return -1
+        Function_Return (Listview_GetItemCount(phoCodelist(self)))
+    End_Function
+
+    Procedure Codelist_Beginning_Of_Data
+        String sVal sLvItem
+        Pointer pVal pLvItem
+        Integer iRet iItem
+        If (phoCodelist(self)) Eq 0 Procedure_Return
+
+        zerotype LVITEM to sLvItem
+        getaddress Of sLvItem to pLvItem
+
+        put LVIF_STATE to sLvItem at LVITEM.mask
+        put 0 to sLvItem at LVITEM.iItem
+        put (LVIS_SELECTED Ior LVIS_FOCUSED) to sLvItem at LVITEM.state
+        put (LVIS_SELECTED Ior LVIS_FOCUSED) to sLvItem at LVITEM.stateMask
+
+        Move (ListView_SetItemState(phoCodelist(self),0,pLvItem)) to iRet
+        If (Not(iRet)) Procedure_Return
+        Move (ListView_EnsureVisible(phoCodelist(self),0,FALSE)) to iRet
+    End_Procedure
+
+    Procedure Codelist_End_Of_Data
+        String sVal sLvItem
+        Pointer pVal pLvItem
+        Integer iRet iItem
+        If (phoCodelist(self)) Eq 0 Procedure_Return
+
+        zerotype LVITEM to sLvItem
+        getaddress Of sLvItem to pLvItem
+
+        put LVIF_STATE to sLvItem at LVITEM.mask
+        Move (Listview_GetItemCount(phoCodelist(self))) to iItem
+        If iItem Eq -1 Procedure_Return
+        Move (iItem-1) to iItem
+        put iItem to sLvItem at LVITEM.iItem
+        put (LVIS_SELECTED Ior LVIS_FOCUSED) to sLvItem at LVITEM.state
+        put (LVIS_SELECTED Ior LVIS_FOCUSED) to sLvItem at LVITEM.stateMask
+
+        Move (ListView_SetItemState(phoCodelist(self),iItem,pLvItem)) to iRet
+        If (Not(iRet)) Procedure_Return
+        Move (ListView_EnsureVisible(phoCodelist(self),iItem,FALSE)) to iRet
+    End_Procedure
+
+End_Class
+
+// BP CodeList Support
+// this object is just for testing the codelist functions
+// SVN
+Integer ghoCodeList
+Object oCodelist is a cCodelist
+    Object oClassDataCache is an Array
+    End_Object
+    Property Integer piListReason PUBLIC 0
+    Property Integer piSourceObject PUBLIC 0
+    Property Integer piSourceLine PUBLIC 0
+    Property String  psSourceLine PUBLIC ""
+    Property String  psSourceRefVal PUBLIC ""
+    Move self to ghoCodeList
+
+    Function Codelist_Add_CachedItem String sText String sBitmap Integer iRefValue Returns Integer
+        String sItem sLvItem sArrayValue
+        Pointer pItem pLvItem
+        Integer iRet iBitmap iRemoveDummy
+
+        If (phoCodelist(self)) Eq 0 Function_Return -1
+        Move (sText + (Character(0))) to sItem
+        getaddress Of sItem to pItem
+        Move (OemToAnsi(pItem,pItem)) to iRet
+
+        Move ( (cString(sItem)) + "\new\" + (String(iRefValue)) + "\new\" ) to sArrayValue
+
+        zerotype LVITEM to sLvItem
+        getaddress Of sLvItem to pLvItem
+
+        put (LVIF_TEXT Ior LVIF_PARAM) to sLVItem at LVITEM.MASK
+        put 0 to sLvItem at LVITEM.iItem
+        put iRefValue to sLvItem at LVITEM.lParam
+        put pItem to sLvItem at LVITEM.pszText
+        If ( (pbUseBitmaps(self)) And (sBitmap Eq "") ) Move "default.bmp" to sBitmap
+        If sBitmap Ne "" Begin
+            Get msg_ImageListex_add Of (phoImagelist(self)) sBitmap -1 to iBitmap
+            Move (sArrayValue + (String(iBitmap)) ) to sArrayValue
+            put (LVIF_TEXT Ior LVIF_IMAGE Ior LVIF_PARAM) to sLVItem at LVITEM.MASK
+            put iBitmap to sLvItem at LVITEM.iImage
+        End
+        Else Move (sArrayValue + "-1") to sArrayValue
+        Move (sArrayValue + "\new\" ) to sArrayValue
+
+        Set value Of (oClassDataCache(self)) Item (item_count(oClassDataCache(self))) to sArrayValue
+
+        Move (Listview_InsertItem(phoCodelist(self),pLvItem)) to iRet
+        Function_Return iRet
+    End_Function
+
+    Procedure FillCodelistFromCache
+        Integer iItem iRet
+        Pointer pLvItem pText
+        String sText sRefValue sBitmap sLine sLvItem
+
+        FOR iItem From 0 to ( (item_count(oClassDataCache(self))) -1)
+            Get value Of (oClassDataCache(self)) Item iItem to sLine
+            Move (Left(sLine,((Pos("\new\",sLine))+4))) to sText
+            Move (Replace(sText,sLine,"")) to sLine
+            Move (Replace("\new\",sText,"")) to sText
+
+            Move (Left(sLine,((Pos("\new\",sLine))+4))) to sRefValue
+            Move (Replace(sRefValue,sLine,"")) to sBitmap
+            Move (Replace("\new\",sRefValue,"")) to sRefValue
+            Move (Replace("\new\",sBitmap,"")) to sBitmap
+
+            Move (sText + (Character(0))) to sText
+            getaddress Of sText to pText
+
+            zerotype LVITEM to sLvItem
+            getaddress Of sLvItem to pLvItem
+
+            put (LVIF_TEXT Ior LVIF_PARAM) to sLVItem at LVITEM.MASK
+            put 0 to sLvItem at LVITEM.iItem
+            put (Integer(sRefValue)) to sLvItem at LVITEM.lParam
+            put pText to sLvItem at LVITEM.pszText
+            If ( (pbUseBitmaps(self)) And (sBitmap Ne "-1") ) Begin
+                put (LVIF_TEXT Ior LVIF_IMAGE Ior LVIF_PARAM) to sLVItem at LVITEM.MASK
+                put (Integer(sBitmap)) to sLvItem at LVITEM.iImage
+            End
+            Move (Listview_InsertItem(phoCodelist(self),pLvItem)) to iRet
+        Loop
+    End_Procedure
+
+End_Object
+// BP
+
