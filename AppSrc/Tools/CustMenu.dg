@@ -201,8 +201,8 @@ Object oCustMenuView is a ModalPanel
         End_Object
 
         Object oInfoTip is a Container3d
-            Set Size to 51 238
-            Set Location to 90 192
+            Set Size to 70 238
+            Set Location to 71 192
             Set Color to clInfoBk
             Set Border_Style to Border_Normal
             Object oInfoTextVDFRUN is a Textbox
@@ -240,7 +240,7 @@ Object oCustMenuView is a ModalPanel
                 Set Label to "Expanded into the dfrun.exe full qualified path (obsolete)"
                 Set Color to clInfoBk
                 Set TextColor to clMenuText
-                Set Location to 4 63
+                Set Location to 4 75
                 Set Size to 10 232
                 Set TypeFace to "MS Sans Serif"
             End_Object    // oInfoTextOnDfRun
@@ -250,7 +250,7 @@ Object oCustMenuView is a ModalPanel
                 Set Label to "Expanded into the DataFlex root directory (C:\VDF)"
                 Set Color to clInfoBk
                 Set TextColor to clInfoText
-                Set Location to 15 63
+                Set Location to 15 75
                 Set Size to 10 231
                 Set TypeFace to "MS Sans Serif"
             End_Object    // oInfoTextOnVdfRoot
@@ -259,7 +259,7 @@ Object oCustMenuView is a ModalPanel
                 Set Label to "Expanded into the start up directory"
                 Set Color to clInfoBk
                 Set TextColor to clInfoText
-                Set Location to 26 63
+                Set Location to 26 75
                 Set Size to 10 113
                 Set TypeFace to "MS Sans Serif"
             End_Object    // oInfoTextOnCurDir
@@ -278,10 +278,48 @@ Object oCustMenuView is a ModalPanel
                 Set Label to "Current opened file in editor (Path included)"
                 Set Color to clInfoBk
                 Set TextColor to clInfoText
-                Set Location to 37 63
+                Set Location to 37 75
                 Set Size to 10 137
                 Set TypeFace to "MS Sans Serif"
             End_Object    // oInfoTextOnCurDir
+
+            Object oInfoTextTransfer is a Textbox
+                Set Label to "@TRANSFERFILE@"
+                Set Color to clInfoBk
+                Set TextColor to clInfoText
+                Set Location to 47 4
+                Set Size to 10 68
+                Set FontWeight to 800
+                Set TypeFace to "MS Sans Serif"
+            End_Object
+
+            Object oInfoTextOnTransfer is a Textbox
+                Set Label to "Expanded into the Wizard Transfer File"
+                Set Color to clInfoBk
+                Set TextColor to clInfoText
+                Set Location to 47 75
+                Set Size to 10 123
+                Set TypeFace to "MS Sans Serif"
+            End_Object
+
+            Object oInfoTextProgram is a Textbox
+                Set Label to "@PROGRAM@"
+                Set Color to clInfoBk
+                Set TextColor to clInfoText
+                Set Location to 58 4
+                Set Size to 10 68
+                Set FontWeight to 800
+                Set TypeFace to "MS Sans Serif"
+            End_Object
+
+            Object oInfoTextOnProgram is a Textbox
+                Set Label to "Expanded into the Current program (SRC) file"
+                Set Color to clInfoBk
+                Set TextColor to clInfoText
+                Set Location to 58 75
+                Set Size to 10 142
+                Set TypeFace to "MS Sans Serif"
+            End_Object
     
         End_Object    // oInfoTip
 

@@ -526,6 +526,7 @@ Object oTHParameters is a ModalPanel
                                 Send Combo_Add_Item TH_DEFSCHEMA_WHITE_STR
                                 Send Combo_Add_Item TH_DEFSCHEMA_BLACK_STR
                                 Send Combo_Add_Item TH_DEFSCHEMA_BLUE_STR
+                                Send Combo_Add_Item TH_DEFSCHEMA_LIME_STR
                                 // Custom Schemas
                                 Get psColorSchemas.Count of ghoEditorProperties to iCount
                                 For iC from 0 to (iCount-1)
@@ -549,8 +550,9 @@ Object oTHParameters is a ModalPanel
                                 Get Value item 0 to sName
                                 Move TH_COLORSCHEMA_WHITE to sSchema
                                 Get psFontStyles of ghoEditorProperties to sFontStyles
-                                If (sName=TH_DEFSCHEMA_BLACK_STR) Move TH_COLORSCHEMA_BLACK to sSchema
-                                Else If (sName=TH_DEFSCHEMA_BLUE_STR) Move TH_COLORSCHEMA_BLUE to sSchema
+                                If      (sName=TH_DEFSCHEMA_BLACK_STR)  Move TH_COLORSCHEMA_BLACK to sSchema
+                                Else If (sName=TH_DEFSCHEMA_BLUE_STR)   Move TH_COLORSCHEMA_BLUE to sSchema
+                                Else If (sName=TH_DEFSCHEMA_LIME_STR)   Move TH_COLORSCHEMA_LIME to sSchema
                                 Else If (sName<>TH_DEFSCHEMA_WHITE_STR) Begin
                                     Get FindColorSchema of ghoEditorProperties sName to iC
                                     If (iC>=0) Begin
@@ -563,9 +565,13 @@ Object oTHParameters is a ModalPanel
                                 //
                                 Send mGeneratePreview to oColorsGroup
                                 //
-                                Move (not((sName=TH_DEFSCHEMA_BLACK_STR)or(sName=TH_DEFSCHEMA_WHITE_STR)or(sName=TH_DEFSCHEMA_BLUE_STR))) to iDisableManageButtons
-                                Set Enabled_State of oSchemaDelete to iDisableManageButtons
-                                Set Enabled_State of oSchemaSave   to iDisableManageButtons
+                                Move (not((sName=TH_DEFSCHEMA_BLACK_STR) or ;
+                                          (sName=TH_DEFSCHEMA_WHITE_STR) or ;
+                                          (sName=TH_DEFSCHEMA_BLUE_STR)  or ;
+                                          (sName=TH_DEFSCHEMA_LIME_STR))) ;
+                                                                    to iDisableManageButtons
+                                Set Enabled_State of oSchemaDelete  to iDisableManageButtons
+                                Set Enabled_State of oSchemaSave    to iDisableManageButtons
                                 Delegate Send NotifyChange
                             End_Procedure
             
@@ -643,6 +649,7 @@ Object oTHParameters is a ModalPanel
                                 If (iOK=MBR_Yes) Begin
                                     Move TH_COLORSCHEMA_WHITE to sColors
                                     If (sName=TH_DEFSCHEMA_BLACK_STR) Move TH_COLORSCHEMA_BLACK to sColors
+                                    Else If (sName=TH_DEFSCHEMA_LIME_STR) Move TH_COLORSCHEMA_LIME to sColors
                                     Else If (sName=TH_DEFSCHEMA_BLUE_STR) Move TH_COLORSCHEMA_BLUE to sColors
                                     Move (Repeat('0', 3*16)+"000") to sFontStyles
                                     Send SetColorerCurrentStyles sColors sFontStyles
@@ -918,7 +925,14 @@ Object oTHParameters is a ModalPanel
                             Set piFontSize          of oEditorPreview to ((iSize-2)*20)
                             // Elements
                             Get TextColor           of oEditorPreview to iOriFore
-                            Send AddComment         to oEditorPreview "// This is a comment"
+                            Send AddComment         to oEditorPreview "// Pre-processor/Macro"
+                            Send AppendTextLn       to oEditorPreview "" 
+                            Send AddPreProcessor    to oEditorPreview "#COMMAND _DEBUG"
+                            Send AppendTextLn       to oEditorPreview "" 
+                            Send AddPreProcessor    to oEditorPreview "#ENDCOMMAND"
+                            Send AppendTextLn       to oEditorPreview "" 
+                            Send AppendTextLn       to oEditorPreview "" 
+                            Send AddComment         to oEditorPreview "// Metatags, Keywords, Strings"
                             Send AppendTextLn       to oEditorPreview "" 
                             Send AddMetaTag         to oEditorPreview '{Description="Meta tag"}'
                             Send AppendTextLn       to oEditorPreview "" 
@@ -961,53 +975,36 @@ Object oTHParameters is a ModalPanel
                             Send AddComment         to oEditorPreview "// mFoo"
                             Send AppendTextLn       to oEditorPreview "" 
                             Send AppendTextLn       to oEditorPreview "" 
-                            Send AddComment         to oEditorPreview "// Numbers"
+                            Send AddComment         to oEditorPreview "// Numbers & Braces"
                             Send AppendTextLn       to oEditorPreview "" 
                             Send AddKeyword         to oEditorPreview "Number"
                             Send AddSpacing         to oEditorPreview " "
-                            Send AddText            to oEditorPreview "nValue" 
+                            Send AddText            to oEditorPreview "nVal" 
                             Send AppendTextLn       to oEditorPreview "" 
                             Send AddKeyword         to oEditorPreview "Move"
                             Send AddSpacing         to oEditorPreview " "
-                            Send AddText            to oEditorPreview "(" 
-                            Send AddNumber          to oEditorPreview '123' 
-                            Send AddText            to oEditorPreview "." 
-                            Send AddNumber          to oEditorPreview '45' 
-                            Send AddSpacing         to oEditorPreview " "
-                            Send AddOperator        to oEditorPreview "+" 
-                            Send AddSpacing         to oEditorPreview " "
-                            Send AddNumber          to oEditorPreview '67' 
-                            Send AddText            to oEditorPreview ")" 
-                            Send AddSpacing         to oEditorPreview " "
-                            Send AddKeyword         to oEditorPreview "to"
-                            Send AddSpacing         to oEditorPreview " "
-                            Send AddText            to oEditorPreview "nValue" 
-                            //
-                            //#IFDEF TH_SCINTILLA
-                            Send AppendTextLn       to oEditorPreview ""
-                            Send AppendTextLn       to oEditorPreview ""
-                            Send AddComment         to oEditorPreview "// Brace highlight"
-                            Send AppendTextLn       to oEditorPreview "" 
-                            Send AddKeyword         to oEditorPreview "Move"
-                            Send AddSpacing         to oEditorPreview " "
-                            Send AddText            to oEditorPreview "(" 
-                            Send AddNumber          to oEditorPreview "1" 
-                            Send AddSpacing         to oEditorPreview " "
-                            Send AddOperator        to oEditorPreview "+" 
                             Send AddBraceHLight     to oEditorPreview "(" 
-                            Send AddNumber          to oEditorPreview "2" 
+                            Send AddNumber          to oEditorPreview '1.23' 
                             Send AddSpacing         to oEditorPreview " "
                             Send AddOperator        to oEditorPreview "+" 
                             Send AddSpacing         to oEditorPreview " "
-                            Send AddNumber          to oEditorPreview "5" 
+                            Send AddText            to oEditorPreview "(" 
+                            Send AddNumber          to oEditorPreview '12' 
+                            Send AddSpacing         to oEditorPreview " "
+                            Send AddOperator        to oEditorPreview "*" 
+                            Send AddSpacing         to oEditorPreview " "
+                            Send AddNumber          to oEditorPreview '$02' 
+                            Send AddText            to oEditorPreview ")" 
                             Send AddBraceHLight     to oEditorPreview ")" 
-                            Send AddText            to oEditorPreview ")"
                             Send AddUnmatchedBrace  to oEditorPreview ")"
                             Send AddSpacing         to oEditorPreview " "
                             Send AddKeyword         to oEditorPreview "to"
                             Send AddSpacing         to oEditorPreview " "
-                            Send AddText            to oEditorPreview "nValue" 
-                            Send AppendTextLn       to oEditorPreview "" 
+                            Send AddText            to oEditorPreview "nVal" 
+                            //
+                            //#IFDEF TH_SCINTILLA
+                            //Send AppendTextLn       to oEditorPreview ""
+                            Send AppendTextLn       to oEditorPreview ""
                             Send AppendTextLn       to oEditorPreview "" 
                             Send AddComment         to oEditorPreview "// Typing string"
                             Send AppendTextLn       to oEditorPreview "" 
@@ -1403,6 +1400,12 @@ Object oTHParameters is a ModalPanel
                             Set Location to 90 75
                             Set Label to "Highlight whole line on selection"
                         End_Object
+
+                        Object oAdjustCase is a cNotifierCheckBox
+                            Set Size to 10 50
+                            Set Location to 26 250
+                            Set Label to "Adjust text case of typed keywords"
+                        End_Object
                     End_Object
                 End_Object // oWindowPage
 
@@ -1466,6 +1469,7 @@ Object oTHParameters is a ModalPanel
                 Set pbSelectWholeLine           of ghoEditorProperties   to (Checked_State(oSelect(Self)))
                 Set pbTabExpand                 of ghoEditorProperties   to (Checked_State(oTabs(Self)))
                 Set piTabSize                   of ghoEditorProperties   to (Value(oTabSize(Self),0))
+                Set pbNormalizeCase             of ghoEditorProperties   to (Checked_State(oAdjustCase(Self)))
 
                 // *** Language Assign
                 Get Item_Count of (oAssignFiles(Self)) to iCount
@@ -1491,7 +1495,10 @@ Object oTHParameters is a ModalPanel
                 Get CurrentFontStyles       to sFontStyles
                 Get Value of oSchemaSelect  to sSchemaName
                 If (sSchemaName<>"") Begin
-                    If ((sSchemaName<>TH_DEFSCHEMA_BLACK_STR)and(sSchemaName<>TH_DEFSCHEMA_WHITE_STR)and(sSchemaName<>TH_DEFSCHEMA_BLUE_STR)) Begin
+                    If ((sSchemaName<>TH_DEFSCHEMA_BLACK_STR) and ;
+                        (sSchemaName<>TH_DEFSCHEMA_WHITE_STR) and ;
+                        (sSchemaName<>TH_DEFSCHEMA_BLUE_STR)  and ;
+                        (sSchemaName<>TH_DEFSCHEMA_LIME_STR)) Begin
                         Get FindColorSchema of ghoEditorProperties sSchemaName                  to iC
                         If (iC<0) Get psColorSchemas.Count      of ghoEditorProperties          to iC
                         Set psColorSchemas                      of ghoEditorProperties item iC  to sSchemaName
@@ -1559,6 +1566,7 @@ Object oTHParameters is a ModalPanel
 
                 Set Checked_State  of oTabs            to (pbTabExpand(ghoEditorProperties))
                 Set Value          of oTabSize         to (piTabSize(ghoEditorProperties))
+                Set Checked_State  of oAdjustCase      to (pbNormalizeCase(ghoEditorProperties))
                 //
                 Send Delete_Data   to oAssignFiles
                 Get psLangAssign.Count       of ghoEditorProperties     to iCount

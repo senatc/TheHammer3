@@ -68,15 +68,17 @@ Class cSciCodelist is a Array
       tCodeList[] CodeList
                
       Move 0 To iRet
-      Get pCodeList To CodeList
-      Move (SizeOfArray(CodeList)) To iCount
-      Move (lowercase(sText)) To CodeItem.sSortValue
-      Move sText              To CodeItem.sValue
-      Move sBitmap            To CodeItem.sBitmap
-      Move iRefValue          To CodeItem.iRef
-      //Move (InsertInArray(CodeList,0,CodeItem)) To CodeList
-      Move CodeItem To CodeList[iCount]
-      Set pCodeList To CodeList
+      If (sText<>"") Begin
+        Get pCodeList To CodeList
+        Move (SizeOfArray(CodeList)) To iCount
+        Move (lowercase(sText)) To CodeItem.sSortValue
+        Move sText              To CodeItem.sValue
+        Move sBitmap            To CodeItem.sBitmap
+        Move iRefValue          To CodeItem.iRef
+        //Move (InsertInArray(CodeList,0,CodeItem)) To CodeList
+        Move CodeItem To CodeList[iCount]
+        Set pCodeList To CodeList
+      End
       Function_Return iRet
     End_Function
 

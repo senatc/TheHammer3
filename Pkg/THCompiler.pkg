@@ -25,6 +25,8 @@ Class cTHCompiler is a cComVDFCompiler
             Send AddPath (&sMakePath) sPath
             Get psBufferBitmapPath    of ghoWorkSpaceHandlerEx   to sPath
             Send AddPath (&sMakePath) sPath
+            Get LibraryAppSrcPaths of (oLibraries(ghoWorkSpaceHandlerEx)) to sPath
+            If (sPath<>"") Send AddPath (&sMakePath) sPath
         End
         Send AddPath (&sMakePath) (sVDFRoot + "Bin")
         Send AddPath (&sMakePath) (sVDFRoot + "Lib")

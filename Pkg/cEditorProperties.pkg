@@ -194,6 +194,7 @@ Class cEditorProperties Is a cIniProperties
         INI_Property        Integer pbShowMatchingBraces        Public True
         INI_Property        Integer pbShowIndentGuides          Public True
         INI_Property        Integer pbSelectWholeLine           Public True
+        INI_Property        String  psLastEditedFile            Public ""
         //
     INI_End_Properties
 

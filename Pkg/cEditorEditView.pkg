@@ -240,22 +240,25 @@ Class cEditorEditView Is a cIconView
         // Set a little a "*" at the end of the filename or remove it.
     // SVN on 29/03/2017, new file tabs support
     Procedure onModifiedChange Integer bModified
-        String sLabel
+        String sLabel sCaption
         Boolean bHasChanged
-        Get Label               to sLabel
+        Get Label to sLabel
         If (sLabel<>"") Begin
-            Move (RTrim(sLabel))    to sLabel
-            Move (False)            to bHasChanged
+            Get psFileName                  to sCaption
+            Move (RTrim(sLabel))            to sLabel
+            Move (False)                    to bHasChanged
             If not bModified If (Right(sLabel,2)) Eq " *" Begin
-              Move (Left(sLabel,Length(sLabel)-2))   to sLabel
-              Move (True)            to bHasChanged
+                Move (Left(sLabel,Length(sLabel)-2))   to sLabel
+                Move (True)                 to bHasChanged
             End
             Else             If (Right(sLabel,2)) Ne " *" Begin
-                Move (Append(sLabel," *"))             to sLabel
-                Move (True)            to bHasChanged
+                Move (Append(sLabel," *"))  to sLabel
+                Move (sCaption + "*")       to sCaption
+                Move (True)                 to bHasChanged
             End
             If (bHasChanged) ;
               Send ShadowToolbarItem TBItem_Save (not(bModified))
+            Send UpdateCaption sCaption
             Set Label to (ToOEM(sLabel))
             Send CAOnLabelChanged (Self)
         End
@@ -296,7 +299,12 @@ Class cEditorEditView Is a cIconView
 
     // SVN on 29/03/2017, new file tabs support
     Procedure Activate
+        String sLabel sCaption
+        Get Label to sLabel
         Move 0 to ghoCurrentFileTab
+        Get psFileName to sCaption
+        If (Right(Trim(sLabel), 1)="*") Move (sCaption+"*") to sCaption
+        Send UpdateCaption sCaption
         Forward Send Activate
     End_Procedure
 
@@ -314,6 +322,7 @@ Class cEditorEditView Is a cIconView
         If sFile Ne "" Get CM_OpenFile Of (oEdit(Self)) sFile   To iRet
         Else Set Label                                          To CM_NewFileName
         If iRet Begin
+            Send UpdateCaption sFile
             Set psFileName              to sFile
             //
             Move (FileFromPath(sFile))  to sFileName
@@ -335,8 +344,9 @@ Class cEditorEditView Is a cIconView
         If sFile Eq "" Procedure_Return 1
         If sFile Ne "" Get CM_SaveFile Of (oEdit(Self)) sFile False To iRet
         If iRet Begin
+            Send UpdateCaption sFile
             Move (FileFromPath(sFile))  to sFileName
-            Set sFileName               to sFile
+            Set psFileName              to sFile
             Set Label                   to (ToOem(sFileName))
             If (Trim(gsCurrentProgramFile)) Eq (Trim(GetFileName(Self))) Send SetCurrentProgramFile sFileName
             If (Trim(gsCurrentProgramFile)) Eq (Trim(sFileNameOld))      Send SetCurrentProgramFile sFileName
@@ -439,7 +449,7 @@ Class cEditorEditView Is a cIconView
         // We're closing the file, no need to clean this up.
         // Besides on very very rare occasions this is the EXACT line where you'll get a crash (see my 20110922 data example)
         //Move (CM_Settext(hoEdit,szText)) To iRet
-
+        Send UpdateCaption ""
         Move (CM_ClearUndoBuffer(hoEdit)) To iRet
         Move (piRedrawState(oClientArea(Self))) To iRedraw
         If (iRedraw) Send SetRedraw False

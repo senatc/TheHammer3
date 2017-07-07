@@ -55,16 +55,5 @@
 				</DDClass>
 			</DDClasses>
 		</Table>
-		<Table>
-			<tableNumber>20</tableNumber>
-			<tableName>EDITOR</tableName>
-			<DDClasses>
-				<DDClass>
-					<className>Editor_DataDictionary</className>
-					<classFile>EDITOR.DD</classFile>
-					<preferred>true</preferred>
-				</DDClass>
-			</DDClasses>
-		</Table>
 	</Tables>
 </DataDictionaryList>

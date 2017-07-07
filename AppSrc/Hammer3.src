@@ -44,10 +44,10 @@ Use cEditorEditView.Pkg         // creates a cEditorEdit in itself. (cIconView)
 Use cEditorToolView.Pkg         // Standard view for showing others then files in the editor.
 Use mUserAndComputerName.pkg    // gsComputerName && gsUserName
 Use cCD_Popup.Pkg               // Extends the CD_Client class with general purpose Properties.
-Use WorkSpace.Sl
+Use Tools\WorkSpace.Sl
 Use oObjectsMethods.Sl
 Use Tools\RegisterCls.dg
-Use EditorCmdLinePara.Sl        // Simple ModalPanel to enter a commandline. Used with get GetCommandLineParameter "Init" to sCmd
+Use Tools\EditorCmdLinePara.Sl        // Simple ModalPanel to enter a commandline. Used with get GetCommandLineParameter "Init" to sCmd
 Use cDependencyScanner.pkg      // Scans all adjusted filetypes in the current directory for their #include and Use statements.
 Use CodeArt.pkg
 Use CodePub.pkg
@@ -273,7 +273,7 @@ Object oMain is a cHammerPanel
         Use Tools\CustMenu.dg
         Use ThaHammerActions.pkg
         Use dfcbldr.pkg         // Registering classes in the IDE and creating *.DFC files.
-        Use KPHammer-About.dg
+        Use Tools\THAbout.dg
 
     End_Object
     Send Deactivate to (Splash_Screen(Self)) //@
@@ -281,24 +281,36 @@ End_Object
 
 Procedure ReOpenAllFiles
     Boolean bExists
-    String  sFile
+    String  sFile sLastEdited
     //
     Integer iFile iFiles
     //
     Indicate MKNoParsing True
     Send SetRedraw to (oClientArea(oMain(Self))) False
+    Get psLastEditedFile of ghoEditorProperties to sLastEdited
     //
+    Set pbCaptionUpdateState of oMain to False
     Move (SizeOfArray(gtTHWorkspace.saOpened)) to iFiles
     For iFile from 0 to (iFiles-1)
         Move (Trim(gtTHWorkspace.saOpened[iFile])) to sFile
         Get vFilePathExists sFile to bExists
         // If file cannot be found, then do not try to open it again next time.
-        If (bExists=False) Send THWS_DeleteOpened sFile
+        If (bExists=False) Begin
+            If (Uppercase(sFile)=Uppercase(sLastEdited)) Move "" to sLastEdited
+            Send THWS_DeleteOpened sFile
+        End
         Else Begin
-            If (iFile=(iFiles-1)) Indicate MKNoParsing False // ???
+            If (iFile=(iFiles-1)) Begin
+                Indicate MKNoParsing False // ???
+                If (sLastEdited="") Set pbCaptionUpdateState of oMain to True
+            End
+            If ((Uppercase(sFile)<>Uppercase(sLastEdited))or(sLastEdited="")) ;
             Send CAOpenFile to (oClientArea(oMain(Self))) sFile
         End
     Loop
+    //
+    Set pbCaptionUpdateState of oMain to True
+    If (sLastEdited<>"") Send CAOpenFile to (oClientArea(oMain(Self))) sLastEdited
     //
     Send SetRedraw to (oClientArea(oMain(Self))) True
     Indicate MKNoParsing False // ???

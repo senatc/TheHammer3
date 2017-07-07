@@ -11,23 +11,43 @@ Object oDatabaseContextMenu is a cCJContextMenu
 
     Function ProcessRunMacros String sEditor Returns String
         Handle hTable hoClient
-        String sVdfRoot sTable sParam
+        String sVdfRoot sTable sParam sWorkspace
+        Get Client_Id to hoClient
         Get phTableNumber to hTable
         Get psVdfRootDir of ghoWorkSpaceHandlerEx to sVdfRoot
         Move (Uppercase(sEditor)) to sEditor
-        If (Uppercase(sEditor) contains "@VDFROOT@") ;
-            Move (Replace("@VDFROOT@", sEditor, sVDFRoot)) to sEditor
-        If (Uppercase(sEditor) contains "@TABLENO@") ;
-            Move (Replace("@TABLENO@", sEditor, String(hTable))) to sEditor
-        If (Uppercase(sEditor) contains "@TABLENAME@") Begin
-            Get_Attribute DF_FILE_LOGICAL_NAME of hTable to sTable
-            Move (Replace("@TABLENAME@", sEditor, sTable)) to sEditor
+        // Try add parameters automatically (or do it in manual mode)
+        // -t@TABLENO@ -x@WORKSPACE@
+        Get InsertCurrentWorkspace of hoClient "" to sParam // ["-xWORKSPACETAG"]
+        If (sParam<>"") Begin
+            If ((sEditor contains "@WORKSPACE@")or(sEditor contains "-X@WORKSPACE@")) Begin
+                Move (Replace("-X@WORKSPACE@", sEditor, "")) to sEditor
+                Move (Replace("@WORKSPACE@", sEditor, "")) to sEditor
+            End
+            If ((sEditor contains " -T@TABLENO@")or(sEditor contains " -T@TABLENAME@")) Begin
+                Move (Replace("-T@TABLENO@",   sEditor, "")) to sEditor
+                Move (Replace("-T@TABLENAME@", sEditor, "")) to sEditor
+            End
+            If (not(sEditor contains "NEWTABLE")) Begin
+                Move (sParam * "-t"+String(hTable)) to sParam
+            End
+            Move (sEditor * sParam) to sEditor
         End
-        If (Uppercase(sEditor) contains "@WORKSPACE@") Begin
-            Get Client_Id to hoClient
-            Get InsertCurrentWorkspace of hoClient "" to sParam
-            Move (Replace(" -X", sEditor, " ")) to sEditor
-            Move (Replace("@WORKSPACE@", sEditor, sParam)) to sEditor
+        Else Begin
+            If (sEditor contains "@TABLENO@") ;
+                Move (Replace("@TABLENO@", sEditor, String(hTable))) to sEditor
+            If (sEditor contains "@TABLENAME@") Begin
+                Get_Attribute DF_FILE_LOGICAL_NAME of hTable to sTable
+                Move (Replace("@TABLENAME@", sEditor, sTable)) to sEditor
+            End
+            If (sEditor contains "@WORKSPACE@") Begin
+                Get InsertCurrentWorkspace of hoClient "" to sParam
+                Move (Replace(" -X", sEditor, " ")) to sEditor
+                Move (Replace("@WORKSPACE@", sEditor, sParam)) to sEditor
+            End
+        End
+        If (sEditor contains "@VDFROOT@") Begin
+            Move (Replace("@VDFROOT@", sEditor, sVDFRoot)) to sEditor
         End
         Function_Return sEditor
     End_Function
@@ -99,16 +119,7 @@ Object oDatabaseContextMenu is a cCJContextMenu
                     If (sEditor="") Procedure_Return
                 End
             End
-            Move (Uppercase(sEditor)) to sEditor
-            If ((sEditor contains " -T@TABLENO@")or(sEditor contains " -T@TABLENAME@")) Begin
-                Move (Replace("-T@TABLENO@",   sEditor, "")) to sEditor
-                Move (Replace("-T@TABLENAME@", sEditor, "")) to sEditor
-            End
-            Get ProcessRunMacros sEditor to sEditor
-            Move (Trim(sEditor) * "-PNEWTABLE") to sEditor
-            //
-            Get Client_Id to hoClient
-            Get InsertCurrentWorkspace of hoClient "" to sParam
+            Get ProcessRunMacros (sEditor * "-PNEWTABLE") to sEditor
             //
             Runprogram background sEditor sParam
         End_Procedure

@@ -16,12 +16,11 @@
 //TH-RevisionEnd
 
 Use cWorkSpacePanel.pkg
-Use WorkSpaceInfo.DG
 Use vWin32fh.pkg
 Use cWorkSpaceSortArray.pkg
-
 Use cWorkspaceList.pkg
 Use cLineControl.pkg
+Use Tools\WorkSpaceInfo.DG
 
 Cd_Popup_Object oWorkSpace is a cWorkspacePanel
     Set Label to "Select Workspace..."

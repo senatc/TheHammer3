@@ -16,6 +16,8 @@ String gsComputerName
 String gsUserName
 Integer ghoCompilerInfo
 Integer ghoBuildMenu
+String gsTransferWSFile
+String gsTransferDDFile
 
 // The Hammer File Types
 Define KPH_FILE_EDITABLE For 0
@@ -86,6 +88,11 @@ Struct tTHLanguage
     String[]    saAttributes
 End_Struct
 
+Struct tDFDefaultClasses
+    String sCategory
+    String sClass
+    String sFile
+End_Struct
 
 Define TH_SCHEMA_DATAFLEX   for "DataFlex"
 Define TH_SCHEMA_DELPHI     for "Delphi"

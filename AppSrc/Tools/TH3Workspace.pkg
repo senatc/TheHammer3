@@ -589,6 +589,58 @@ Procedure IncludeMakePath
 End_Procedure
 Send IncludeMakePath
 
+Procedure THRegisterDFClass tDFDefaultClasses[] ByRef ltDFClasses String sCategory String sClass String sPackage
+    Integer iCount
+    Move (SizeOfArray(ltDFClasses)) to iCount
+    Move sCategory  to ltDFClasses[iCount].sCategory
+    Move sClass     to ltDFClasses[iCount].sClass
+    Move sPackage   to ltDFClasses[iCount].sFile
+End_Procedure
+Procedure LoadDefaultClasses tDFDefaultClasses[] ByRef ltDFClasses
+    Send THRegisterDFClass (&ltDFClasses) "DataDictionary"          "DataDictionary"        "DataDict.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbForm"                  "dbForm"                "DFEntry.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbEdit"                  "cDbTextEdit"           "cDbTextEdit.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbCombo"                 "dbComboForm"           "DfCEntry.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbCheckBox"              "dbCheckBox"            "DFEnChk.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbSpinForm"              "dbSpinForm"            "DFSpnEnt.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbGrid"                  "dbGrid"                "DfTable.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbList"                  "dbList"                "DFSelLst.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbTabDialog"             "dbTabDialog"           "DfTabDlg.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbTabPage"               "dbTabPage"             "DfTabDlg.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbView"                  "dbView"                "DFClient.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "dbModalPanel"            "dbModalPanel"          "DFClient.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "ReportView"              "ReportView"            "DFRptVw.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWinReport2"             "cWinReport2"           "cWinReport2.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "Button"                  "Button"                "Windows.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "Radio"                   "Radio"                 "Windows.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "Form"                    "Form"                  "Windows.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "Group"                   "Group"                 "Windows.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "RadioGroup"              "RadioGroup"            "Windows.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "Menubar/toolbar System"  "cCJCommandBarSystem"   "cCJStandardCommandBarSystem.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "MenuItem"                "cCJMenuItem"           "cCJCommandBarSystem.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cDbCJGrid"               "cDbCJGrid"             "cDbCJGrid.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cDbCJGridColumn"         "cDbCJGridColumn"       "cDbCJGridColumn.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cDbCJGridPromptList"     "cDbCJGridPromptList"   "cDbCJGridPromptList.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebButton"              "cWebButton"            "cWebButton.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebCheckBox"            "cWebCheckBox"          "cWebCheckBox.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebCombo"               "cWebCombo"             "cWebCombo.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebEdit"                "cWebEdit"              "cWebEdit.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebForm"                "cWebForm"              "cWebForm.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebGrid"                "cWebGrid"              "cWebGrid.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebColumn"              "cWebColumn"            "cWebColumn.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebColumnCheckBox"      "cWebColumnCheckBox"    "cWebColumnCheckBox.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebColumnCombo"         "cWebColumnCombo"       "cWebColumnCombo.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebMenuItem"            "cWebMenuItem"          "cWebMenuItem.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebMenuItemLoadView"    "cWebMenuItemLoadView"  "cWebMenuItemLoadView.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebModalDialog"         "cWebModalDialog"       "cWebModalDialog.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebPanel"               "cWebPanel"             "cWebPanel.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebPromptList"          "cWebPromptList"        "cWebPromptList.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebTabContainer"        "cWebTabContainer"      "cWebTabContainer.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebTabPage"             "cWebTabPage"           "cWebTabPage.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "cWebView"                "cWebView"              "cWebView.pkg"
+    Send THRegisterDFClass (&ltDFClasses) "WebBusinessProcess"      "cWebBusinessProcess"   "cWebBusinessProcess.pkg"
+End_Procedure
+
 // Source File
 Function THWS_FindFile String sFile Returns Integer
     tTHSource ltaSource

@@ -1,12 +1,12 @@
 //TH-Header
 //*****************************************************************************************
-// Copyright (c)  2002 Michael Kurz
+// Copyright (c) 2002-2017 Michael Kurz
 // All rights reserved.
 // If you want to use this source in your applications contact: <MichaelKurz@gmx.at>
 //
 // $FileName    : EditorCmdLinePara.SL
 // $ProjectName : The Hammer
-// $Author      : Michael Kurz
+// $Author      : Michael Kurz, Sergey Natarov
 // $Created     : 06.02.2002  00:25
 //
 // Contents:
@@ -15,72 +15,47 @@
 //TH-RevisionStart
 //TH-RevisionEnd
 
-// Project Object Structure
-//   oCommandLineParameter is a dbModalPanel
-//     oOK_bn is a Button
-//     oCancel_bn is a Button
-//     Form1 is a Form
-
-// Register all objects
-Register_Object Form1
-Register_Object oCancel_bn
-Register_Object oCommandLineParameter
-Register_Object oOK_bn
-
-
-
-//Use cCD_Popup.pkg
-
-
 Use DFAllEnt.pkg
 
-
-
-Cd_Popup_Object oCommandLineParameter Is a dbModalPanel
-
-    #IF (!@ >= 140)
+Cd_Popup_Object oCommandLineParameter is a dbModalPanel
     Set pbSizeToClientArea to False
-    #ENDIF
     Set locate_mode  To CENTER_ON_SCREEN
-    Set Border_Style To Border_Dialog
     Set Label To "Command Line Parameters"
-    Set Size To 59 297
+    Set Size to 70 300
     Set Location To 4 4
+    Set peAnchors to anAll
+    Set piMinSize to 70 300
+    Set piMaxSize to 70 3000
 
-
-
-
-    Object oCmdLine Is a Form
-        Set Size To 13 278
-        Set Location To 5 5
+    Object oCmdLine is a Form
+        Set Size to 13 270
+        Set Location to 10 10
+        Set peAnchors to anTopLeftRight
         On_Key kEnter   Send DoOk
         On_Key KCANCEL  Send DoCancel
     End_Object    // Form1
 
     Object oOK_bn Is a Button
         Set Label To "Ok"
-        Set Location To 25 178
-
+        Set Location to 27 175
+        Set peAnchors to anBottomRight
+        On_Key kEnter   Send DoOk
+        On_Key KCANCEL  Send DoCancel
         Procedure OnClick
             Send DoOk
         End_Procedure
-        On_Key kEnter   Send DoOk
-        On_Key KCANCEL  Send DoCancel
-
     End_Object    // oOK_bn
 
     Object oCancel_bn Is a Button
         Set Label To "Cancel"
-        Set Location To 25 233
-
+        Set Location to 27 230
+        Set peAnchors to anBottomRight
+        On_Key kEnter   Send DoOk
+        On_Key KCANCEL  Send DoCancel
         Procedure OnClick
             Send DoCancel
         End_Procedure
-        On_Key kEnter   Send DoOk
-        On_Key KCANCEL  Send DoCancel
-
     End_Object    // oCancel_bn
-
 
     Procedure popup_group
         Forward Send popup_group
@@ -97,7 +72,6 @@ Cd_Popup_Object oCommandLineParameter Is a dbModalPanel
     End_Procedure
 
 Cd_End_Object    // oCommandLineParameter
-
 
 Function GetCommandLineParameter String sInit Returns String
     Set StringP1 Of (oCommandLineParameter(Self)) To (Trim(sInit))

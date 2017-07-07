@@ -682,9 +682,9 @@ End_Function // vGetWindowsDirectory
 
 
 // Courtesy of Marco Kuipers
-Function vMakeTempFile Returns String
+Function vMakeTempFile String sPrefix Returns String
     Integer iRetval
-    String  sTempPath sTempFileName sPrefixString
+    String  sTempPath sTempFileName sPrefixString sFilePrefix
     Pointer lpTempPath lpTempFileName lpPrefixString
 
     Move (Repeat (Character (0), 255)) To sTempPath
@@ -697,7 +697,9 @@ Function vMakeTempFile Returns String
     Move (pad(sTempPath,vMax_Path-14)) To sTempPath // *WvA: 28-04-2005 Quote from msdn: The string cannot be longer than MAX_PATH-14 characters.
     Move (Repeat (Character (0), 255)) To sTempFileName
     GetAddress Of sTempFileName To lpTempFileName
-    Move ("tmp"+character(0)) To sPrefixString // **WvA: 28-04-2005 Added a null
+    Move "tmp" To sFilePrefix
+    If (Num_Arguments>0) Move sPrefix to sFilePrefix
+    Move (sFilePrefix+character(0)) To sPrefixString // **WvA: 28-04-2005 Added a null
     GetAddress Of sPrefixString To lpPrefixString
     GetAddress Of sTempPath To lpTempPath
     Move (vWin32_GetTempFileName (lpTempPath, lpPrefixString, 0, lpTempFileName)) To iRetval

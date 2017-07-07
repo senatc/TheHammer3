@@ -177,7 +177,6 @@ Class cWorkSpaceHandlerEx Is a cWorkspaceHandlerBase
        String  sFileName
        String  sPaths
        String  sPath
-       
        // First check df_open_path, this will include files in the runtime pkg folder
        // and base workspace folders
        Get_File_Path sFile     to sFileName

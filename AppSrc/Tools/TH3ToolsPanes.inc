@@ -8,7 +8,7 @@ Use Tools\cDatabaseTreeView.pkg
 Use Tools\cWorkspaceTreeView.pkg
 Use Tools\cOutputDialog.pkg
 Use Tools\TH3WorkspaceConfigure.dg
-Use cTHAppBar.pkg
+Use cToolsPalette.pkg
 
 Struct tDFCompileOutput
     String  sFile
@@ -272,80 +272,9 @@ Object oToolPane is a Container3d
             Set Tab_ToolTip_Value to 'Palette'
             Set Label to "Palette"
             
-            Procedure LoadClassList tDFClassGroup[] ByRef ltDFClassGroups
-                tDFClassGroup   ltDFClassGroup
-                Boolean bOK
-                String sPath
-                String sAppSrcPath
-                String sFile
-                String sNS
-                String sTimeStamp
-                String sGroupName
-                Handle hoXML
-                Handle hoRoot
-                Handle hoTimeStamp
-                Handle hoLibraries
-                Handle hoClasses
-                Handle hoClass
-                Integer iGroup iClass
-                
-                Get psBufferAppSrcPath of ghoWorkSpaceHandlerEx  to sAppSrcPath
-                Get PathAtIndex of (phoWorkspace(ghoApplication)) sAppSrcPath 1 to sPath
-                Move (sPath+"\config\classlist.xml") to sFile
-                Get Create (RefClass(cXMLDOMDocument)) to hoXML
-                If (hoXML) Begin
-                    Set psDocumentName of hoXML to sFile
-                    Get LoadXMLDocument of hoXML to bOK
-                    If (bOK) Begin
-                        Get DocumentElement of hoXML to hoRoot
-                        If (hoRoot) Begin
-                            Move "http://www.dataaccess.com/VisualDataFlex/2006/classlist/" to sNS
-                            Get FirstChild of hoRoot to hoTimeStamp
-                            Get ChildElementValueNS of  hoRoot sNS "VDFLibraryTimeStamp" to sTimeStamp
-                            Get NextSibling of hoTimeStamp to hoLibraries
-                            // later
-                            Get NextSibling of hoLibraries to hoClasses
-                            Send Destroy of hoTimeStamp
-                            If (hoClasses) Begin
-                                Get FirstChild of hoClasses to hoClass
-                                While (hoClass <> 0)
-                                    // Process Group
-                                    Get ChildElementValueNS of hoClass sNS "groupName" to sGroupName
-                                    Move sGroupName to ltDFClassGroup.sName
-                                    Move (SearchArray(ltDFClassGroup, ltDFClassGroups)) to iGroup
-                                    If (iGroup<0) Begin
-                                        Move (SizeOfArray(ltDFClassGroups)) to iGroup
-                                        Move sGroupName to ltDFClassGroups[iGroup].sName
-                                    End
-                                    If (iGroup>=0) Begin
-                                        Move (SizeOfArray(ltDFClassGroups[iGroup].ltDFClassList)) to iClass
-                                        Get ChildElementValueNS of hoClass sNS "className" to ltDFClassGroups[iGroup].ltDFClassList[iClass].sClassName
-                                        Get ChildElementValueNS of hoClass sNS "image"     to ltDFClassGroups[iGroup].ltDFClassList[iClass].sImage
-                                        Get ChildElementValueNS of hoClass sNS "package"   to ltDFClassGroups[iGroup].ltDFClassList[iClass].sPackage
-                                        Get ChildElementValueNS of hoClass sNS "libraryID" to ltDFClassGroups[iGroup].ltDFClassList[iClass].sLibraryID
-                                    End
-                                    Get NextNode of hoClass to hoClass
-                                Loop
-                                Send Destroy of hoClasses
-                            End
-                            Send Destroy of hoRoot
-                        End
-                    End
-                    Send Destroy of hoXML
-                End
-                // Sort groups?
-                Move (SortArray(ltDFClassGroups)) to ltDFClassGroups
-                //
-            End_Procedure
-
-            Object oPalette is a cAppBar
-                Property String[] psClassList
-                Property String[] psPackageList
-                Set peAnchors   to anAll
+            Object oPalette is a cToolsPalette
                 Set Size        to 200 200
                 Set Location    to -1 -1
-                Set Color to (Color(Parent(Self))) //clWhite //clGray
-                Set Button_Text_Color to clBlack
 
                 Function ButtonTemplate Integer iData Returns String
                     String sOpenPath sVdfConfig sTemplate sObject sClass sName sPkg
@@ -378,7 +307,6 @@ Object oToolPane is a Container3d
                     End
                     Else Move (sObject + Character(13)+Character(10)+"End_Object //"*sName) to sObject
                     //
-                    // TODO: Object oPalette (cAppBar) / OnClassSelect
                     Move ("Use" * saPackageList[iData]+ Character(13)+Character(10)+sObject+ Character(13)+Character(10)) to sObject
                     Function_Return sObject
                 End_Function
@@ -387,8 +315,8 @@ Object oToolPane is a Container3d
                     // In case you need something on Button click
                     // For example, show Class builder etc (if required)
                 End_Procedure
-
-                Procedure OnCreateBar
+                
+                Procedure DoCreatePalette
                     Integer iPage iBtn iPgNo
                     String sLabel
                     Integer iGroup iGroups
@@ -396,6 +324,9 @@ Object oToolPane is a Container3d
                     tDFClassGroup[] ltDFClassGroups
                     String[] saClassList
                     String[] saPackageList
+                    Handle   hoClient
+                    //
+                    Send Delete_Data
                     //
                     String sOpenPath sVdfConfig
                     Get psVdfRootDir   of ghoWorkSpaceHandlerEx to sVdfConfig
@@ -403,18 +334,19 @@ Object oToolPane is a Container3d
                     Get_Attribute DF_OPEN_PATH to sOpenPath
                     Set_Attribute DF_OPEN_PATH to (sVdfConfig+sOpenPath)
                     //
-                    Send LoadClassList (&ltDFClassGroups)
+                    Get Client_Id to hoClient
+                    Send LoadClassList of hoClient (&ltDFClassGroups)
                     //
                     Move (SizeOfArray(ltDFClassGroups)) to iGroups
                     For iGroup from 0 to (iGroups-1)
                         Move (SizeOfArray(ltDFClassGroups[iGroup].ltDFClassList)) to iClasses
                         If iClasses Begin
-                            Get Create_Bar_Page ltDFClassGroups[iGroup].sName to iPage
+                            Get Create_Palette_Page ltDFClassGroups[iGroup].sName to iPage
                             For iClass from 0 to (iClasses-1)
                                 Move (SizeOfArray(saClassList)) to iItem
                                 Move ltDFClassGroups[iGroup].ltDFClassList[iClass].sClassName to saClassList[iItem]
                                 Move ltDFClassGroups[iGroup].ltDFClassList[iClass].sPackage   to saPackageList[iItem]
-                                Get Create_Bar_Button Msg_OnClassSelect ;
+                                Get Create_Palette_Button Msg_OnClassSelect ;
                                     ltDFClassGroups[iGroup].ltDFClassList[iClass].sClassName ;
                                     ltDFClassGroups[iGroup].ltDFClassList[iClass].sImage ;
                                         iItem to iBtn
@@ -426,18 +358,26 @@ Object oToolPane is a Container3d
                     Set psClassList to saClassList
                     Set psPackageList to saPackageList
                     Set_Attribute DF_OPEN_PATH to sOpenPath
+                    Send UpdatePalette
                 End_Procedure
 
-                // Adjust cAppBar on Resize actions...
-                Procedure Set GUISize Integer iY Integer iX
+                Procedure OnCreatePalette
+                End_Procedure
+                
+                Procedure UpdatePalette
                     Integer iPage
-                    Forward Set GUISize to iY iX
                     Set Visible_State to False
                     Get Current_Page to iPage
                     Send Show_Page 0
                     Send Show_Page (Total_Pages(Self))
                     Send Show_Page iPage
                     Set Visible_State to True
+                End_Procedure
+
+                // Adjust cToolsPalette on Resize actions...
+                Procedure Set GUISize Integer iY Integer iX
+                    Forward Set GUISize to iY iX
+                    Send UpdatePalette
                 End_Procedure
 
             End_Object // oPalette
@@ -461,6 +401,7 @@ Object oToolPane is a Container3d
         Get Checked_State of (oSortBy(oTP_Database(oToolsDialog(Self)))) to bChecked
         Send LoadWorkspaceStructure to (oFilesTree(oTP_Workspace(oToolsDialog(Self))))
         Send LoadTablesList to (oTablesTree(oTP_Database(oToolsDialog(Self)))) bChecked ""
+        Send DoCreatePalette to (oPalette(oTP_Palette(oToolsDialog(Self))))
     End_Procedure
     
     Procedure ColorsLikeEdit

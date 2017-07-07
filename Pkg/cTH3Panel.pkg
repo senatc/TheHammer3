@@ -1,3 +1,4 @@
+Register_Function isFileViewWindow Integer hoID Returns Integer
 
 Class cHammerPanel is a Panel
     Procedure Construct_Object
@@ -7,14 +8,32 @@ Class cHammerPanel is a Panel
         Property Boolean pbWorkspaceChanging    False  // Set to true when the hammer changes workspaces
         Property Integer piRedrawState          True
         Property Integer phoDependencyScanner   0
+        Property Boolean pbCaptionUpdateState   True
         //
         Set pbSizeToClientArea      to False
         //
     End_Procedure // Construct_Object
 
+    Procedure UpdateCaption String sFile
+        String sPanelLabel
+        If (not(pbCaptionUpdateState(Self))) Procedure_Return
+        Get CreateProgramLabel to sPanelLabel
+        If (sFile<>"") Begin
+            Move (sPanelLabel * '[' +sFile+ ']') to sPanelLabel
+        End
+        Set Label to sPanelLabel
+    End_Procedure
+
     // Alt-F4, X-button
     Procedure Exit_Application
+        Handle hScope hClientID
         Set pbShuttingDown to True
+        Get Client_Id to hClientID
+        Get Current_Scope of Desktop to hScope
+        If (isFileViewWindow(hClientID, hScope)) Begin
+            Set psLastEditedFile of ghoEditorProperties to (psFileName(hScope))
+        End
+        //
         Forward Send Exit_Application
     End_Procedure // Exit_Application
 

@@ -12,7 +12,7 @@ Class cCJCustomMenuItem is a cCJMenuItem
     Procedure OnExecute Variant vCommandBarControl
         Handle hoClient
         Get Client_Id to hoClient
-        Send LaunchUtility to hoClient (psCommand(Self)) ""
+        Send LaunchCustomUtility to hoClient (psCommand(Self)) ""
     End_Procedure
 End_Class
 

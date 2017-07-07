@@ -503,6 +503,7 @@ Define MK_PROC_NONE         For 0
 Define MK_PROC_PROCEDURE    For 1
 Define MK_PROC_FUNCTION     For 2
 
+#IFNDEF TH_SCINTILLA
     //This class is the Marker-Textbox for BracketMarking
     //15.05.2001 Bernhard
 Class cBracketMarker Is a TextBox
@@ -526,6 +527,7 @@ Class cBracketMarker Is a TextBox
         If (Visible_state(Self)) Set visible_state To False
     End_Procedure
 End_Class
+#ENDIF
 
 Open VDFProp
 
@@ -776,10 +778,12 @@ Class cEditExtentionsMixin Is a Mixin
         Object oLineParser Is a cLineParser // USed to Parse some lines.
         End_Object
 
+#IFNDEF TH_SCINTILLA
             //Create my Bracket Marker
             //15.05.2001 Bernhard
         Object oBracketMarker Is a cBracketMarker
         End_Object
+#ENDIF        
 
         Object oItems Is a Set
         End_Object
@@ -2103,9 +2107,8 @@ Register_Procedure ContextSensitiveHelp            // WvA: 06-05-2002 Context He
 
 
 #IFDEF TH_SCINTILLA
-Use cSciLexer.pkg
-Use cEditorHotKey_Mixin.pkg
-
+  Use cSciLexer.pkg
+  Use cEditorHotKey_Mixin.pkg
   Class cCodeEdit is a cSciLexer
     Import_Class_Protocol cEditorHotKey_Mixin
   End_Class
@@ -2129,6 +2132,8 @@ Class cEditorEdit Is a cCodeEdit
         Send Define_cEditExtentionsMixin
         On_Key Key_F1 Send ContextSensitiveHelp  // Used to be ctrl+F1, which unfortunately is out of sync with DAWs
         On_Key Key_Ctrl+Key_F1 Send Help         // as that depends on muscle memory bring it back in sync.
+        //On_Key Key_Ctrl+Key_O Send doAdjustTextCase // only here for quick testing will be removed
+
         Property Integer piEnterIsDown             0
         Set phoCodeTipHandler   To ghoCodeTip
         Set phoCodeListHandler  To ghoCodeList
@@ -2144,8 +2149,8 @@ Class cEditorEdit Is a cCodeEdit
 
         On_Key kCancel Send Request_Cancel
     End_Procedure
-    
 
+    
     // Standard Interface Support
     // By SVN on 23/03/2017
     Function CanCut Returns Integer
@@ -2309,7 +2314,7 @@ Class cEditorEdit Is a cCodeEdit
         Move (Codelist_current_item(phoCodelistHandler(Self))) to iItem
         Get Value of (oCommandsArray(Self)) item iItem to sVal
         If (Uppercase(sVal)="CLASS")        Get ClassCodeTemplate sTab sVal         to sVal
-        If (Uppercase(sVal)="OBJECT")       Move (sVal+"\n"+sTab+"End_Object")      to sVal
+        If (Uppercase(sVal)="OBJECT")       Move (sVal+"\n"+sTab+"End_Object")      to sVal 
         If (Uppercase(sVal)="PROCEDURE")    Move (sVal+"\n"+sTab+"End_Procedure")   to sVal
         If (Uppercase(sVal)="FUNCTION")     Move (sVal+"\n"+sTab+"End_Function")    to sVal
         If (Uppercase(sVal)="FOR_ALL")      Move (sVal+"\n"+sTab+"\tabDo"+"\n\tab"+sTab+"\n"+sTab+"End_For_All")     to sVal
@@ -2326,10 +2331,23 @@ Class cEditorEdit Is a cCodeEdit
         Get CM_GetSel False to iStart
         Get piSelStartLine  to iStart
         Get value item iStart to sLine
+        //
+        String sCloseStmt sName
+        Handle hoLine
+        Get value item (iStart+1) to sCloseStmt
+        Move (Trim(sCloseStmt)) to sCloseStmt
+        //
         Move (Length(sLine)-Length(LTrim(sLine)))   to iIndent
         Move (Repeat(" ",iIndent))                  to sTab
         Move "Function" to sMethod
         If (Left(Uppercase(Trim(sLine)), 4)="PROC") Move "Procedure" to sMethod
+        // Trailing comment [ // mName (Type Function|Procedure) ]
+        If ("END_"=Uppercase(Left(sCloseStmt, 4))) Begin
+            Get ParseLineTmp " " True sLine to hoLine
+            Get Value of hoLine item 1 to sName
+            Move (sCloseStmt * "//" * sName * '('+sVal * sMethod +')') to sCloseStmt
+            Set Value item (iStart+1) to sCloseStmt
+        End
         //
         Move (Codelist_current_item(phoCodelistHandler(Self))) to iItem
         Get Value of (oTypesArray(Self)) item iItem to sVal
@@ -2409,7 +2427,6 @@ Class cEditorEdit Is a cCodeEdit
         Get CM_GetSel True To iRet
         Move (piSelEndLine(Self))                                       To iLine
         Move (piSelEndCol(Self))                                        To iCol
-        Append sVal " "
         Move (CM_SetSel(Self,iLine,piInListCol(Self),iLine,iCol,False)) To iRet
         Move (CM_DeleteSel(Self))                                       To iRet
         Send InsertTextAtPosition iLine (piInListCol(Self)) sVal
@@ -2560,8 +2577,12 @@ Class cEditorEdit Is a cCodeEdit
 
         // Repositiones Cursor
         If ((iReason=MK_LR_COMMANDS)or(iReason Eq MK_LR_ATTRIBUTES)or(iReason=MK_LR_DATAFILES)) Begin
+#IFDEF TH_SCINTILLA
+            Send EditorMessage SCI_LINEEND
+#ELSE
             Send PostVirtualKey VK_END
-            Send PostVirtualKey VK_SPACE
+            //Send PostVirtualKey VK_SPACE
+#ENDIF
         End
         If (iReason Eq MK_LR_TYPES) Begin
 #IFDEF TH_SCINTILLA
@@ -2676,7 +2697,9 @@ Class cEditorEdit Is a cCodeEdit
         Integer iRet hoCache iFound
         Move (psSourceLine(phoCodelistHandler(Self)))    To sLine
         Move (oClassDataCache(phoCodelistHandler(Self))) To hoCache
-        If (item_count(hoCache)<>0) Send FillCodelistFromCache To (phoCodelistHandler(Self))
+        If (item_count(hoCache)<>0) Begin
+          Send FillCodelistFromCache To (phoCodelistHandler(Self))
+        End  
         Else Begin
             Clear VDFCls
             Repeat
@@ -3264,7 +3287,6 @@ Class cEditorEdit Is a cCodeEdit
         Boolean bIsHttp
         
         Get GetFileName     To sEditedFile
-        
         // handle prn's different
         Get ParseFileExtension sEditedFile To sExt
         If ( uppercase(sExt) = "PRN"  Or uppercase(sExt) = "PRP" ) Begin
@@ -3288,7 +3310,6 @@ Class cEditorEdit Is a cCodeEdit
           Move sWord To sPathWord
           If Not "." In sPathWord Append sPathWord ".pkg"
           Get FindFileForWorkspace of ghoWorkSpaceHandlerEx sPathWord     to sPathWord
-  
           If (sPathWord <> "") Begin
             Get FileNameOnDisk sPathWord To sFileName // Case sensitivity correction if needed
             Delegate Send CAOpenFile sFileName
@@ -3418,14 +3439,28 @@ Class cEditorEdit Is a cCodeEdit
 
     Procedure VDFSyntaxCheck Integer iLine
         String sLine sChar sTextchar sLineAbove
-        String sEOLComment
-        Integer iBraces iPos iLength iIsText iRet iLineTmp iCurHighline
+        String sEOLComment sTemp
+        Integer iBraces iPos iLength iIsText iRet iLineTmp iCurHighline iECPos
         If iLine Gt (CM_GetLineCount(Self)) Procedure_Return
         Get CM_GETLINE iLine To sLine
         Get cm_getHighlightedLine To iCurHighLine
         Move (cString(sLine)) To sLine
         Move "//" To sEOLComment
-        If (Pos(sEOLComment,sLine)) Ne 0 Move (Left(sLine,((Pos(sEOLComment,sLine))-1))) To sLine
+        Move (Pos(sEOLComment,sLine)) to iECPos
+        If (iECPos <> 0) Begin
+          // test if not a EOL comment in a string!
+          For iPos From 1 to iECPos
+            Move (Mid(sLine,1,iPos)) To sChar
+            If (sTextchar Eq "") Begin
+                If sChar Eq '"' Move sChar To sTextchar
+                If sChar Eq "'" Move sChar To sTextchar
+            End
+            Else If sChar Eq sTextchar Move "" To sTextchar
+          Loop
+          If (sTextchar="") Begin
+            Move (Left(sLine,iECPos-1)) To sLine
+          End
+        End
         If (Right(Trim(sLine),1)) Eq ";" Procedure_Return
         Move (iLine -1) To iLineTmp
         While (iLineTmp Ge 0)
@@ -3623,6 +3658,7 @@ Class cEditorEdit Is a cCodeEdit
         Function_Return -1
     End_Function
 
+#IFNDEF TH_SCINTILLA
         // Marks the corresponding "(" for the typed ")"
         // 15.05.2001 Bernhard
     Procedure MarkBracket
@@ -3645,6 +3681,7 @@ Class cEditorEdit Is a cCodeEdit
         End
         Else Send RemoveBracketMarker To (oBracketMarker(Self))
     End_Procedure
+#ENDIF        
 
         // Key capturing...
     Procedure onCMKeyDown Integer iKeyCode Integer iKeyExt
@@ -3672,8 +3709,10 @@ Class cEditorEdit Is a cCodeEdit
           If (iKeyCode Eq VK_ESCAPE) Send Request_Cancel
         End
 
+#IFNDEF TH_SCINTILLA
         // Remove the Bracket-Marker if a Edit-Key is pressed (you will get no KeyPress in this case) 15.05.2001 Bernhard
         If ( (iKeyCode Lt VK_HELP) And (iKeyCode Ne VK_SHIFT) ) Send RemoveBracketMarker To (oBracketMarker(Self))
+#ENDIF        
     End_Procedure
     
     Function TranslateCharacter Integer iKeyCode Returns Integer
@@ -3727,8 +3766,10 @@ Class cEditorEdit Is a cCodeEdit
         // 30.1.2003 BP
         If (iKeyCode Eq (Ascii("("))) Set pbCodeTipRequest To True
 
+#IFNDEF TH_SCINTILLA
         If iKeyCode Eq (Ascii(")")) Send MarkBracket
         Else Send RemoveBracketMarker To (oBracketMarker(Self))
+#ENDIF        
     End_Procedure
 
         // To allow selection with enter.
@@ -3795,6 +3836,13 @@ Class cEditorEdit Is a cCodeEdit
         // Sets all... (sent by Page_Object)
     Procedure SetAdjustments
         Integer hoIni iRet
+        // Font Face
+        String  sFontData
+        String  sFontTemp 
+        String  sFontFace
+        Integer iFontSize
+        Integer iCharSet
+        //
 
         Move (CM_ENABLEGLOBALPROPS(Self,False))    To iRet
 
@@ -3820,6 +3868,25 @@ Class cEditorEdit Is a cCodeEdit
         Move (CM_SetFontStyles(Self,psFontStyles(hoIni)))               To iRet
         Get   CM_SetImageList (Window_Handle(phoImageList(Self)))       to iRet
 #ELSE
+        // Editor font face?
+        Move (psFontFace(ghoEditorProperties))                          to sFontData
+        If (sFontData="") Move "11pt; 0; Courier New"                 to sFontData
+        // Font Size
+        Move (Left(sFontData, Pos(";", sFontData)))                     to sFontTemp
+        Move (Trim(Replace(sFontTemp, sFontData, "")))                  to sFontData
+        Move (Trim(Replace("PT;", Uppercase(sFontTemp), "")))           to iFontSize
+        // Code Page
+        Move (Left(sFontData, Pos(";", sFontData)))                     to sFontTemp
+        Move (Trim(Replace(sFontTemp, sFontData, "")))                  to sFontData
+        Move (Trim(Replace(";", sFontTemp, "")))                        to iCharSet
+        // Font Face
+        Move (Trim(sFontData))                                          to sFontFace
+        //
+        Send EditorMessage SCI_STYLESETFONT STYLE_DEFAULT (AddressOf(sFontFace))
+        Send EditorMessage SCI_STYLESETSIZE STYLE_DEFAULT iFontSize
+        Send EditorMessage SCI_STYLESETCHARACTERSET STYLE_DEFAULT iCharSet
+        Send EditorMessage SCI_STYLESETSIZE STYLE_LINENUMBER (iFontSize-1) // Set font size
+        //
         Set  pbShowMatchingBraces to (pbShowMatchingBraces(hoIni))
         If  (pbShowIndentGuides(hoIni)) Send ShowIndentationGuides
         Send SelectTillEndOfLine (pbSelectWholeLine(hoIni))
@@ -4568,5 +4635,72 @@ Class cEditorEdit Is a cCodeEdit
     Procedure CACurrentCompile
         Delegate Send CACurrentCompile
     End_Procedure
+
+    #IFDEF TH_SCINTILLA
+    Function SCKeywords String sKeyWords Returns String
+        Function_Return (Trim(Replaces("\n", sKeywords, " ")))
+    End_Function
+    
+    Procedure SetLexer
+        Boolean bInit
+        Integer iRet
+        Integer iLanguage
+        Handle  hWnd
+        String  sKeywords sScopeKeywords1 sScopeKeywords2 sOperators
+        String  sLanguage
+        Get Window_Handle to hWnd
+        If (hWnd) Begin
+            //Move (SendMessage(hWnd,SCI_GETLEXER,0,0)) to iRet // found?
+            Get psLanguage      of ghoEditorProperties              to sLanguage
+            Get FindLanguage    of ghoEditorProperties sLanguage    to iLanguage
+            If (iLanguage=-1) Begin // Should it return?
+                Send Info_Box ("Default Language '"+sLanguage+"' definition not found")
+                Procedure_Return
+            End
+            Move (Lowercase(sLanguage))                             to sLanguage
+            If ((sLanguage="")or(sLanguage="vdf")) Move "dataflex"  to sLanguage
+            Move (sLanguage+Character(0))                           to sLanguage
+            Move (SendMessage(hWnd,SCI_SETLEXERLANGUAGE,0,AddressOf(sLanguage))) to iRet
+            Move (SendMessage(hWnd,SCI_GETLEXER,0,0)) to iRet // found?
+            If (iRet=SCLEX_DATAFLEX) Begin
+                Get SCKeywords (psLanguages.szKeywords(ghoEditorProperties, iLanguage))         to sKeywords
+                Get SCKeywords (psLanguages.szScopeKeywords1(ghoEditorProperties, iLanguage))   to sScopeKeywords1
+                Get SCKeywords (psLanguages.szScopeKeywords2(ghoEditorProperties, iLanguage))   to sScopeKeywords2
+                Get SCKeywords (psLanguages.szOperators(ghoEditorProperties,iLanguage))         to sOperators
+                Move (Replaces("^",sOperators,"")) To sOperators // The ^ char is a wildcard match in scintilla, the result is EVERYTHING is an operator, so remove it before passing it, it is a hardcoded operator in scintilla.
+                //
+                Get InitializedLanguage of oNormalizeCase SCLEX_DATAFLEX to bInit
+                If (bInit=False) Begin
+                  Send AddKeywords   of oNormalizeCase SCLEX_DATAFLEX sKeywords 
+                  Send AddScopewords of oNormalizeCase SCLEX_DATAFLEX sScopeKeywords1
+                  Send AddScopewords of oNormalizeCase SCLEX_DATAFLEX sScopeKeywords2
+                End
+                //
+                Move (Lowercase(sKeywords)) to sKeywords
+                Move (sKeywords+Character(0)) to sKeywords
+                Move (Lowercase(sScopeKeywords1)) To sScopeKeywords1
+                Move (Lowercase(sScopeKeywords2)) To sScopeKeywords2
+                Move (Lowercase(sOperators))      To sOperators
+                Move (SendMessage(hWnd,SCI_SETKEYWORDS,0,AddressOf(sKeywords)))       to iRet // language keywords
+                Move (SendMessage(hWnd,SCI_SETKEYWORDS,1,AddressOf(sScopeKeywords1))) to iRet // scope open
+                Move (SendMessage(hWnd,SCI_SETKEYWORDS,2,AddressOf(sScopeKeywords2))) to iRet // scope close
+                Move (SendMessage(hWnd,SCI_SETKEYWORDS,3,AddressOf(sOperators)))      to iRet // operators
+                //
+                Move (SendMessage(hWnd,SCI_SETSTYLEBITS,5,0)) to iRet
+                //debug
+                String sValue
+                ZeroString 40 to sValue
+                String sName
+                Move ("position.width"+Character(0)) to sName
+                Move (SendMessage(hWnd,SCI_GETPROPERTYEXPANDED,AddressOf(sName),AddressOf(sValue))) to iRet // found?
+            
+            End
+            Else Begin
+                Send Info_Box "DataFlex Lexer was not found."
+            End
+        End
+    End_Procedure
+    #ENDIF
+
 End_Class
 

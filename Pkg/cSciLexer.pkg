@@ -60,9 +60,11 @@ Use cWinFunc.pkg
 Use seq_chnl.pkg
 Use cSciLexer.h
 Use cSciCommandHotKeySupport.pkg
+Use cNormalizeCase.pkg
 Use DllHandler.pkg
-Use EditorSettings.dg
 Use Tools\Find.dg
+Use Tools\Replace.dg
+Use Tools\Goto.dg
 
 //
 //function specific for scintilla, create xpm icons
@@ -153,6 +155,11 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       Property Boolean pbIsCodelistActive         False
       
       Property Boolean pbFileLoading              False // Set to true while loading file (for ex. in CM_Openfile)
+      Property Boolean pbBlockSelectActive        False // Set to true when in block select mode
+      Property Integer piBlockSelectAnchorPos     0
+      Property Integer piBlockSelectCaretPos      0
+      Property Boolean pbBlockSelectBackspace     False // Bug fix, backspace in a block select drops the block select state even while still visible
+      Property Boolean pbNormalizeCase            True  // Adjust scope/key word text case on enter
 
 
       // ****************************************************************************
@@ -336,11 +343,16 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     End_Procedure
     
     Procedure DoKeyReturn
+      Boolean bNormalizeCase
       Integer iLine
       Integer iIndent
       Integer eMode
       
       //  Send Windows_Message WM_CHAR    VK_RETURN 0
+      Get pbNormalizeCase to bNormalizeCase
+      If (bNormalizeCase) Begin
+        Send doNormalizeCase
+      End
       Get peAutoIndentMode to eMode
       If (eMode=CM_INDENT_PREVLINE) Begin
         Get  Current_Item to iLine
@@ -411,11 +423,12 @@ Class cSciLexer is a DFControl // cUIObject  cObject
 
     Procedure SetAppearance Integer iElement Integer iColorIndex
         Send EditorMessage SCI_STYLESETFORE   iElement gtColorer[iColorIndex].iForeC
-        Send EditorMessage SCI_STYLESETBACK   iElement gtColorer[iColorIndex].iBackC 
+        Send EditorMessage SCI_STYLESETBACK   iElement gtColorer[iColorIndex].iBackC
         Send EditorMessage SCI_STYLESETBOLD   iElement gtColorer[iColorIndex].iBold
         Send EditorMessage SCI_STYLESETITALIC iElement gtColorer[iColorIndex].iItalics
     End_Procedure
     
+    // By SVN - Apply Colorer & National Languages support (Russian)
     Procedure DefaultFontStyles
       Integer iRet
       Integer iTextColor
@@ -425,8 +438,7 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       
       Move ("Courier New"+Character(0)) to sFont
       Send EditorMessage SCI_STYLESETFONT STYLE_DEFAULT (AddressOf(sFont))
-      Send EditorMessage SCI_STYLESETSIZE STYLE_DEFAULT 12 //11
-      // By SVN on 23/05/2017 -- National Languages support
+      Send EditorMessage SCI_STYLESETSIZE STYLE_DEFAULT 11
       //Move SC_CHARSET_DEFAULT To iCharSet
       Move SC_CHARSET_RUSSIAN to iCharSet
       //Send EditorMessage SCI_SETCODEPAGE 1251
@@ -465,8 +477,8 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       Send SetAppearance    2                   EC_METATAGS         // # Comment: { ... } (style.dataflex.2=$(colour.code.comment.box),$(font.code.comment.box))
       Send SetAppearance    3                   EC_COMMENTS         // # Comment: (* ... *) (style.dataflex.3=$(colour.code.comment.box),$(font.code.comment.box))
       Send SetAppearance    4                   EC_COMMENTS         // # Line Comment: // ... (style.dataflex.4=$(colour.code.comment.line),$(font.code.comment.line))
-//      Send EditorMessage SCI_STYLESETFORE 5 (rgb($7F,$7F,$00))      // # Preprocessor: {$ ... } (style.dataflex.5=$(colour.preproc))
-//      Send EditorMessage SCI_STYLESETFORE 6 (rgb($7F,$7F,$00))      // # Preprocessor: (*$ ... *) (style.dataflex.6=$(colour.preproc))
+      Send SetAppearance    5                   EC_PREPROCESSOR     // # Preprocessor (Macro/Commands): #MACRO/#ENDMACRO
+//      Send EditorMessage SCI_STYLESETFORE 6 (rgb($7F,$7F,$00))    // # Preprocessor: (*$ ... *) (style.dataflex.6=$(colour.preproc))
       Send SetAppearance    7                   EC_NUMBERS          // # Number (style.dataflex.7=$(colour.Number))
       Send SetAppearance    8                   EC_NUMBERS          // # Hex Number (style.dataflex.8=$(colour.Number))
       Send SetAppearance    9                   EC_KEYWORDS         // # Keyword (style.dataflex.9=$(colour.keyword) // Basic keywords)
@@ -507,73 +519,8 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     End_Procedure
     
     Procedure SetLexer
-      Integer iRet
-      Handle  hWnd
-      String  sKeywords
-      String  sLanguage
-      
-      Get Window_Handle to hWnd
-      If (hWnd) Begin
-        
-        Move (SendMessage(hWnd,SCI_GETLEXER,0,0)) to iRet // found?
-        Move "dataflex" to sLanguage
-        Move (sLanguage+Character(0)) to sLanguage
-        Move (SendMessage(hWnd,SCI_SETLEXERLANGUAGE,0,AddressOf(sLanguage))) to iRet
-
-//        Move (SendMessage(hWnd,SCI_SETLEXER,SCLEX_DATAFLEX,0)) to iRet
-        Move (SendMessage(hWnd,SCI_GETLEXER,0,0)) to iRet // found?
-        If (iRet=SCLEX_DATAFLEX) Begin
-          
-          Move "a abort abort_transaction abs Activate_View Address addressof an and Append Append_Output array as ascii at " to sKeywords
-          Move (sKeywords+"background Begin begin_constraints Begin_Row Begin_Transaction BigInt Boolean Broadcast calc Case ") to sKeywords
-          Move (sKeywords+"Cd_End_Object Cd_Popup_Object channel Char character Class Clear Close Close_Input Close_Output Constrain contains ") to sKeywords
-          Move (sKeywords+"Currency Date DateTime Decimal Decrement Deferred_View Define Delegate Delete Direct_Input Direct_Output ") to sKeywords
-          Move (sKeywords+"div do downto DWord dynamic Else End End_Class end_constraints End_Enum_List End_Enumeration_List end_for_all ") to sKeywords
-          Move (sKeywords+"End_Function end_item_list End_Object End_Procedure End_Row End_Struct End_Transaction end_type Entry_Item ") to sKeywords
-          Move (sKeywords+"Enum_List Enumeration_List eq Error External_Function False Field File_Field File_Exist Find Float ") to sKeywords
-          Move (sKeywords+"for For_All Forward Found from Function Function_Return ge Get Get_Argument_Size Get_File_Path getaddress ") to sKeywords
-          Move (sKeywords+"getbuff getbuff_string Get_Attribute Get_Channel_Position Get_Current_Directory get_profile_string ") to sKeywords
-          Move (sKeywords+"Goto gt Handle iand If ifnot ior Import_Class_Protocol ") to sKeywords
-          Move (sKeywords+"in Increment indicate indicator inherited initialization inline insert Integer interface is item item_list le left local Loop lt ltrim ") to sKeywords
-          Move (sKeywords+"mid mod Move moveint movenum movestr ne not Number num_arguments Object of On_Item On_Key Open or overload overstrike ") to sKeywords
-          Move (sKeywords+"pos Pointer private Procedure Procedure_Return Procedure_Section Property protected public published put ") to sKeywords
-          Move (sKeywords+"Read_Block Readln register Register_Function Register_Object Register_Procedure ") to sKeywords
-          Move (sKeywords+"remove Repeat replace replaces Returns right RowID rtrim Runprogram ") to sKeywords
-          Move (sKeywords+"Save SaveRecord Self Send SeqEof Set Set_Argument_Size Set_Attribute Set_Channel_Position ") to sKeywords
-          Move (sKeywords+"Set_Date_Attribute Set_Directory shl Short Show Showln ") to sKeywords
-          Move (sKeywords+"shr Start_UI Struct String Sysdate then Time TimeSpan to trim True type ") to sKeywords
-          Move (sKeywords+"UBigInt UChar UInteger Until UShort Use var variant while write writeln xor zerofile zerostring zerotype") to sKeywords
-          Move (Lowercase(sKeywords)) to sKeywords
-          Move (sKeywords+Character(0)) to sKeywords
-          Move (SendMessage(hWnd,SCI_SETKEYWORDS,0,AddressOf(sKeywords))) to iRet // found?
-          //
-          // set style bits (?)
-          // ToDo: According to the DOC style bits are deprecated.
-          //
-          Move (SendMessage(hWnd,SCI_SETSTYLEBITS,5,0)) to iRet
-          //
-          //position.width=$(scale 576)
-          //position.height=$(scale 740)
-          //Set LexerProperty "position.width"   to "$(scale 576)"
-          //Set LexerProperty "position.height"  to "$(scale 740)"
-          
-          //Set LexerProperty "position.width"   to "576"
-          //Set LexerProperty "position.height"  to "740"
-          
-          //debug
-          String sValue
-          ZeroString 40 to sValue
-          String sName
-          Move ("position.width"+Character(0)) to sName
-          Move (SendMessage(hWnd,SCI_GETPROPERTYEXPANDED,AddressOf(sName),AddressOf(sValue))) to iRet // found?
-
-        End
-        Else Begin
-          Send Info_Box "DataFlex Lexer was not found."
-        End
-      End
     End_Procedure
-    
+
     Procedure SetDefaultFoldingStyle
       Integer iRet
       Integer iFore
@@ -1036,10 +983,17 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     
     Procedure SelectTillEndOfLine Integer iMode
         Integer iVirtualSpace
+        Boolean bBlockEdit
         Send EditorMessage SCI_SETSELEOLFILLED iMode
         Move SCVS_NONE to iVirtualSpace
-        If (iMode) Move SCVS_RECTANGULARSELECTION to iVirtualSpace
+        Move False     to bBlockEdit
+        If (iMode) Begin
+          Move (SCVS_RECTANGULARSELECTION+SCVS_USERACCESSIBLE) to iVirtualSpace
+          Move True To bBlockEdit
+        End
         Send EditorMessage SCI_SETVIRTUALSPACEOPTIONS iVirtualSpace
+        // This supposedly supports blockedit as in codemax, but it is extremely buggy, let's roll it ourself.
+        Send EditorMessage SCI_SETADDITIONALSELECTIONTYPING bBlockEdit
     End_Procedure
 
     Function CM_EnableTabExpand Integer bEnable  Returns Integer
@@ -1480,7 +1434,6 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       Function_Return CME_SUCCESS
     End_Function
     
-    
     // Gets the active selection and fills it into the properties.
     // Normalized: True=StartPosition always before EndPosition
     // CMM_GETSEL
@@ -1506,6 +1459,17 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       Move CME_SUCCESS To iRet
       Function_Return iRet
     End_Function
+
+    Function CursorPosition Returns Integer
+        Integer iSel iY iX iRet
+        Get CM_GetSel True to iSel
+        Get  CM_PosFromChar (piSelEndLine(Self)) (piSelEndCol(Self))    to iRet
+        Move (piPosEndY(Self))                                       to iY
+        Move (piPosEndX(Self))                                       to iX
+
+        Function_Return (MAKEWPARAM(iX, iY))
+    End_Function
+
     // CMM_SETSEL
     // bMakeVisible
     // If TRUE, the selection will be scrolled into view. If FALSE, the window contents will not be scrolled.
@@ -2291,24 +2255,15 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     End_Function
     Function CM_PosFromChar Integer iLine Integer iCol Returns Integer
         Integer     iRet iX iY
-        Local_BUFFER      sRect pRect tRect_Size
-        Local_CM_POSITION sPos  pPos LINE= iLine COL= iCol
-        Move (SendMessage(Window_Handle(Self), CMM_POSFROMCHAR,  ( pPos ), ( pRect ) ) )    to iRet
-            // Only if the call succeded.
-        If iRet Begin
-                // Start Point.
-            GetBuff from sRect  At tRECT.Left   to iX
-            GetBuff from sRect  At tRECT.top    to iY
-            Set piPosStartX                     to iX
-            Set piPosStartY                     to iY
-                // End Point.
-            GetBuff from sRect  At tRECT.Right  to iX
-            GetBuff from sRect  At tRECT.bottom to iY
-            Set piPosEndX                       to iX
-            Set piPosEndY                       to iY
-        End
-
-        Function_Return iRet
+        Integer     iPos
+        Get EditorMessage SCI_FINDCOLUMN iLine iCol to iPos
+        Get EditorMessage SCI_POINTXFROMPOSITION 0 iPos to iX
+        Get EditorMessage SCI_POINTYFROMPOSITION 0 iPos to iY
+        Set piPosStartX                     to iX
+        Set piPosStartY                     to iY
+        Set piPosEndX                       to iX
+        Set piPosEndY                       to iY
+        Function_Return CME_SUCCESS
     End_Function
     Function CM_EnableHideSel Integer bEnable Returns Integer
         Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLEHIDESEL,  ( bEnable ), 0 ) )
@@ -2363,10 +2318,13 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       Function_Return iLine
     End_Function
     Function CM_EnableNormalizeCase Integer bEnable Returns Integer
-        Function_Return (SendMessage(Window_Handle(Self), CMM_ENABLENORMALIZECASE,  ( bEnable ), 0 ) )
+      Set pbNormalizeCase to bEnable
+      Function_Return CME_SUCCESS 
     End_Function
     Function CM_IsNormalizeCaseEnabled Returns Integer
-        Function_Return (SendMessage(Window_Handle(Self), CMM_ISNORMALIZECASEENABLED, 0, 0 ) )
+      Boolean bNormalized
+      Get pbNormalizeCase to bNormalized
+      Function_Return bNormalized
     End_Function
     Function CM_SetDivider Integer nLine Integer bEnable Returns Integer
         Function_Return (SendMessage(Window_Handle(Self), CMM_SETDIVIDER,  ( nLine ), ( bEnable ) ) )
@@ -2567,7 +2525,7 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       Integer iLine
       Integer iVoid
       String  sSearchText
-      tFindOptions FindOptions
+      tFindReplaceOptions FindOptions
 
       Send EditorMessage SCI_TARGETWHOLEDOCUMENT
       //
@@ -2691,11 +2649,29 @@ Class cSciLexer is a DFControl // cUIObject  cObject
         End
       End
     End_Procedure
-        // Replace
+    
     Procedure Replace
-        Integer iRet
-        Get CM_ExecuteCmd CMD_FindReplace 0 to iRet
+        tFindReplaceOptions ltReplaceOptions
+        Integer iFlags
+        String sSearchText
+        Send EditorMessage SCI_TARGETWHOLEDOCUMENT
+        //
+        Get CM_GetCurrentWord to sSearchText // set text to search by what is under the cursor
+        
+        Get EditorMessage SCI_GETSEARCHFLAGS 0 0 to iFlags
+        Move sSearchText                    to ltReplaceOptions.sSearchText
+        Move (iFlags iand SCFIND_WHOLEWORD) to ltReplaceOptions.bWordMatch
+        Move (iFlags iand SCFIND_MATCHCASE) to ltReplaceOptions.bMatchCase
+        Move (iFlags iand SCFIND_REGEXP)    to ltReplaceOptions.bRegExp
+        Send RequestDetails of oReplaceDialog (&ltReplaceOptions) (Object_Id(Self))
     End_Procedure
+
+//        // Replace
+//    Procedure Replace
+//        Integer iRet
+//        Get CM_ExecuteCmd CMD_FindReplace 0 to iRet
+//    End_Procedure
+
         // Goto line...
     // CMD_GOTOLINE - Moves to a user-specified line.
     // ( int ) The zero-based line number to jump to. If -1, the user is prompted.
@@ -2704,10 +2680,75 @@ Class cSciLexer is a DFControl // cUIObject  cObject
       
       If NUM_Arguments Gt 0 Move iNrEx    to iLine
       Else Begin
-        Winput "Enter a line:" iLine // eeks winput
+        Send RequestDetails to oGotoDialog (&iLine)
+        If (iLine<0) Procedure_Return
       End
       Send EditorMessage SCI_GOTOLINE iLine
+      Get CM_SetHighlightedLine iLine to iLine
     End_Procedure
+
+    
+    Procedure doNormalizeCase
+      Integer iVoid iStartLine iStartCol iEndLine iEndCol
+      Integer iPosStart
+      Integer iPosChar iPos
+      Integer eStyle eLastStyle
+      Integer iLineLength
+      Integer iWordStart
+      String  sLine sTALine
+      String  sWord sTAWord
+    
+      //Send EditorMessage SCI_CLEARCMDKEY ((65536*(SCMOD_CTRL))+Ascii("O"))   
+      
+      Get CM_GetSel False  to iVoid
+      Get piSelStartLine   to iStartLine
+      Get piSelStartCol    to iStartCol
+      Get piSelEndLine     to iEndLine
+      Get piSelEndCol      To iEndCol
+      Get value item iStartLine to sLine
+      Get EditorMessage SCI_FINDCOLUMN iStartLine 0 to iPosStart
+      //Get EditorMessage SCI_FINDCOLUMN iLine iCol to iPosCurrent
+      Get EditorMessage SCI_LINELENGTH iStartLine 0 to iLineLength
+      //Showln sLine
+      Move sLine To sTALine
+      For iPosChar from iPosStart to (iPosStart+iLineLength)
+        Get EditorMessage SCI_GETSTYLEAT iPosChar 0 to eStyle
+        Move (iPosChar-iPosStart+1) To iPos // to keep it simple,  this is the position in the sLine string
+        //Showln "Style " (iPosChar-iPosStart) " " eStyle
+        If (eStyle=SCE_DF_WORD and eLastStyle<>SCE_DF_WORD) Begin
+          Move SCE_DF_WORD To eLastStyle
+          Move iPos to iWordStart
+        End
+        Else If (eStyle=SCE_DF_SCOPEWORD and eLastStyle<>SCE_DF_SCOPEWORD) Begin
+          Move SCE_DF_SCOPEWORD To eLastStyle
+          Move iPos To iWordStart
+        End
+        If (eLastStyle=SCE_DF_WORD and eStyle<>SCE_DF_WORD) Begin
+          //Show " [" (Mid(sLine,iPos-iWordStart,iWordStart)) "]"
+          Move (Mid(sLine,iPos-iWordStart,iWordStart)) To sWord
+          Get FindKeyWord of oNormalizeCase SCLEX_DATAFLEX sWord to sTAWord
+          Move (Overstrike(sTAWord,sTALine,iWordStart)) To sTALine
+          Move 0 To eLastStyle
+        End
+        Else If (eLastStyle=SCE_DF_SCOPEWORD and eStyle<>SCE_DF_SCOPEWORD) Begin
+          //Show " <" (Mid(sLine,iPos-iWordStart,iWordStart)) ">"
+          Move (Mid(sLine,iPos-iWordStart,iWordStart)) To sWord
+          Get FindScopeWord of oNormalizeCase SCLEX_DATAFLEX sWord to sTAWord
+          Move (Overstrike(sTAWord,sTALine,iWordStart)) To sTALine
+          Move 0 To eLastStyle
+        End
+      Loop
+      If (sLine<>sTALine) Begin
+        //Send EditorMessage SCI_SETUNDOCOLLECTION False  // do not create undo for the adjust case, as doc suggests it isn't supported, make it just one undo
+        Send EditorMessage SCI_BEGINUNDOACTION
+        Set Value item iStartLine to sTALine
+        Send EditorMessage SCI_ENDUNDOACTION
+        //Send EditorMessage SCI_SETUNDOCOLLECTION True
+        // move cursor back to where it was
+        Get CM_SetSel iStartLine iStartCol iEndLine iEndCol True to iVoid
+      End  
+    End_Procedure
+
 
         // Fills the position of the cursor in pixels into Properties.
         // - getting the curren postion in Line / Col
@@ -2723,7 +2764,6 @@ Class cSciLexer is a DFControl // cUIObject  cObject
         Set piAbsPosYStart  to (Hi (Absolute_GuiOriginEx(Self))+piPosStartY(Self))
         Set piAbsPosXStart  to (Low(Absolute_GuiOriginEx(Self))+piPosStartX(Self))
     End_Procedure
-
 
         // Delivers the current line.
     Function Current_Item Returns Integer
@@ -2900,12 +2940,35 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     
 
     Procedure Key Integer iKey
+      Boolean bBlockSelect
+      Boolean bDisableKey
       Integer iKeyCode iKeyExt iRet
+      Integer iAnchorPos iCaretPos iColumn
+      
+      Move False to bDisableKey
+      Set pbBlockSelectBackspace to False
       If iKey Eq 2166 Send OnBeforePaste // Paste Ctrl+V
       If iKey Eq 2168 Send OnBeforeCut   // Cut Ctrl+X
+      Get pbBlockSelectActive to bBlockSelect
+      If (bBlockSelect) Begin
+        Send BlockSelectRemoveTextBlockBugfix
+        
+        If (iKey=KEY_TAB) Begin
+          // tab works, but not when only space characters at first line, then it is a mess.
+          // But if we then move the selection to the first column it works again. It's a bit ugly, but it works
+          Send BlockSelectTabKeyBugfix
+          Move True to bDisableKey
+        End
+      End
+      //IfNot (bDisableKey) Forward Send Key iKey
       Forward Send Key iKey
       If iKey Eq 2166 Send OnAfterPaste  // Paste Ctrl+V
       If iKey Eq 2168 Send OnAfterCut    // Cut Ctrl+X
+      If (bBlockSelect) Begin
+        If (iKey=KEY_BACK_SPACE) Begin  // in block select the backspace reselection only works one time, to make it work well, we have to reselect by hand
+          Set pbBlockSelectBackspace to True
+        End
+      End
     End_Procedure
 
     Procedure onDrawLine Handle hDC Integer iTop Integer iLeft Integer iBottom Integer iRight Integer iColLeft Integer iColRight Integer iLine Pointer pItemData Integer iStyle
@@ -3286,7 +3349,7 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     Function LoadAutoCompleteImage String sBitmap Integer iType Returns Boolean
       Boolean bOK
       Pointer pImage
-      UInteger uSize uWidth uHeight 
+      UInteger uSize uWidth uHeight
       UInteger iErr iVoid
       String  sFileName
       String  sError
@@ -3344,22 +3407,27 @@ Class cSciLexer is a DFControl // cUIObject  cObject
         Get phoCodelistHandler to hoArray
         Send SortAscending of hoArray  // Our list MUST be ascending order or the autocomplete won't work!
         Get Codelist_Item_Count of hoArray to iCount
-        For iItem from 0 To (iCount-1)
-          Get Codelist_value  of hoArray Item iItem To sItem
-          Get Codelist_bitmap of hoArray item iItem to sBitmap
-          Move False to bHasBmp
-          If (sBitmap<>"") Begin  // bitmap exists and found
-            Get LoadAutoCompleteImage sBitmap (iItem+1) to bHasBmp 
-          End
-          If (bHasBmp) Begin
-            Move (sList+sItem+"?"+Trim(iItem+1)+"|") To sList  
-          End
-          Else Move (sList+sItem+"|") To sList  // separator character is pipe symbol
-        Loop
-        Move (Length(sWord)) To iChar
-        Send EditorMessage SCI_AUTOCSHOW iChar (AddressOf(sList))
-        Move (String(sWord)+Character(0)) To sSelect
-        Send EditorMessage SCI_AUTOCSELECT 0 (AddressOf(sSelect))
+        If (iCount>0) Begin
+          For iItem from 0 To (iCount-1)
+            Get Codelist_value  of hoArray Item iItem To sItem
+            Get Codelist_bitmap of hoArray item iItem to sBitmap
+            Move False to bHasBmp
+            If (sBitmap<>"") Begin  // bitmap exists and found
+              Get LoadAutoCompleteImage sBitmap (iItem+1) to bHasBmp
+            End
+            If (bHasBmp) Begin
+              Move (sList+sItem+"?"+Trim(iItem+1)) To sList
+            End
+            Else Move (sList+sItem) To sList
+            If (iItem<(iCount-1)) Begin // separator character is pipe symbol, add everywhere except on last
+              Move (sList+"|") To sList
+            End
+          Loop
+          Move (Length(sWord)) To iChar
+          Send EditorMessage SCI_AUTOCSHOW iChar (AddressOf(sList))
+          Move (String(sWord)+Character(0)) To sSelect
+          Send EditorMessage SCI_AUTOCSELECT 0 (AddressOf(sSelect))
+        End
       End
     End_Procedure
 
@@ -3625,7 +3693,7 @@ Class cSciLexer is a DFControl // cUIObject  cObject
     
     // To be filled in at higher class
     Function ShouldTranslateCharacter Integer iKeyCode Returns Boolean
-    End_Function  
+    End_Function
 
     
     Procedure doCharacterTranslation Address aText Integer iLength
@@ -3646,9 +3714,133 @@ Class cSciLexer is a DFControl // cUIObject  cObject
             If (iNewKey<>0) Begin
               Move (Character(iNewKey)) To sNewChar
               Send EditorMessage SCI_CHANGEINSERTION 1 (AddressOf(sNewChar))
-            End  
+            End
           End
         End
+      End
+    End_Procedure
+
+    Procedure UpdateUIBlockSelectEdit 
+      Boolean bBlockSelect
+      Integer iCaretPos iAnchorPos 
+
+      If (pbBlockSelectBackspace(Self)) Begin
+        // bugfix
+        Send EditorMessage SCI_SETSELECTIONMODE SC_SEL_RECTANGLE
+      End
+      Get EditorMessage SCI_SELECTIONISRECTANGLE 0 0 to bBlockSelect
+      //Set pbBlockSelectActive to bBlockSelect
+      If (bBlockSelect) Begin
+        Get EditorMessage SCI_GETRECTANGULARSELECTIONANCHOR 0 0 to iAnchorPos
+        Get EditorMessage SCI_GETRECTANGULARSELECTIONCARET  0 0 to iCaretPos
+        Set piBlockSelectAnchorPos to iAnchorPos
+        Set piBlockSelectCaretPos  to iCaretPos
+      End
+      If (bBlockSelect=False) Begin
+        Set piBlockSelectAnchorPos to 0
+        Set piBlockSelectCaretPos  to 0
+      End
+    End_Procedure
+    
+    // tab works, but not when only space characters at first line, then it is a mess.
+    // But if I move the selection to the first column it works again. It's a bit ugly, but it works
+    Procedure BlockSelectTabKeyBugfix
+      Boolean bNeedBugfix
+      Integer iAnchorPos iCaretPos iColumn
+      Integer iLine iStartLine iEndLine
+      String  sLine sValue
+  
+      Move True to bNeedBugfix
+      Get piBlockSelectAnchorPos to iAnchorPos
+      Get piBlockSelectCaretPos  to iCaretPos
+      // As it is a block select, the start column is the end column and thus we check the text of
+      // all selected lines from column 0 to iColumn
+      Get EditorMessage SCI_GETCOLUMN  iAnchorPos 0 to iColumn
+      Get EditorMessage SCI_LINEFROMPOSITION iAnchorPos 0 to iStartLine
+      Get EditorMessage SCI_LINEFROMPOSITION iCaretPos  0 to iEndLine
+      For iLine from iStartLine to iEndLine
+        Get Value item iLine to sLine
+        Move (Left(sLine,iColumn)) To sValue
+        If (sValue<>"") Begin
+          Move False To bNeedBugfix
+          Move iEndLine to iLine
+        End  
+      Loop
+      If (bNeedBugfix) Begin
+        Send BlockSelectAdjustSelectionColumn iAnchorPos iCaretPos (-iColumn)
+      End  
+    End_Procedure
+    
+    // If you do a block select and then start typing it should remove the selected block of text
+    // before it does the multiline text type.
+    Procedure BlockSelectRemoveTextBlockBugfix
+      Integer iCaretPos iAnchorPos
+      Integer iStartLine iStartColumn
+      Integer iEndLine   iEndColumn
+
+      Get piBlockSelectAnchorPos to iAnchorPos
+      Get piBlockSelectCaretPos  to iCaretPos
+      Get EditorMessage SCI_LINEFROMPOSITION iAnchorPos 0 to iStartLine
+      Get EditorMessage SCI_GETCOLUMN        iAnchorPos 0 to iStartColumn
+      
+      Get EditorMessage SCI_LINEFROMPOSITION iCaretPos  0 to iEndLine
+      Get EditorMessage SCI_GETCOLUMN        iCaretPos  0 to iEndColumn
+      If (iStartColumn<>iEndColumn) Begin
+        Send EditorMessage SCI_DELETEBACK  //<--  this actually works ?\_(?)_/?
+      End
+    End_Procedure
+    
+    //
+    // Move the block selection by iAdjust positions to the left or right
+    //
+    Procedure BlockSelectAdjustSelectionColumn Integer iAnchorPos Integer iCaretPos Integer iAdjust
+      Integer iStartLine iStartColumn
+      Integer iEndLine   iEndColumn
+
+      Get EditorMessage SCI_LINEFROMPOSITION iAnchorPos 0 to iStartLine
+      Get EditorMessage SCI_GETCOLUMN        iAnchorPos 0 to iStartColumn
+      
+      Get EditorMessage SCI_LINEFROMPOSITION iCaretPos  0 to iEndLine
+      Get EditorMessage SCI_GETCOLUMN        iCaretPos  0 to iEndColumn
+      If (iStartColumn=iEndColumn) Begin
+        //
+        Get EditorMessage SCI_FINDCOLUMN iStartLine (iStartColumn+iAdjust) to iAnchorPos
+        Get EditorMessage SCI_FINDCOLUMN iEndLine   (iEndColumn+iAdjust)   to iCaretPos
+        // move selection to the new position
+        Send EditorMessage SCI_SETRECTANGULARSELECTIONANCHOR iAnchorPos
+        Send EditorMessage SCI_SETRECTANGULARSELECTIONCARET  iCaretPos
+      End
+    End_Procedure
+
+    Procedure BlockSelectEdit Integer iChar Integer lParam
+      Integer iCaretPos iAnchorPos iPos
+      Integer iStartLine iStartColumn iLine
+      Integer iEndLine   iEndColumn iRet
+      String  sChar
+
+      Move (character(iChar)) To sChar
+      Get piBlockSelectAnchorPos to iAnchorPos
+      Get piBlockSelectCaretPos  to iCaretPos
+      
+      Get EditorMessage SCI_LINEFROMPOSITION iAnchorPos 0 to iStartLine
+      Get EditorMessage SCI_GETCOLUMN        iAnchorPos 0 to iStartColumn
+      
+      Get EditorMessage SCI_LINEFROMPOSITION iCaretPos  0 to iEndLine
+      Get EditorMessage SCI_GETCOLUMN        iCaretPos  0 to iEndColumn
+      If (iStartColumn=iEndColumn) Begin
+        If (iStartLine>iEndLine) Send SwapIntegerVariables (&iStartLine) (&iEndLine)
+        // easy type over multiple lines, cursor is on endline and will type itself
+        Send EditorMessage SCI_BEGINUNDOACTION
+        For iLine from iStartLine to (iEndLine-1)
+          Get CM_InsertText sChar iLine iStartColumn to iRet
+        Loop
+        Send EditorMessage SCI_ENDUNDOACTION
+        //
+        Get EditorMessage SCI_FINDCOLUMN iStartLine (iStartColumn+1) to iAnchorPos
+        Get EditorMessage SCI_FINDCOLUMN iEndLine   (iEndColumn+1)   to iCaretPos
+        Send EditorMessage SCI_SETRECTANGULARSELECTIONANCHOR iAnchorPos
+        Send EditorMessage SCI_SETRECTANGULARSELECTIONCARET  iCaretPos
+        //Send BlockSelectAdjustSelectionColumn iAnchorPos iCaretPos 1  // this one doesn't work, don't quite understand why
       End
     End_Procedure
 
@@ -3732,6 +3924,9 @@ Class cSciLexer is a DFControl // cUIObject  cObject
               Send OnCharAdded
               Get Msg_onChange                    to iRet
               Get Msg_DoKeyAction SCNotify.ch lParam    to iRet
+                If (pbBlockSelectActive(Self)) Begin
+                  Send BlockSelectEdit SCNotify.ch lParam
+                End
               Case Break
             Case (iCode=SCN_SAVEPOINTREACHED   )
               Send OnSavePointReached
@@ -3756,9 +3951,12 @@ Class cSciLexer is a DFControl // cUIObject  cObject
                 Get EditorMessage SCI_GETCURRENTPOS 0 0 to iPos
                 Send onNavigate iPos
               End
+              If (SCNotify.updated iAnd SC_UPDATE_SELECTION) Begin
+                Send UpdateUIBlockSelectEdit
+              End
               Case Break
             Case (iCode=SCN_MODIFIED           )
-              Send OnModified
+              Send OnModified 
               If (SCNotify.modificationType iAnd (SC_MOD_INSERTTEXT+SC_MOD_DELETETEXT)) Begin
                 Send LineCountChanged
                 If ((SCNotify.modificationType iAnd SC_STARTACTION)=0) Begin
@@ -3978,7 +4176,7 @@ Class cSciLexer is a DFControl // cUIObject  cObject
         Integer iRet
         //Move (CM_ExecuteCmd(Self,CMD_PROPERTIES,0)) to iRet
         //Send Info_Box "Start configuration screen for editor component"
-        Send PopupEditorSettingsDialog Self
+        //Send PopupEditorSettingsDialog Self
     End_Procedure
 
 End_Class

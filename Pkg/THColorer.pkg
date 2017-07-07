@@ -1,3 +1,7 @@
+// THColorer.pkg
+// This is TheHammer 3.0 Code Colorer
+// by Sergey V. Natarov
+
 // *** COLORS ***
 // _WindowColr_ _LftMrgnClr_ _BookmarkCl_ _BookmarkBg_ _TextColorX_ _TextBackgr_ _NumberColr_ _NumberBkGr_ _KeywordsCl_ _KeywordsBg_ _OperatorCl_ _OperatorBg_ _ScopeKwClr_ _ScopeKwBkg_ _CommentClr_ _CommentBkg_ _StringColr_ _StringBkgr_ _TagTextClr_ _TagTextBkg_ _TagEntyClr_ _TagEntyBkg_ _TagElemClr_ _TagElemBkg_ _TagAttrClr_ _TagAttrBkg_ _LineNrColr_ _LineNrBkgr_ _HrDivLinCl_ _VrDivLinCl_ _HiLtLineCl_
 // 255255255000 192192192000 255255255255 255255255255 000000000000 255255255000 255000255000 255255255000 000000255000 255255255000 255000000000 255255255000 000000255000 255255255000 000128000000 255255255000 128128128000 255255255000 000128128000 255255255255 255000000000 255255255255 000000255000 255255255255 128000000000 255255255255 255255255000 128128128000 255255255255 192192192000 192192192000 000
@@ -128,6 +132,7 @@ Procedure Register_Color_Elements
     Send Add_Color_Element  EC_UNMATCHEDBRACE   "Unmatched Brace"       36  37   1   15   0
     Send Add_Color_Element  EC_METATAGS         "Meta Tags"             38  39   1   16   0
     Send Add_Color_Element  EC_SELECTION        "Selection"             40   0   0    0   0
+    Send Add_Color_Element  EC_PREPROCESSOR     "Pre-processor (Macro)" 41  42   1   17   0
     // Load current options
     Send SetColorerCurrentStyles "" ""
 End_Procedure
@@ -163,7 +168,7 @@ Function CurrentColors Returns String
 End_Function
 
 Function CurrentFontStyles Returns String
-    String[16] sFontStyle
+    String[17] sFontStyle
     Integer iElement iElements
     String  sFontStr sFontStyles
     Integer iFont
@@ -230,6 +235,9 @@ Class cEditorPreview is a cRichEdit
     End_Procedure
     Procedure AddUnmatchedBrace String sBraces
         Send AddElement EC_UNMATCHEDBRACE sBraces
+    End_Procedure
+    Procedure AddPreProcessor String sMacro
+        Send AddElement EC_PREPROCESSOR sMacro
     End_Procedure
     Procedure AddSpacing String sSpaces
         Set TextColor       to  gtColorer[EC_TEXT].iForeC
