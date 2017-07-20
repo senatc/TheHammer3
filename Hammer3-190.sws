@@ -4,3 +4,6 @@ Version=19.0
 ConfigFile=.\Programs\Config.ws
 [Projects]
 Project0=Hammer3.src
+Project1=vdfcls.SRC
+Project2=asdbc.src
+Project3=DosBox.src

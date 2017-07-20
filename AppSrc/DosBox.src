@@ -17,6 +17,8 @@
 //*****************************************************************************************
 //Use MsgBox.pkg
 //Use DFAllent.pkg
+Use Dferror.pkg
+
 Use cIniManager.pkg         // Class cIniManager
 Use cSystemInfo             // To check which System: WinNT or Win9X
 

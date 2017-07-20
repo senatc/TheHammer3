@@ -1,5 +1,5 @@
 <classList xmlns="http://www.dataaccess.com/VisualDataFlex/2006/classlist/">
-	<VDFLibraryTimeStamp>2014-06-25T12:01:18</VDFLibraryTimeStamp><libraries></libraries>
+	<VDFLibraryTimeStamp>2017-01-19T08:15:12</VDFLibraryTimeStamp><libraries></libraries>
 	<classes>
 		<class>
 			<className>BitmapContainer</className>
@@ -933,16 +933,86 @@
 			<libraryID>0</libraryID>
 		</class>
 		<class>
-			<className>cCrystal</className>
-			<image>ControlCrystal.ico</image>
-			<package>cCrystal.pkg</package>
-			<groupName>Others</groupName>
+			<className>cWebColorForm</className>
+			<image>cWebColorForm.ico</image>
+			<package>cWebColorForm.pkg</package>
+			<groupName>Web Controls</groupName>
 			<libraryID>0</libraryID>
 		</class>
 		<class>
-			<className>cCrystalActiveXReportViewer</className>
-			<image>ControlCrystalViewer.ico</image>
-			<package>cCrystalActiveXReportViewer.pkg</package>
+			<className>cWebColorPicker</className>
+			<image>cWebColorPicker.ico</image>
+			<package>cWebColorPicker.pkg</package>
+			<groupName>Web Controls</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebListSwipeButton</className>
+			<image>cWebListSwipeButton.ico</image>
+			<package>cWebListSwipeButton.pkg</package>
+			<groupName>Web Controls</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebMenuButton</className>
+			<image>cWebMenuButton.ico</image>
+			<package>cWebMenuButton.pkg</package>
+			<groupName>Web Controls</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebMenuList</className>
+			<image>cWebMenuList.ico</image>
+			<package>cWebMenuList.pkg</package>
+			<groupName>Web Controls</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebParentCombo</className>
+			<image>cWebParentCombo.ico</image>
+			<package>cWebParentCombo.pkg</package>
+			<groupName>Web Controls</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebAccordionContainer</className>
+			<image>cWebAccordionContainer.ico</image>
+			<package>cWebAccordionContainer.pkg</package>
+			<groupName>Web Containers</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebAccordionCard</className>
+			<image>cWebAccordionCard.ico</image>
+			<package>cWebAccordionCard.pkg</package>
+			<groupName>Web Containers</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cWebFloatingPanel</className>
+			<image>cWebFloatingPanel.ico</image>
+			<package>cWebFloatingPanel.pkg</package>
+			<groupName>Web Containers</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>dbParentCombo</className>
+			<image>ControldbComboForm.ico</image>
+			<package>dbParentCombo.pkg</package>
+			<groupName>Data Controls</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cJsonHttpTransfer</className>
+			<image>ControlHttpTransfer.ico</image>
+			<package>cJsonHttpTransfer.pkg</package>
+			<groupName>Internet</groupName>
+			<libraryID>0</libraryID>
+		</class>
+		<class>
+			<className>cConnection</className>
+			<image>ControlConnection.ico</image>
+			<package>cConnection.pkg</package>
 			<groupName>Others</groupName>
 			<libraryID>0</libraryID>
 		</class>
